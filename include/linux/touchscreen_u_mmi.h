@@ -601,10 +601,6 @@ struct ts_mmi_dev {
 	enum ts_mmi_pm_mode	pm_mode;
 
 	struct delayed_work	work;
-#ifdef CONFIG_TOUCHCLASS_MMI_MTK_CHARGER
-	struct power_supply *psy;
-	struct delayed_work	usb_detect_work;
-#endif
 	struct kfifo		cmd_pipe;
 
 	struct notifier_block	freq_nb;
@@ -612,6 +608,7 @@ struct ts_mmi_dev {
 
 	struct work_struct	ps_notify_work;
 	struct notifier_block	ps_notif;
+	bool			ps_is_present_set;
 	bool			ps_is_present;
 
 	struct notifier_block	fps_notif;
