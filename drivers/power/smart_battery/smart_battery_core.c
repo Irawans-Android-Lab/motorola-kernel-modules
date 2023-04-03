@@ -233,6 +233,75 @@ static int smart_batt_get_capacity(struct mmi_smart_battery *chip)
 	return rsoc;
 }
 
+#ifdef CONFIG_MOTO_1800_CYCLE
+static int ifc_enable(bool enable)
+{
+	struct mmi_smart_battery *chip = this_chip;
+
+	return gauge_dev_set_ifc_enable(chip->battery[0].gauge_dev, enable);
+}
+
+static int ifc_set_temp(int temp)
+{
+	struct mmi_smart_battery *chip = this_chip;
+
+	return gauge_dev_set_ifc_temp(chip->battery[0].gauge_dev, temp);
+}
+
+static int ifc_is_on( bool *en)
+{
+	struct mmi_smart_battery *chip = this_chip;
+
+	return gauge_dev_is_ifc_on(chip->battery[0].gauge_dev, en);
+}
+
+static int ifc_is_change( bool *en)
+{
+	struct mmi_smart_battery *chip = this_chip;
+
+	return gauge_dev_is_ifc_change(chip->battery[0].gauge_dev, en);
+}
+
+static int ifc_change_clr(void)
+{
+	struct mmi_smart_battery *chip = this_chip;
+
+	return gauge_dev_ifc_change_clr(chip->battery[0].gauge_dev);
+}
+
+static int ifc_get_step(struct mmi_ifc_zone *out, int zone_num)
+{
+	struct mmi_smart_battery *chip = this_chip;
+
+	return gauge_dev_get_ifc_step(chip->battery[0].gauge_dev, out, zone_num);
+}
+
+static int ifc_get_step_num( int *out)
+{
+	struct mmi_smart_battery *chip = this_chip;
+
+	return gauge_dev_get_ifc_step_num(chip->battery[0].gauge_dev, out);
+}
+
+
+static int ifc_ops_register(struct mmi_smart_battery *chip)
+{
+	int ret;
+
+	chip->ifc_chg_ops.ifc_enable = ifc_enable;
+	chip->ifc_chg_ops.ifc_set_temp = ifc_set_temp;
+	chip->ifc_chg_ops.ifc_is_on = ifc_is_on;
+	chip->ifc_chg_ops.ifc_is_change = ifc_is_change;
+	chip->ifc_chg_ops.ifc_change_clr = ifc_change_clr;
+	chip->ifc_chg_ops.ifc_get_step = ifc_get_step;
+	chip->ifc_chg_ops.ifc_get_step_num = ifc_get_step_num;
+
+	ret = mmi_ifc_ops_register(&chip->ifc_chg_ops);
+
+	return ret;
+}
+#endif //CONFIG_MOTO_1800_CYCLE
+
 static int mmi_get_batt_capacity_level(struct mmi_smart_battery *chip)
 {
 	int uisoc = chip->uisoc;
@@ -1124,7 +1193,9 @@ static int smart_battery_probe(struct platform_device *pdev)
 	chip->fg_workqueue = create_singlethread_workqueue("smart_battery");
 	INIT_DELAYED_WORK(&chip->battery_delay_work, smart_batt_update_thread);
 	queue_delayed_work(chip->fg_workqueue, &chip->battery_delay_work , msecs_to_jiffies(QUEUE_START_WORK_TIME));
-
+#ifdef CONFIG_MOTO_1800_CYCLE
+	ifc_ops_register(chip);
+#endif
 	battery_tcmd_register(chip);
 	rc = sysfs_create_group(&chip->batt_psy->dev.kobj,
 				&smart_batt_attr_group);

@@ -20,6 +20,76 @@
 
 static struct class *gauge_class;
 
+int gauge_dev_set_ifc_enable(struct gauge_device *gauge_dev, bool enable)
+{
+	if (gauge_dev != NULL && gauge_dev->ops != NULL &&
+	    gauge_dev->ops->set_ifc_enable)
+		return gauge_dev->ops->set_ifc_enable(gauge_dev, enable);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(gauge_dev_set_ifc_enable);
+
+int gauge_dev_set_ifc_temp(struct gauge_device *gauge_dev, int temp)
+{
+	if (gauge_dev != NULL && gauge_dev->ops != NULL &&
+	    gauge_dev->ops->set_ifc_temp)
+		return gauge_dev->ops->set_ifc_temp(gauge_dev, temp);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(gauge_dev_set_ifc_temp);
+
+int gauge_dev_is_ifc_on(struct gauge_device *gauge_dev, bool *en)
+{
+	if (gauge_dev != NULL && gauge_dev->ops != NULL &&
+	    gauge_dev->ops->is_ifc_on)
+		return gauge_dev->ops->is_ifc_on(gauge_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(gauge_dev_is_ifc_on);
+
+int gauge_dev_is_ifc_change(struct gauge_device *gauge_dev, bool *en)
+{
+	if (gauge_dev != NULL && gauge_dev->ops != NULL &&
+	    gauge_dev->ops->is_ifc_change)
+		return gauge_dev->ops->is_ifc_change(gauge_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(gauge_dev_is_ifc_change);
+
+int gauge_dev_ifc_change_clr(struct gauge_device *gauge_dev)
+{
+	if (gauge_dev != NULL && gauge_dev->ops != NULL &&
+	    gauge_dev->ops->ifc_change_clr)
+		return gauge_dev->ops->ifc_change_clr(gauge_dev);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(gauge_dev_ifc_change_clr);
+
+int gauge_dev_get_ifc_step(struct gauge_device *gauge_dev, struct mmi_ifc_zone *out, int zone_num)
+{
+	if (gauge_dev != NULL && gauge_dev->ops != NULL &&
+	    gauge_dev->ops->get_ifc_step)
+		return gauge_dev->ops->get_ifc_step(gauge_dev, out, zone_num);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(gauge_dev_get_ifc_step);
+
+int gauge_dev_get_ifc_step_num(struct gauge_device *gauge_dev, int *out)
+{
+	if (gauge_dev != NULL && gauge_dev->ops != NULL &&
+	    gauge_dev->ops->get_ifc_step_num)
+		return gauge_dev->ops->get_ifc_step_num(gauge_dev, out);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(gauge_dev_get_ifc_step_num);
+
 int gauge_dev_set_shutdown_threshold(struct gauge_device *gauge_dev, int shutdown_voltage)
 {
 	if (gauge_dev != NULL && gauge_dev->ops != NULL &&

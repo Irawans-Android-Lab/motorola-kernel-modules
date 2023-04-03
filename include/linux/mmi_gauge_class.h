@@ -17,6 +17,7 @@
 #include <linux/device.h>
 #include <linux/mutex.h>
 #include <linux/seq_file.h>
+#include <charger_class.h>
 
 struct gauge_properties {
 	const char *alias_name;
@@ -54,6 +55,14 @@ struct gauge_ops {
 	int (*set_capacity)(struct gauge_device *gauge_dev, int soc);
 	int (*set_charge_type)(struct gauge_device *gauge_dev, int charge_type);
 	int (*set_shutdown_threshold)(struct gauge_device *gauge_dev, int voltage);
+
+	int (*set_ifc_enable)(struct gauge_device *gauge_dev, bool enable);
+	int (*set_ifc_temp)(struct gauge_device *gauge_dev, int temp);
+	int (*is_ifc_on)(struct gauge_device *gauge_dev, bool *en);
+	int (*is_ifc_change)(struct gauge_device *gauge_dev, bool *en);
+	int (*ifc_change_clr)(struct gauge_device *gauge_dev);
+	int (*get_ifc_step)(struct gauge_device *gauge_dev, struct mmi_ifc_zone *out, int zone_num);
+	int (*get_ifc_step_num)(struct gauge_device *gauge_dev, int *out);
 };
 
 #define to_gauge_device(obj) container_of(obj, struct gauge_device, dev)
@@ -99,6 +108,21 @@ extern int gauge_dev_get_battid(struct gauge_device *gauge_dev, char *battid);
 extern int gauge_dev_get_charge_counter(struct gauge_device *gauge_dev, int *charge_counter);
 
 extern int gauge_dev_get_cycle_count(struct gauge_device *gauge_dev, int *cycle_count);
+
+extern int gauge_dev_set_ifc_enable(struct gauge_device *gauge_dev, bool enable);
+
+extern int gauge_dev_set_ifc_temp(struct gauge_device *gauge_dev, int temp);
+
+extern int gauge_dev_is_ifc_on(struct gauge_device *gauge_dev, bool *en);
+
+extern int gauge_dev_is_ifc_change(struct gauge_device *gauge_dev, bool *en);
+
+extern int gauge_dev_ifc_change_clr(struct gauge_device *gauge_dev);
+
+extern int gauge_dev_get_ifc_step(struct gauge_device *gauge_dev, struct mmi_ifc_zone *out, int zone_num);
+
+extern int gauge_dev_get_ifc_step_num(struct gauge_device *gauge_dev, int *out);
+
 
 extern struct gauge_device *gauge_device_register(
 	const char *name,

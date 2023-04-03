@@ -15,6 +15,7 @@
 
 #include <linux/mmi_gauge_class.h>
 #include <linux/power/moto_chg_tcmd.h>
+#include <charger_class.h>
 
 #define mmi_err(chg, fmt, ...)			\
 	do {						\
@@ -113,6 +114,9 @@ struct mmi_smart_battery {
 #ifdef CONFIG_MOTO_1200_CYCLE
 	int				bat_cycle_count;
 	bool			is_reset_battery_cycle;
+#endif
+#ifdef CONFIG_MOTO_1800_CYCLE
+	struct ifc_ops  ifc_chg_ops;
 #endif
 };
 

@@ -155,6 +155,15 @@ enum mmi_fg_mac_cmd {
 	FG_MAC_CMD_ENTER_ROM	= 0x0F00,
 	FG_MAC_CMD_PARAMS_VER	= 0x440B,
 	FG_MAC_CMD_BATT_SERIALNUM	= 0x440D,
+	FG_MAC_CMD_IFC_ENABLE		= 0x003C,
+	FG_MAC_CMD_IFC_DISENABLE	= 0x003D,
+	FG_MAC_CMD_IFC_SET_TEMP		= 0x00B0,
+	FG_MAC_CMD_IFC_STATUS		= 0x0055,
+	FG_MAC_CMD_IFC_STEP_ARRAY1	= 0x00B1,
+	FG_MAC_CMD_IFC_STEP_ARRAY2	= 0x00B2,
+	FG_MAC_CMD_IFC_STEP_ARRAY3	= 0x00B3,
+	FG_MAC_CMD_IFC_STEP_CHANGED	= 0x00B4,
+
 };
 
 
@@ -2551,6 +2560,307 @@ int fg_set_shutdown_threshold(struct gauge_device *gauge_dev, int shutd_vol)
 	return ret;
 }
 
+static int ifc_command_read_with_checksum(struct mmi_fg_chip *dev, u16 reg, u8 *poutbuf, u32 len)
+{
+	u8 reg_data[2];
+	u8 block_data[36];
+	int ret;
+
+	reg_data[0] = (reg >> 0) & 0xFF;
+	reg_data[1] = (reg >> 8) & 0xFF;
+
+	if(!poutbuf) {
+		mmi_err(":poutbuf is NULL!!\n");
+		return -EFAULT;
+	}
+
+	ret = fg_write_block(dev, dev->regs[BQ_FG_REG_ALT_MAC], reg_data, 2);
+	if(ret < 0) {
+		mmi_err(":write reg:%d failed!!\n",reg);
+		return ret;
+	}
+	ret = fg_read_block(dev, dev->regs[BQ_FG_REG_ALT_MAC], block_data, 36);
+	if(ret < 0) {
+		mmi_err(":read reg:%d failed!!\n",reg);
+		return ret;
+	}
+	fg_print_buf("command_read_with_CHECKSUM",block_data, 36);
+	if((reg_data[0] != block_data[0]) || (reg_data[1] != block_data[1]) ||
+		(block_data[34] != checksum(block_data,len+2)) || (block_data[35] != len+4)) {
+		mmi_err(":command:%x failed!!\n",checksum(block_data,len+2));
+		return -EIO;
+	}
+	memcpy(poutbuf,&block_data[2],len);
+
+	return 0;
+}
+
+static int battery_ifc_enable(struct mmi_fg_chip *mmi, bool enable)
+{
+	int ret;
+	u16 cmd;
+
+	if( enable)
+		cmd = FG_MAC_CMD_IFC_ENABLE;
+	else
+		cmd = FG_MAC_CMD_IFC_DISENABLE;
+
+	ret = fg_write_word(mmi, mmi->regs[BQ_FG_REG_ALT_MAC], cmd);
+	if (ret < 0) {
+		mmi_err("fail to battery_ifc_enable, ret=%d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+int fg_set_ifc_enable(struct gauge_device *gauge_dev, bool enable)
+{
+	struct mmi_fg_chip *mmi = dev_get_drvdata(&gauge_dev->dev);
+
+	if (!mmi->fake_battery)
+		return battery_ifc_enable(mmi, enable);
+	else
+		return -EPERM;
+}
+
+static int fg_set_ifc_temperature(struct mmi_fg_chip *mmi, int temp)
+{
+	u8 databuf[4] = {0};
+	u8 cs[2] = {0};
+	int ret;
+
+	if (temp < 0) {
+		temp *= -1;
+		temp -= 1;
+		temp = 0xffff - temp;
+	}
+
+	databuf[0] = (FG_MAC_CMD_IFC_SET_TEMP >> 0) & 0xFF;
+	databuf[1] = (FG_MAC_CMD_IFC_SET_TEMP >> 8) & 0xFF;
+	databuf[2] = (temp >> 0) & 0xFF;
+	databuf[3] = (temp >> 8) & 0xFF;
+
+	cs[0] = checksum(&databuf[0], 4);
+	cs[1] = 6;
+
+	ret = fg_write_block(mmi, mmi->regs[BQ_FG_REG_ALT_MAC], databuf,4);
+	if(ret < 0)
+	{
+		mmi_err("fg_set_temperature:write data buf failed!!\n");
+		return ret;
+	}
+	ret = fg_write_block(mmi, mmi->regs[BQ_FG_REG_MAC_CHKSUM], cs,2);
+	if(ret < 0)
+	{
+		mmi_err("fg_set_temperature:write checksum buf failed!!\n");
+		return ret;
+	}
+	msleep(NFG1000_com_WAIT_TIME);
+
+	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_SET_TEMP, databuf, 2);
+	if(ret) {
+		mmi_err(": From fg ic read the  firmware version error!\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+int fg_ifc_set_temp(struct gauge_device *gauge_dev, int temp)
+{
+	struct mmi_fg_chip *mmi = dev_get_drvdata(&gauge_dev->dev);
+
+	if (!mmi->fake_battery)
+		return fg_set_ifc_temperature(mmi, temp);
+	else
+		return -EPERM;
+}
+
+int fg_is_ifc_on_status(struct mmi_fg_chip *mmi, bool *en)
+{
+	int ret;
+	u8 databuf[4]= {0};
+
+	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_STATUS, databuf, 4);
+	if(ret) {
+		mmi_err(" error!\n");
+		return ret;
+	}
+	mmi_info("ifc on =%d\n",databuf[3]);
+
+	if(databuf[3] == 1)
+		*en = true;
+	else
+		*en = false;
+
+	return 0;
+}
+
+int fg_is_ifc_on(struct gauge_device *gauge_dev, bool *en)
+{
+	struct mmi_fg_chip *mmi = dev_get_drvdata(&gauge_dev->dev);
+
+	if (!mmi->fake_battery)
+		return fg_is_ifc_on_status(mmi, en);
+	else
+		return -EPERM;
+}
+
+int fg_is_ifc_changed(struct mmi_fg_chip *mmi, bool *en)
+{
+	int ret;
+	u8 databuf[3]= {0};
+
+	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_STEP_CHANGED, databuf, 1);
+	if(ret) {
+		mmi_err(" error!\n");
+		return ret;
+	}
+	mmi_info("fg_is_ifc_changed =%d\n",databuf[0]);
+
+	if(databuf[0] == 1)
+		*en = true;
+	else
+		*en = false;
+
+	return 0;
+}
+
+int fg_is_ifc_change(struct gauge_device *gauge_dev, bool *en)
+{
+	struct mmi_fg_chip *mmi = dev_get_drvdata(&gauge_dev->dev);
+
+	if (!mmi->fake_battery)
+		return fg_is_ifc_changed(mmi, en);
+	else
+		return -EPERM;
+}
+
+int fg_ifc_changed_clr(struct mmi_fg_chip *mmi)
+{
+	u8 databuf[3] = {0};
+	u8 cs[2] = {0};
+	int ret;
+
+
+	databuf[0] = (FG_MAC_CMD_IFC_STEP_CHANGED >> 0) & 0xFF;
+	databuf[1] = (FG_MAC_CMD_IFC_STEP_CHANGED >> 8) & 0xFF;
+	databuf[2] = 0;
+
+	cs[0] = checksum(&databuf[0], 3);
+	cs[1] = 5;
+
+	ret = fg_write_block(mmi, mmi->regs[BQ_FG_REG_ALT_MAC], databuf, 3);
+	if(ret < 0)
+	{
+		printk("fg_ifc_changed_clr:write data buf failed!!\n");
+		return ret;
+	}
+	ret = fg_write_block(mmi, mmi->regs[BQ_FG_REG_MAC_CHKSUM], cs, 2);
+	if(ret < 0)
+	{
+		printk("fg_ifc_changed_clr:write checksum buf failed!!\n");
+		return ret;
+	}
+	msleep(NFG1000_com_WAIT_TIME);
+
+	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_STEP_CHANGED, databuf, 1);
+	if(ret) {
+		mmi_err(": From fg ic read fg_ifc_changed_clr error!\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+int fg_ifc_change_clr(struct gauge_device *gauge_dev)
+{
+	struct mmi_fg_chip *mmi = dev_get_drvdata(&gauge_dev->dev);
+
+	if (!mmi->fake_battery)
+		return fg_ifc_changed_clr(mmi);
+	else
+		return -EPERM;
+}
+
+int fg_get_ifc_step_array(struct mmi_fg_chip *mmi, struct mmi_ifc_zone *out, int zone_num)
+{
+	int ret, i, j;
+	u8 databuf[74]= {0};
+
+	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_STEP_ARRAY1, &databuf[0], 32);
+	if(ret) {
+		mmi_err(": read FG_MAC_CMD_IFC_STEP_ARRAY1 error!\n");
+		return ret;
+	}
+	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_STEP_ARRAY2, &databuf[32], 32);
+	if(ret) {
+		mmi_err(": read FG_MAC_CMD_IFC_STEP_ARRAY2 error!\n");
+		return ret;
+	}
+	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_STEP_ARRAY3, &databuf[64], 10);
+	if(ret) {
+		mmi_err(": read FG_MAC_CMD_IFC_STEP_ARRAY3 error!\n");
+		return ret;
+	}
+
+	for (i = 0; i < zone_num; i++) {
+		j = i * 6;
+		out->fcc_max_ma= NAKE_DWORD_8BITS(0,0,databuf[j+1],databuf[j]);
+		out->norm_mv= NAKE_DWORD_8BITS(0,0,databuf[j+3],databuf[j+2]);
+		out->fcc_norm_ma= NAKE_DWORD_8BITS(0,0,databuf[j+5],databuf[j+4]);
+		if (i < zone_num -  1)
+			out++;
+	}
+
+	return 0;
+}
+
+int fg_get_ifc_step(struct gauge_device *gauge_dev, struct mmi_ifc_zone *out, int zone_num)
+{
+	struct mmi_fg_chip *mmi = dev_get_drvdata(&gauge_dev->dev);
+
+	if (!mmi->fake_battery)
+		return fg_get_ifc_step_array(mmi, out, zone_num);
+	else
+		return -EPERM;
+}
+
+#define MAX_IFC_ZONE 12
+/*At byte 9 ,but lenth is 9+1*/
+#define IFC_NUM_BYTE 10
+int fg_get_ifc_step_length(struct mmi_fg_chip *mmi, int *out)
+{
+	int ret;
+	u8 databuf[9]= {0};
+
+	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_STEP_ARRAY3, &databuf[0], IFC_NUM_BYTE);
+	if(ret) {
+		mmi_err(": read FG_MAC_CMD_IFC_STEP_ARRAY3 error!\n");
+		return ret;
+	}
+
+	mmi_info("ifc step num is %d\n",  databuf[8]);
+      if (databuf[8] > MAX_IFC_ZONE ||databuf[8] == 0)
+		return -EINVAL;
+	else
+		*out = databuf[8];
+
+	return 0;
+}
+
+int fg_get_ifc_step_num(struct gauge_device *gauge_dev, int *out)
+{
+	struct mmi_fg_chip *mmi = dev_get_drvdata(&gauge_dev->dev);
+
+	if (!mmi->fake_battery)
+		return fg_get_ifc_step_length(mmi, out);
+	else
+		return -EPERM;
+}
+
+
 static const u8 fg_dump_regs[] = {
 	0x00, 0x02, 0x04, 0x06,
 	0x08, 0x0A, 0x0C, 0x0E,
@@ -2746,6 +3056,13 @@ static struct gauge_ops nfg1000_gauge_ops = {
 	.set_charge_type = fg_set_charge_type,
 	.set_temperature = fg_set_temp,
 	.set_shutdown_threshold = fg_set_shutdown_threshold,
+	.set_ifc_enable = fg_set_ifc_enable,
+	.set_ifc_temp = fg_ifc_set_temp,
+	.is_ifc_on= fg_is_ifc_on,
+	.is_ifc_change= fg_is_ifc_change,
+	.ifc_change_clr= fg_ifc_change_clr,
+	.get_ifc_step = fg_get_ifc_step,
+	.get_ifc_step_num = fg_get_ifc_step_num,
 };
 
 static int mmi_parse_dt(struct mmi_fg_chip *mmi_fg)
