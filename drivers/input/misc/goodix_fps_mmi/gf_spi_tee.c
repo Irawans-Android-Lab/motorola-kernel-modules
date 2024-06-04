@@ -190,70 +190,39 @@ int gf_parse_dts(struct gf_device *gf_dev)
 
 	gf_dev->reset_gpio = of_get_named_gpio(np, "goodix_rst", 0);
 	if (gf_dev->reset_gpio < 0) {
-		pr_err("falied to get reset gpio!\n");
+		gf_debug(ERR_LOG,"falied to get reset gpio!\n");
 		return gf_dev->reset_gpio;
 	}
 	rc = devm_gpio_request(dev, gf_dev->reset_gpio, "goodix_reset");
 	if (rc) {
-		pr_err("failed to request reset gpio, rc = %d\n", rc);
+		gf_debug(ERR_LOG,"failed to request reset gpio, rc = %d\n", rc);
 		goto err_reset;
 	}
-	//gpio_direction_output(gf_dev->irq_gpio, 1);
-
-/*	gf_dev->irq_gpio = of_get_named_gpio(np, "gf,gpio_irq", 0);
-	if (gf_dev->irq_gpio < 0) {
-		pr_err("falied to get irq gpio!\n");
-		return gf_dev->irq_gpio;
-	}
-
-	rc = devm_gpio_request(dev, gf_dev->irq_gpio, "goodix_irq");
-	if (rc) {
-		pr_err("failed to request irq gpio, rc = %d\n", rc);
-		goto err_irq;
-	}
-	gpio_direction_input(gf_dev->irq_gpio);*/
-/*
-	gf_dev->avdd_gpio = of_get_named_gpio(np, "goodix_vdd", 0);
-	if (gf_dev->avdd_gpio < 0) {
-		pr_err("falied to get avdd gpio!\n");
-		return gf_dev->avdd_gpio;
-	}
-
-	rc = devm_gpio_request(dev, gf_dev->avdd_gpio, "goodix_avdd");
-	if (rc) {
-		pr_err("failed to request irq gpio, rc = %d\n", rc);
-		goto err_avdd;
-	}
-        gpio_direction_output(gf_dev->avdd_gpio, 1);
-
-err_avdd:
-	devm_gpio_free(dev, gf_dev->reset_gpio);
-*/
 err_reset:
 	return rc;
 }
 
 void gf_cleanup(struct gf_device *gf_dev)
 {
-	pr_info("[info] %s\n", __func__);
+	gf_debug(INFO_LOG, "[info] %s\n", __func__);
 
 	if (gpio_is_valid(gf_dev->irq_gpio)) {
 		gpio_free(gf_dev->irq_gpio);
-		pr_info("remove irq_gpio success\n");
+		gf_debug(DEBUG_LOG,"remove irq_gpio success\n");
 	}
 	if (gpio_is_valid(gf_dev->reset_gpio)) {
 		gpio_free(gf_dev->reset_gpio);
-		pr_info("remove reset_gpio success\n");
+		gf_debug(DEBUG_LOG,"remove reset_gpio success\n");
 	}
 	if (gpio_is_valid(gf_dev->avdd_gpio)) {
 		gpio_free(gf_dev->avdd_gpio);
-		pr_info("remove avdd_gpio success\n");
+		gf_debug(DEBUG_LOG,"remove avdd_gpio success\n");
 	}
 }
 int gf_hw_reset(struct gf_device *gf_dev, unsigned int delay_ms)
 {
 	if (gf_dev == NULL) {
-		pr_info("Input buff is NULL.\n");
+		gf_debug(ERR_LOG,"Input buff is NULL.\n");
 		return -1;
 	}
 	gpio_direction_output(gf_dev->reset_gpio, 1);
@@ -263,82 +232,6 @@ int gf_hw_reset(struct gf_device *gf_dev, unsigned int delay_ms)
 	mdelay(delay_ms);
 	return 0;
 }
-//shasha
-/* -------------------------------------------------------------------- */
-/* fingerprint chip hardware configuration								  */
-/* -------------------------------------------------------------------- */
-/*
-static int gf_get_gpio_dts_info(struct gf_device *gf_dev)
-{
-#ifdef CONFIG_OF
-	int ret = 0;
-	struct device_node *node = NULL;
-	struct platform_device *pdev = NULL;
-
-
-	gf_debug(DEBUG_LOG, "%s, from dts pinctrl\n", __func__);
-
-	node = of_find_compatible_node(NULL, NULL, "mediatek,goodix-fp");
-	if (node) {
-		pdev = of_find_device_by_node(node);
-		if (pdev) {
-			gf_dev->pinctrl_gpios = devm_pinctrl_get(&pdev->dev);
-			if (IS_ERR(gf_dev->pinctrl_gpios)) {
-				ret = PTR_ERR(gf_dev->pinctrl_gpios);
-				gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl\n", __func__);
-				return ret;
-			}
-		} else {
-			gf_debug(ERR_LOG, "%s platform device is null\n", __func__);
-		}
-	} else {
-		gf_debug(ERR_LOG, "%s device node is null\n", __func__);
-	}
-
-	gf_dev->pins_irq = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "fingerprint_irq");
-	if (IS_ERR(gf_dev->pins_irq)) {
-		ret = PTR_ERR(gf_dev->pins_irq);
-		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl irq\n", __func__);
-		return ret;
-	}
-
-	gf_dev->pins_reset_high = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "reset_high");
-	if (IS_ERR(gf_dev->pins_reset_high)) {
-		ret = PTR_ERR(gf_dev->pins_reset_high);
-		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl reset_high\n", __func__);
-		return ret;
-	}
-	gf_dev->pins_reset_low = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "reset_low");
-	if (IS_ERR(gf_dev->pins_reset_low)) {
-		ret = PTR_ERR(gf_dev->pins_reset_low);
-		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl reset_low\n", __func__);
-		return ret;
-	}
-	gf_dev->pins_vcc_high = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "gf_vcc_high");
-	if (IS_ERR(gf_dev->pins_vcc_high)) {
-		ret = PTR_ERR(gf_dev->pins_vcc_high);
-		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl vcc_high\n", __func__);
-		return ret;
-	}
-	gf_dev->pins_vcc_low = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "gf_vcc_low");
-	if (IS_ERR(gf_dev->pins_vcc_low)) {
-		ret = PTR_ERR(gf_dev->pins_vcc_low);
-		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl vcc_low\n", __func__);
-		return ret;
-	}
-    gf_dev->pinstate_spi_func = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "gf_spi_func");
-    if (IS_ERR(gf_dev->pinstate_spi_func)) {
-		ret = PTR_ERR(gf_dev->pinstate_spi_func);
-		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl gf_spi_func\n", __func__);
-		return ret;
-    } else {
-        pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pinstate_spi_func);
-    }
-	gf_debug(DEBUG_LOG, "%s, get gpio info success!\n", __func__);
-#endif
-	return 0;
-}
-*/
 #ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
 static int  power_user_num=0;
 static int mt_power_flag = 0;
@@ -371,16 +264,49 @@ static void fpsensor_power_enable(u8 power_onoff)
 }
 #endif
 
-static int gf_get_sensor_dts_info(void)
+static int gf_get_sensor_dts_info(struct gf_device *gf_dev)
 {
 	struct device_node *node = NULL;
+	struct device *dev = gf_dev->device;
 	int value;
+	int rc = 0;
 
 	node = of_find_compatible_node(NULL, NULL, "mediatek,fingerprint-goodix");
 	if (node) {
 
 		of_property_read_u32(node, "netlink-event", &value);
 		gf_debug(DEBUG_LOG, "%s, get netlink event[%d] from dts\n", __func__, value);
+
+		gf_dev->gpio_power_ctrl = of_property_read_bool(node, "gpio_power_ctrl");
+		gf_debug(DEBUG_LOG, "%s, gpio_power_ctrl[%d] from dts\n", __func__, gf_dev->gpio_power_ctrl);
+
+		if(gf_dev->gpio_power_ctrl == 1) {
+			gf_dev->avdd_gpio = of_get_named_gpio(node, "goodix_avdd", 0);
+			if (gf_dev->avdd_gpio < 0) {
+				gf_debug(DEBUG_LOG,"falied to get avdd gpio!\n");
+				return gf_dev->avdd_gpio;
+			}
+
+			rc = devm_gpio_request(dev, gf_dev->avdd_gpio, "goodix_avdd");
+			if (rc) {
+				gf_debug(DEBUG_LOG,"failed to request avdd gpio, rc = %d\n", rc);
+				return -ENODEV;
+			}
+		} else {
+			gf_dev->fp_regulator = regulator_get(&gf_dev->pldev->dev,FPSENSOR_VDD_NAME);
+
+			if (IS_ERR(gf_dev->fp_regulator)) {
+				gf_debug(ERR_LOG, "goodix Regulator get failed vdd err \n,");
+				return -ENODEV;
+			}
+
+			if (regulator_count_voltages(gf_dev->fp_regulator) > 0) {
+				rc = regulator_set_voltage(gf_sensor->fp_regulator, FPSENSOR_VDD_MIN_UV,FPSENSOR_VDD_MAX_UV);
+				if (rc < 0) {
+					gf_debug(INFO_LOG, "%s, VDD setting error==========\n", __func__);
+				}
+			}
+		}
 	} else {
 		gf_debug(ERR_LOG, "%s failed to get device node!\n", __func__);
 		return -ENODEV;
@@ -388,7 +314,7 @@ static int gf_get_sensor_dts_info(void)
 
 	return 0;
 }
-/*
+
 #define GF_POWER_GPIO	   1
 static void gf_hw_power_enable(struct gf_device *gf_dev, u8 onoff)
 {
@@ -401,47 +327,63 @@ static void gf_hw_power_enable(struct gf_device *gf_dev, u8 onoff)
 
 #ifdef GF_POWER_GPIO
 
-        gpio_direction_output(gf_dev->avdd_gpio, 1);
-		pr_info("set pwr_gpio on");
-#elif GF_POWER_EXT_LDO
-		rc = wl2868c_set_ldo_enable(LDO4, 3000);
-		pr_info("---- power_on external ldo ---- rc = %d\n",rc);
+		if(gf_dev->gpio_power_ctrl == 1) {
+			rc = gpio_direction_output(gf_dev->avdd_gpio, 1);
+			gf_debug(DEBUG_LOG,"set pwr_gpio on");
+		} else {
+#ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
+			fpsensor_power_enable(1);
+#else
+			rc = regulator_enable(gf_sensor->fp_regulator);
+			if (rc != 0) {
+				gf_debug(INFO_LOG, "%s: regulator_enable return %d\n", __func__, rc);
+			}
+#endif
+			gf_debug(DEBUG_LOG,"set power mode regulator !!!\n");
+
+		}
 #else
         rc = -1;
-        pr_info("---- power on mode not set !!! ----\n");
+        gf_debug(DEBUG_LOG,"power on mode not set !!!\n");
+
 #endif
         if (rc) {
-            pr_err("---- power on failed rc = %d ----\n", rc);
+            gf_debug(DEBUG_LOG,"power on failed rc = %d\n", rc);
         } else {
-            pr_info("---- power on ok  ----\n");
+            gf_debug(DEBUG_LOG,"power on ok\n");
         }
 
-		gf_hw_reset(gf_dev, 15);
-#endif
+		//gf_hw_reset(gf_dev, 15);
 
 	} else if (!onoff && !enable) {
 		enable = 1;
 
 #ifdef GF_POWER_GPIO
 
-	    gpio_direction_output(gf_dev->avdd_gpio, 0);
-                        //gpio_set_value(gf_dev->avdd_gpio, 0);
-		pr_info("set pwr_gpio off");
-#elif GF_POWER_EXT_LDO
-		rc = wl2868c_set_ldo_disable(LDO4);
-		pr_info("---- power_off external ldo ---- rc = %d\n",rc);
+		if(gf_dev->gpio_power_ctrl == 1) {
+			rc = gpio_direction_output(gf_dev->avdd_gpio, 0);
+			//gpio_set_value(gf_dev->avdd_gpio, 0);
+			gf_debug(DEBUG_LOG,"set pwr_gpio off");
+		} else {
+#ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
+			fpsensor_power_enable(0);
+#else
+			regulator_disable(gf_sensor->fp_regulator);
+#endif
+			gf_debug(DEBUG_LOG,"set power mode regulator !!!\n");
+		}
+
 #else
         rc = -1;
-        pr_info("---- power on mode not set !!! ----\n");
+        gf_debug(DEBUG_LOG,"power on mode not set !!!\n");
 #endif
         if (rc) {
-            pr_err("---- power off failed rc = %d ----\n", rc);
+            gf_debug(DEBUG_LOG,"power off failed rc = %d\n", rc);
         } else {
-            pr_info("---- power off ok  ----\n");
+            gf_debug(DEBUG_LOG,"power off ok\n");
         }
 	}
 }
-***************************************************/
 static void gf_bypass_flash_gpio_cfg(void)
 {
 	/* TODO: by pass flash IO config, default connect to GND */
@@ -482,25 +424,6 @@ static void gf_reset_gpio_cfg(struct gf_device *gf_dev)
 #endif
 
 }
-
-/* delay ms after reset */
-/*static void gf_hw_reset(struct gf_device *gf_dev, u8 delay)
-{
-#ifdef CONFIG_OF
-	if(!IS_ERR(gf_dev->pins_reset_low)) {
-	    pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_reset_low);
-	}
-	mdelay(5);
-	if(!IS_ERR(gf_dev->pins_reset_high)) {
-	    pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_reset_high);
-	}
-#endif
-
-	if (delay) {
-		// delay is configurable
-		mdelay(delay);
-	}
-}*/
 
 static void gf_enable_irq(struct gf_device *gf_dev)
 {
@@ -736,11 +659,11 @@ static irqreturn_t gf_irq(int irq, void *handle)
 
 	/*struct mtk_spi *gf_ms = spi_master_get_devdata(spi->master);
 	clk_prepare_enable(gf_ms->spi_clk);
-	pr_info("clk_prepare_enable gf_spi_clk_enable.\n");*/
+	gf_debug("clk_prepare_enable gf_spi_clk_enable.\n");*/
 
 	#else
 	enable_clock(MT_CG_PERI_SPI0, "spi");
-	pr_debug("enable_clock gf_spi_clk_enable.\n");
+	gf_debug(DEBUG_LOG,"enable_clock gf_spi_clk_enable.\n");
 	#endif
 	return;
  }
@@ -906,26 +829,13 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case GF_IOC_ENABLE_POWER:
-		gf_debug(INFO_LOG, "%s: gf_regulator_enable ======\n", __func__);
-//		gf_hw_power_enable(gf_dev, 1);
-                #ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
-		fpsensor_power_enable(1);
-                #else
-                retval = regulator_enable(gf_sensor->fp_regulator);
-		if (retval != 0) {
-		    gf_debug(INFO_LOG, "%s: regulator_enable return %d\n", __func__, retval);
-		}
-                #endif
+		gf_debug(INFO_LOG, "%s: GF_IOC_ENABLE_POWER ======\n", __func__);
+		gf_hw_power_enable(gf_dev, 1);
 		break;
 
 	case GF_IOC_DISABLE_POWER:
 		gf_debug(INFO_LOG, "%s: GF_IOC_DISABLE_POWER ======\n", __func__);
-//		gf_hw_power_enable(gf_dev, 0);
-                #ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
-		fpsensor_power_enable(0);
-                #else
-                regulator_disable(gf_sensor->fp_regulator);
-                #endif
+		gf_hw_power_enable(gf_dev, 0);
 		break;
 
 	case GF_IOC_INPUT_KEY_EVENT:
@@ -1062,10 +972,10 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		list_del(&gf_dev->device_entry);
 		unregister_chrdev_region(gf_dev->devno, 1);
 		class_destroy(gf_dev->class);
-		//gf_hw_power_enable(gf_dev, 0);
+		gf_hw_power_enable(gf_dev, 0);
 		/*if (gpio_is_valid(gf_dev->irq_gpio)) {
 			gpio_free(gf_dev->irq_gpio);
-			pr_info("remove irq_gpio success\n");
+			gf_debug("remove irq_gpio success\n");
 		}*/
 		gf_cleanup(gf_dev);
 		gf_dev->spi = NULL;
@@ -1078,7 +988,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		break;
 	case GF_IOC_SPIDEVICE_EN:
-		pr_err(" GF_IOC_SPIDEVICE_EN %s %d\n", __func__, __LINE__);
+		gf_debug(DEBUG_LOG," GF_IOC_SPIDEVICE_EN %s %d\n", __func__, __LINE__);
 		if (gf_dev->system_status) {
 			gf_debug(INFO_LOG, "%s: system re-started======\n", __func__);
 			break;
@@ -1091,7 +1001,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case GF_IOC_SPIDEVICE_DIS:
-		pr_err(" GF_IOC_SPIDEVICE_DIS %s %d\n", __func__, __LINE__);
+		gf_debug(DEBUG_LOG," GF_IOC_SPIDEVICE_DIS %s %d\n", __func__, __LINE__);
 		spi_unregister_driver(&gf_spi_driver);
 		break;
 	default:
@@ -1228,10 +1138,10 @@ static int gf_open(struct inode *inode, struct file *filp)
 		}
 	}
 	mutex_unlock(&device_list_lock);
-				status = gf_parse_dts(gf_dev);
-				if (status){
-				gf_debug(INFO_LOG, "%s,fail gf_parse_dts", __func__);
-				}
+	status = gf_parse_dts(gf_dev);
+	if (status){
+		gf_debug(ERR_LOG, "%s,fail gf_parse_dts", __func__);
+	}
 
 	//gf_get_gpio_dts_info(gf_dev);
 	/*if(!IS_ERR(gf_dev->pinstate_spi_func)) {
@@ -1288,10 +1198,6 @@ static int gf_platform_probe(struct platform_device *pldev)
 	struct gf_device *gf_dev = NULL;
 	int status = -EINVAL;
 	struct device *dev = &pldev->dev;
-        #ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
-        #else
-        int retval = 0;
-        #endif
 	FUNC_ENTRY();
 
 	/* Allocate driver data */
@@ -1310,29 +1216,6 @@ static int gf_platform_probe(struct platform_device *pldev)
 	gf_dev->probe_finish     = 0;
 	gf_dev->system_status    = 0;
 	gf_dev->need_update      = 0;
-        gf_dev->fp_regulator      = regulator_get(&pldev->dev,FPSENSOR_VDD_NAME);
-
-	if (IS_ERR(gf_dev->fp_regulator)) {
-	    gf_debug(ERR_LOG, "goodix Regulator get failed vdd err \n,");
-	goto err_input;
-    }
-
-	if (regulator_count_voltages(gf_dev->fp_regulator) > 0) {
-        status = regulator_set_voltage(gf_sensor->fp_regulator, FPSENSOR_VDD_MIN_UV,FPSENSOR_VDD_MAX_UV);
-
-		if (status < 0) {
-			gf_debug(INFO_LOG, "%s, VDD setting error==========\n", __func__);
-		}
-    }
-        #ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
-	fpsensor_power_enable(1);
-        #else
-	retval = regulator_enable(gf_sensor->fp_regulator);
-	if(retval != 0){
-	   gf_debug(INFO_LOG, "%s, regulator_enable return: %d\n", __func__, retval);
-	}
-        #endif
-
 	/*setup gf configurations.*/
 	gf_debug(INFO_LOG, "%s, Setting gf device configuration==========\n", __func__);
 
@@ -1342,10 +1225,12 @@ static int gf_platform_probe(struct platform_device *pldev)
 
 	/* get gpio info from dts or defination */
 	//gf_get_gpio_dts_info(gf_dev);
-	gf_get_sensor_dts_info();
+	if(gf_get_sensor_dts_info(gf_dev)) {
+		goto err_dts;
+	}
 
 	/*enable the power*/
-	//gf_hw_power_enable(gf_dev, 1);
+	gf_hw_power_enable(gf_dev, 1);
 	gf_bypass_flash_gpio_cfg();
 
 	/* create class */
@@ -1477,12 +1362,13 @@ err_devno:
 	class_destroy(gf_dev->class);
 
 err_class:
-//	gf_hw_power_enable(gf_dev, 0);
-        #ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
-	fpsensor_power_enable(0);
-	#else
-    regulator_disable(gf_sensor->fp_regulator);
-        #endif
+	gf_hw_power_enable(gf_dev, 0);
+	if(gf_dev->gpio_power_ctrl == 1) {
+		devm_gpio_free(dev, gf_dev->avdd_gpio);
+	} else {
+		regulator_put(gf_sensor->fp_regulator);
+	}
+err_dts:
 	mutex_destroy(&gf_dev->release_lock);
 	dev_set_drvdata(dev, NULL);
 	kfree(gf_dev);
@@ -1538,12 +1424,12 @@ static int gf_platform_remove(struct platform_device *pldev)
 
 	unregister_chrdev_region(gf_dev->devno, 1);
 	class_destroy(gf_dev->class);
-//	gf_hw_power_enable(gf_dev, 0);
-        #ifdef CONFIG_MOTO_FPS_PRECISE_POWERON
-        fpsensor_power_enable(0);
-        #else
-        regulator_disable(gf_sensor->fp_regulator);
-        #endif
+	gf_hw_power_enable(gf_dev, 0);
+	if(gf_dev->gpio_power_ctrl == 1) {
+		devm_gpio_free(dev, gf_dev->avdd_gpio);
+	} else {
+		regulator_put(gf_sensor->fp_regulator);
+	}
 	dev_set_drvdata(dev, NULL);
 	mutex_destroy(&gf_dev->release_lock);
 
@@ -1570,7 +1456,7 @@ static int __init gf_init(void)
 	int status = 0;
 
 	FUNC_ENTRY();
-	pr_err("%s %d\n", __func__, __LINE__);
+	gf_debug(INFO_LOG,"%s %d\n", __func__, __LINE__);
 
 	status = platform_driver_register(&goodix_fp_driver);
 	if (status < 0) {

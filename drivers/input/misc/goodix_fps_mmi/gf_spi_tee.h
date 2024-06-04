@@ -209,6 +209,7 @@ struct gf_device {
 	u32 irq_num;
 	u8  need_update;
 	u32 irq;
+	bool gpio_power_ctrl;
 
     struct regulator *fp_regulator;
 #ifdef CONFIG_OF
