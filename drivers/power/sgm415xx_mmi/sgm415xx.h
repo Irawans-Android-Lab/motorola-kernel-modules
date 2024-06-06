@@ -10,6 +10,10 @@
 #define SGM4154x_MANUFACTURER	"SGMICRO"
 
 #define __SGM41542_CHIP_ID__
+#ifdef CONFIG_MMI_SGM41543D_CHARGER
+#undef __SGM41542_CHIP_ID__
+#define __SGM41543D_CHIP_ID__
+#endif
 
 #ifdef __SGM41541_CHIP_ID__
 #define SGM4154x_NAME		"sgm41541"

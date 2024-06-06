@@ -8,5 +8,8 @@ EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/include \
 		-I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/drivers/power/sgm415xx_mmi \
 		-I$(ANDROID_BUILD_TOP)/kernel-5.15/include \
 		-I$(ANDROID_BUILD_TOP)/kernel-5.15/drivers/power/supply
+ifeq ($(filter m y, $(CONFIG_MMI_SGM41543D_CHARGER)),)
+	EXTRA_CFLAGS += -DCONFIG_MMI_SGM41543D_CHARGER
+endif
 
 obj-m += sgm415xx_mmi.o
