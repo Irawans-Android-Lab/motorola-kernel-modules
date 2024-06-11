@@ -563,7 +563,7 @@ static int sc2150_tcpc_init(struct tcpc_device *tcpc, bool sw_reset)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_OEM_TCPC_PD_SC2150)
+#if IS_ENABLED(CONFIG_TCPC_SC2150)
 static int sc2150_get_chip_id(struct tcpc_device *tcpc,uint32_t *id)
 {
 	struct sc2150 *sc = tcpc_get_dev_data(tcpc);
@@ -584,7 +584,7 @@ static int sc2150_get_chip_vid(struct tcpc_device *tcpc,uint32_t *vid)
 	*vid = sc->chip_vid;
 	return 0;
 }
-#endif /* CONFIG_OEM_TCPC_PD_SC2150 */
+#endif /* CONFIG_TCPC_SC2150 */
 
 static inline int sc2150_fault_status_vconn_ov(struct tcpc_device *tcpc)
 {
@@ -1016,11 +1016,11 @@ static struct tcpc_ops sc2150_tcpc_ops = {
 	.get_alert_status = sc2150_get_alert_status,
 	.get_power_status = sc2150_get_power_status,
 	.get_fault_status = sc2150_get_fault_status,
-#if IS_ENABLED(CONFIG_OEM_TCPC_PD_SC2150)
+#if IS_ENABLED(CONFIG_TCPC_SC2150)
 	.get_chip_id = sc2150_get_chip_id,
 	.get_chip_vid = sc2150_get_chip_vid,
 	.get_chip_pid = sc2150_get_chip_pid,
-#endif /* CONFIG_OEM_TCPC_PD_SC2150 */
+#endif /* CONFIG_TCPC_SC2150 */
 	.get_cc = sc2150_get_cc,
 	.set_cc = sc2150_set_cc,
 	.set_polarity = sc2150_set_polarity,
