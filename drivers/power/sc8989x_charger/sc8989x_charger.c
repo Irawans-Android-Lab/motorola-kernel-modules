@@ -1304,16 +1304,12 @@ __maybe_unused static int sc8989x_enable_powerpath(struct charger_device *chg_de
 	int ret = 0;
 	struct sc8989x_chip *sc = dev_get_drvdata(&chg_dev->dev);
 
-	dev_info(sc->dev, "%s   en = %d\n", __func__, en);
+	dev_info(sc->dev, "%s, en= %d\n", __func__, en);
 
 	/* Enable charging */
-	if  (en)  {
-		ret = sc8989x_set_hiz(sc, false);
-	} else {
-		ret = sc8989x_set_hiz(sc, true);
-	}
+	ret = sc8989x_set_chg_enable(sc, en);
 	if (ret) {
-		dev_err(sc->dev, "Failed to set_hiz:%d\n", ret);
+		dev_err(sc->dev, "Failed to enable charging:%d\n", ret);
 	}
 	return ret;
 }

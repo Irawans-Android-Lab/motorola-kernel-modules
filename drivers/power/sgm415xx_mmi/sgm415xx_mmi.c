@@ -2025,16 +2025,15 @@ static int sgm4154x_get_chip_id(struct charger_device *chg_dev, int *id)
 
 static int sgm4154x_enable_powerpath(struct charger_device *chg_dev, bool en)
 {
-	int ret = 0;
+	int ret;
 	struct sgm4154x_device *sgm = charger_get_data(chg_dev);
 
 	dev_info(sgm->dev, "%s en = %d\n", __func__ , en);
-
 	/* Enable charging */
 	if (en)
-		ret = sgm4154x_set_hiz_en(chg_dev, false);
+		ret = sgm4154x_enable_charger(sgm);
 	else
-		ret = sgm4154x_set_hiz_en(chg_dev, true);
+		ret = sgm4154x_disable_charger(sgm);
 
 	return ret;
 }
