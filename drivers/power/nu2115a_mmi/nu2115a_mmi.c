@@ -1200,6 +1200,7 @@ static int mtk_nu2115_is_vbus_present(struct charger_device *chg_dev, bool *pres
 
 	return ret;
 }
+#endif
 
 static int nu2115_enable_otg(struct charger_device *chg_dev, bool enable)
 {
@@ -1242,7 +1243,6 @@ static int nu2115_enable_acdrv1(struct charger_device *chg_dev, bool enable)
 
 	return ret;
 }
-#endif
 
 static bool nu2115_is_vbusovp_en(struct nu2115 *bq)
 {
@@ -1421,12 +1421,12 @@ static const struct charger_ops nu2115_chg_ops = {
 	.reset_vbusovp_alarm = nu2115_reset_vbusovp_alarm,
 	.is_vbuslowerr = nu2115_is_vbuslowerr,
 	.get_adc_accuracy = nu2115_get_adc_accuracy,
+	.is_enable_otg = nu2115_enable_otg,
+	.is_enable_acdrv1 = nu2115_enable_acdrv1,
 #if IS_ENABLED(CONFIG_OEM_TURBO_CHARGER)
 	.is_vbushigher = mtk_nu2115_is_vbushigher,
 	.is_vbat_present = mtk_nu2115_is_vbat_present,
 	.is_vbus_present = mtk_nu2115_is_vbus_present,
-	.enable_otg = nu2115_enable_otg,
-	.enable_acdrv1 = nu2115_enable_acdrv1,
 #endif
 	//.set_chg_mode = nu2115_set_chg_mode,
 	//.get_chg_mode = nu2115_get_chg_mode,

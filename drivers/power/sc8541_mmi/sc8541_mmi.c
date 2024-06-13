@@ -1286,9 +1286,7 @@ static int sc8541_config_mux(struct charger_device *chg_dev,
 static const struct charger_ops sc8541_chg_ops = {
 	.enable = mtk_sc8541_enable_chg,
 	.is_enabled = mtk_sc8541_is_chg_enabled,
-/*TN Begin modified by zhen.liu11/860655 20230912 CR/EKFOGO4G-1483*/
 	//.enable_adc = mtk_sc8541_enable_adc,
-/*TN End modified by zhen.liu11/860655 20230912 CR/EKFOGO4G-1483*/
 	.get_adc = mtk_sc8541_get_adc,
 	.get_adc_accuracy = mtk_sc8541_get_adc_accuracy,
 	.set_vbusovp = mtk_sc8541_set_vbusovp,
@@ -1298,6 +1296,8 @@ static const struct charger_ops sc8541_chg_ops = {
 	.get_charging_current = mtk_sc8541_get_ibat,
 	.init_chip = mtk_sc8541_init_chip,
 	.is_vbuslowerr = mtk_sc8541_is_vbuslowerr,
+	.is_enable_otg = NULL,
+	.is_enable_acdrv1 = NULL,
 #if IS_ENABLED(CONFIG_OEM_TURBO_CHARGER)
 	.is_vbushigher = mtk_sc8541_is_vbushigher,
 	.is_vbat_present = mtk_sc8541_is_vbat_present,
