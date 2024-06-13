@@ -526,11 +526,17 @@ static void aw8624_ram_check(const struct firmware *cont, void *context)
 
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0)
+#define FIRMWARE_ACTION_TYPE FW_ACTION_UEVENT
+#else
+#define FIRMWARE_ACTION_TYPE FW_ACTION_HOTPLUG
+#endif
+
 static int aw8624_ram_update(struct aw8624 *aw8624)
 {
 	aw8624->ram_init = 0;
 	aw8624->rtp_init = 0;
-	return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+	return request_firmware_nowait(THIS_MODULE, FIRMWARE_ACTION_TYPE,
 				aw8624_ram_name, aw8624->dev, GFP_KERNEL,
 				aw8624, aw8624_ram_check);
 }

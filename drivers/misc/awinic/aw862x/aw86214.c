@@ -1112,11 +1112,17 @@ static void aw86214_ram_check(const struct firmware *cont, void *context)
 	aw86214_haptic_get_ram_number(aw86214);
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0)
+#define FIRMWARE_ACTION_TYPE FW_ACTION_UEVENT
+#else
+#define FIRMWARE_ACTION_TYPE FW_ACTION_HOTPLUG
+#endif
+
 static int aw86214_ram_update(struct aw86214 *aw86214)
 {
 	aw86214->ram_init = 0;
 
-	return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+	return request_firmware_nowait(THIS_MODULE, FIRMWARE_ACTION_TYPE,
 				       aw86214_ram_name, aw86214->dev,
 				       GFP_KERNEL, aw86214, aw86214_ram_check);
 }
