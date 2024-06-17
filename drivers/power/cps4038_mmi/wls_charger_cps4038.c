@@ -2683,9 +2683,7 @@ static irqreturn_t cps_wls_irq_handler(int irq, void *dev_id)
     }
     
     int_clr = int_flag;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
     cps_wls_log(CPS_LOG_ERR, "[%s] int_clr = %d\n", __func__,int_clr);
-#endif
     cps_wls_set_int_clr(int_flag);
     mutex_unlock(&chip->irq_lock);
     if(cps_wls_get_sys_mode() == SYS_MODE_RX)
@@ -4755,9 +4753,8 @@ static int cps_get_vbus()
 	struct mtk_charger *info = NULL;
 	struct power_supply *chg_psy = NULL;
 	int vbus = 0;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
-    int ret = -1;
-#endif
+	int ret = -1;
+
 	chg_psy = power_supply_get_by_name("mtk-master-charger");
 	if (chg_psy == NULL || IS_ERR(chg_psy)) {
 		cps_wls_log(CPS_LOG_ERR,"%s mmi_mux Couldn't get chg_psy\n",__func__);
@@ -4776,9 +4773,16 @@ static int cps_get_vbus()
 	} else
 		vbus /= 1000;
 #else
-	vbus = get_vbus(info);
+	//vbus = get_vbus(info);
+	if (info == NULL)
+                return 0;
+        ret = charger_dev_get_vbus(info->chg1_dev, &vbus);
+        if (ret < 0) {
+		chr_err("%s: get vbus failed: %d\n", __func__, ret);
+        } else
+                vbus /= 1000;
 #endif
-	cps_wls_log(CPS_LOG_ERR, "%s: vbus:%d\n", __func__,vbus);
+	cps_wls_log(CPS_LOG_ERR, "%s: vbus:%d mv\n", __func__,vbus);
 	return vbus;
 }
 
@@ -5096,9 +5100,7 @@ static void not_called_api(void)
     rc = cps_wls_disable_tx_mode();
     rc = cps_wls_send_fsk_packet(data, 2);
     rc = cps_wls_set_fod_para();
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
     cps_wls_log(CPS_LOG_ERR, "[%s] rc = %d\n", __func__,rc);
-#endif
     return;
 }
 
