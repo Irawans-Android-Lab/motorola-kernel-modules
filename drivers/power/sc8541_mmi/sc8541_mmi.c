@@ -40,6 +40,13 @@
 
 #define SC8541_DRV_VERSION			  "1.0.0_G"
 
+#define SC8541_CHRGR_CTRL_2         0xF
+#define SC8541_CTRL6_REG            0x40
+#define SC8541_EN_OTG               BIT(5)
+#define SC8541_ACDRV_MANUAL_EN      BIT(6)
+#define SC8541_ENABLE_TYPEC_MOS     BIT(5)
+#define SC8541_ENABLE_WLC_MOS       BIT(4)
+
 enum {
 	SC8541_STANDALONG = 0,
 	SC8541_MASTER,
@@ -1102,6 +1109,180 @@ static int mtk_sc8541_get_ibat(struct charger_device *chg_dev, u32 *uA)
 	return 0;
 }
 
+static int sc8541_config_mux(struct charger_device *chg_dev,
+			enum mmi_dvchg_mux_channel typec_mos, enum mmi_dvchg_mux_channel wls_mos)
+{
+	int ret;
+	unsigned int val;
+	struct sc8541_chip *bq  = charger_get_data(chg_dev);
+
+	if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CHRGR_CTRL_2,
+			SC8541_EN_OTG, 0);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux close en otg fail ret=%d", __func__, ret);
+			return ret;
+		}
+	}
+
+	if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN
+			&& typec_mos != MMI_DVCHG_MUX_DISABLE && wls_mos != MMI_DVCHG_MUX_DISABLE
+			&& wls_mos != MMI_DVCHG_MUX_MANUAL_OPEN) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ACDRV_MANUAL_EN, 0);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux dis mos both fail ret=%d", __func__, ret);
+			return ret;
+	        }
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_CLOSE) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_TYPEC_MOS, 0);
+		if (ret) {
+			dev_err(bq->dev, "%s mmi_mux close typec mos fail ret=%d", __func__, ret);
+			return ret;
+	        }
+	        udelay(100);
+	}
+
+	if (wls_mos == MMI_DVCHG_MUX_CLOSE) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_WLC_MOS, 0);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux close wls mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(100);
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_CHG_OPEN) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_TYPEC_MOS, SC8541_ENABLE_TYPEC_MOS);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux open typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+	} else if (typec_mos == MMI_DVCHG_MUX_OTG_OPEN) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CHRGR_CTRL_2,
+			SC8541_EN_OTG, SC8541_EN_OTG);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux  en otg fail ret=%d", __func__, ret);
+			return ret;
+		}
+
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ACDRV_MANUAL_EN, SC8541_ACDRV_MANUAL_EN);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux set acdrv manual fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(100);
+
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_TYPEC_MOS, SC8541_ENABLE_TYPEC_MOS);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux enable otg typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+#ifdef CONFIG_MOTO_CHANNEL_SWITCH
+	} else if (typec_mos == MMI_DVCHG_MUX_OTG_WLC_OPEN) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CHRGR_CTRL_2,
+			SC8541_EN_OTG, SC8541_EN_OTG);
+	        if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux  en otg fail ret=%d", __func__, ret);
+			return ret;
+		}
+
+	        ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ACDRV_MANUAL_EN, SC8541_ACDRV_MANUAL_EN);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux set acdrv manual fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(100);
+
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_TYPEC_MOS, 0);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux enable otg typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+#endif
+	}
+
+	if (wls_mos == MMI_DVCHG_MUX_CHG_OPEN) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_WLC_MOS, SC8541_ENABLE_WLC_MOS);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux  open wls mux fail ret=%d", __func__, ret);
+			return ret;
+		}
+	} else if (wls_mos == MMI_DVCHG_MUX_MANUAL_OPEN) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ACDRV_MANUAL_EN, SC8541_ACDRV_MANUAL_EN);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux set acdrv manual fail ret=%d", __func__, ret);
+			return ret;
+		}
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_TYPEC_MOS, 0);
+	        if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux menu close wls mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		mdelay(50);
+
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_WLC_MOS, SC8541_ENABLE_WLC_MOS);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux enable otg typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_DISABLE) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ACDRV_MANUAL_EN, SC8541_ACDRV_MANUAL_EN);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux set acdrv manual fail ret=%d", __func__, ret);
+			return ret;
+		}
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_TYPEC_MOS, 0);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux close typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(1000);
+	}
+
+	if (wls_mos == MMI_DVCHG_MUX_DISABLE) {
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ACDRV_MANUAL_EN, SC8541_ACDRV_MANUAL_EN);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux set acdrv manual fail ret=%d", __func__, ret);
+			return ret;
+		}
+		ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
+			SC8541_ENABLE_WLC_MOS, 0);
+		if (ret) {
+			dev_err(bq->dev, "%s:mmi_mux close wls mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(1000);
+	}
+
+	ret = regmap_read(bq->regmap, SC8541_CHRGR_CTRL_2, &val);
+	if (!ret)
+		dev_err(bq->dev, "%s:mmi_mux Reg [SC8541_CHRGR_CTRL_2] = 0x%02X\n", __func__,val);
+	ret = regmap_read(bq->regmap, SC8541_CTRL6_REG, &val);
+	if (!ret)
+		dev_err(bq->dev, "%s:mmi_mux Reg [SC8541_CTRL6_REG] = 0x%02X\n", __func__, val);
+
+	return 0;
+}
+
 static const struct charger_ops sc8541_chg_ops = {
 	.enable = mtk_sc8541_enable_chg,
 	.is_enabled = mtk_sc8541_is_chg_enabled,
@@ -1126,6 +1307,7 @@ static const struct charger_ops sc8541_chg_ops = {
 	.reset_vbatovp_alarm = mtk_sc8541_reset_vbatovp_alarm,
 	.set_vbusovp_alarm = mtk_sc8541_set_vbusovp_alarm,
 	.reset_vbusovp_alarm = mtk_sc8541_reset_vbusovp_alarm,
+	.config_mux = sc8541_config_mux,
 };
 /********************mtk charger interface end*************************************************/
 
