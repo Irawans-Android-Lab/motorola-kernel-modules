@@ -91,6 +91,7 @@
 #define SGM4154x_BOOSTV		GENMASK(5, 4)
 #define SGM4154x_BOOST_LIM	BIT(7)
 #define SGM4154x_OTG_EN		BIT(5)
+#define SGM4154x_CHG_EN		BIT(4)
 #define SGM4154x_FORCE_DPDM	BIT(7)
 
 /* Part ID  */

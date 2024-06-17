@@ -1929,10 +1929,16 @@ static int sgm4154x_enable_otg(struct charger_device *chg_dev, bool en)
 	pr_info("%s en = %d\n", __func__, en);
 	if (en) {
 		ret = sgm4154x_update_bits(sgm, SGM4154x_CHRG_CTRL_1,
+			SGM4154x_CHG_EN, 0);
+		mdelay(1);
+		ret |= sgm4154x_update_bits(sgm, SGM4154x_CHRG_CTRL_1,
 			SGM4154x_OTG_EN, SGM4154x_OTG_EN);
 	} else {
 		ret = sgm4154x_update_bits(sgm, SGM4154x_CHRG_CTRL_1,
 			SGM4154x_OTG_EN, 0);
+		mdelay(1);
+		ret = sgm4154x_update_bits(sgm, SGM4154x_CHRG_CTRL_1,
+			SGM4154x_CHG_EN, SGM4154x_CHG_EN);
 	}
 
 	return ret;
