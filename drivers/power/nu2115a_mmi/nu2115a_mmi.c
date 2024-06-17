@@ -623,14 +623,13 @@ static int __nu2115_get_adc(struct nu2115 *chip, int channel, int *data)
 
 	if (channel < NU2115_ADC_IBUS || channel > NU2115_ADC_TDIE)
 		return -EINVAL;
+	mutex_lock(&chip->adc_lock);
 	__nu2115_enable_adc(chip,true);
 	msleep(30);
-	mutex_lock(&chip->adc_lock);
 	ret = nu2115_get_adc_data(chip, channel, data);
 	dev_info(chip->dev,"%s ret=%d ", __func__,ret);
-	mutex_unlock(&chip->adc_lock);
 	__nu2115_enable_adc(chip,false);
-	msleep(30);
+	mutex_unlock(&chip->adc_lock);
 	return 0;
 }
 

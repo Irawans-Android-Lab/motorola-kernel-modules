@@ -48,6 +48,7 @@
 #define SC8989X_CHIP_ID 			1
 #define R_VBUS_CHARGER_1   330
 #define R_VBUS_CHARGER_2   39
+#define SPECIAL_TYPE_MAX_RETRY 1
 
 static struct proc_dir_entry *entry;
 static bool dump_reg_enable;
@@ -249,6 +250,7 @@ struct sc8989x_chip {
 	struct power_supply *psy;
 	struct power_supply *chg_psy;
 	struct iio_channel *vbus;
+	int retry_count;
 };
 
 static const u32 sc8989x_iboost[] = {
@@ -1524,6 +1526,19 @@ static void sc8989x_force_detection_dwork_handler(struct work_struct *work)
 	power_supply_changed(sc->psy);
 }
 
+static int sc8989x_get_vbus_stat(struct sc8989x_chip *sc)
+{
+	int ret;
+	int reg_val = 0;
+
+	ret = sc8989x_field_read(sc, VBUS_STAT, &reg_val);
+	dev_info(sc->dev, "%s: charger type: %d\n", __func__, reg_val);
+	if (ret) {
+		return ret;
+	}
+	return reg_val;
+}
+
 static int sc8989x_get_charger_type(struct sc8989x_chip *sc)
 {
 	int ret;
@@ -1604,6 +1619,7 @@ static irqreturn_t sc8989x_irq_handler(int irq, void *data)
 	int ret;
 	int reg_val;
 	bool prev_vbus_gd;
+	int type;
 	struct sc8989x_chip *sc = (struct sc8989x_chip *)data;
 
 	dev_info(sc->dev, "%s: sc8989x_irq_handler\n", __func__);
@@ -1614,13 +1630,19 @@ static irqreturn_t sc8989x_irq_handler(int irq, void *data)
 	}
 	prev_vbus_gd = sc->vbus_good;
 	sc->vbus_good = !!reg_val;
-
 	dev_info(sc->dev, "%s: prev_vbus_gd:%d, vbus_gd:%d\n", __func__, prev_vbus_gd, sc->vbus_good);
 
 	if (!prev_vbus_gd && sc->vbus_good) {
 		sc->force_detect_count = 0;
+		type = sc8989x_get_vbus_stat(sc);
 		Charger_Detect_Init(sc);
+		sc->retry_count = 0;
 		dev_info(sc->dev, "%s: adapter/usb inserted\n", __func__);
+		if ((type == VBUS_STAT_NO_INPUT) && (sc->retry_count <  SPECIAL_TYPE_MAX_RETRY)) {
+			schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(500));
+			++(sc->retry_count);
+		}
+
 		sc8989x_set_vindpm_track(sc, SC8989X_TRACK_300);
 		sc8989x_set_charging_current(sc->chg_dev,500000);
 		dev_info(sc->dev, "%s: set icc 500ma\n", __func__);
@@ -2034,7 +2056,7 @@ static int sc8989x_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ONLINE:
 		if (val->intval == 2) {
 			dev_info(sc->dev, "%s: %d, start charger detection\n", __func__, val->intval);
-			schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(600));
+			schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(300));
 		} else if (val->intval == 0) {
 			sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 			sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
