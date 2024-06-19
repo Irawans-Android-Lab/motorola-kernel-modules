@@ -774,7 +774,7 @@ static void nu2115_check_status_flags(struct nu2115 *chip)
 			dev_err(chip->dev,"REG_13:%x, TDIE_ALM_FLAG\n", sf_reg[12]);
 	}
 
-	ret = nu2115_i2c_read_block(chip, NU2115_REG_2E, 10, &sf_reg[13]);
+	ret = nu2115_i2c_read_block(chip, NU2115_REG_2E, 9, &sf_reg[13]);
 	if (ret > 0) {
 		if (sf_reg[14] & NU2115_VAC1PRESENT_STAT_MASK)
 		    dev_err(chip->dev,"REG_2F:%x, VAC1PRESENT_STAT\n", sf_reg[14]);
