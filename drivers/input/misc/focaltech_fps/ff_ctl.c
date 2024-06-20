@@ -661,11 +661,12 @@ static int ff_remove(struct spi_device *dev)
     /* Unregister the miscellaneous device. */
     misc_deregister(&g_context->miscdev);
 
+    FF_LOGI("FocalTech fingerprint device control driver released.");
+    FF_LOGV("'%s' leave.", __func__);
+
     /* 'g_context' could not use any more. */
     g_context = NULL;
 
-    FF_LOGI("FocalTech fingerprint device control driver released.");
-    FF_LOGV("'%s' leave.", __func__);
     return err;
 }
 

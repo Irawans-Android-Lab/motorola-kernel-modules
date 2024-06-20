@@ -142,7 +142,7 @@ int ff_log_printf(ff_log_level_t level, const char *tag, const char *fmt, ...)
     va_end(ap);
 
     /* Send to ff_device. */
-    if (likely(ff_ctx) && unlikely(ff_ctx->ff_config.logcat_driver)
+    if ((ff_ctx != NULL) && likely(ff_ctx) && unlikely(ff_ctx->ff_config.logcat_driver)
         && (ff_ctx->event_type == FF_EVENT_NETLINK)) {
         char *uevent_env[2] = {uevent_env_buf, NULL};
         kobject_uevent_env(&ff_ctx->fp_dev->kobj, KOBJ_CHANGE, uevent_env);
@@ -1788,6 +1788,7 @@ static int ff_remove(struct platform_device *pdev)
         platform_set_drvdata(pdev, NULL);
         kfree(ff_ctx);
         ff_ctx = NULL;
+	g_ff_ctx = NULL;
     }
     FF_LOGI("'%s' leave.", __func__);
     return 0;

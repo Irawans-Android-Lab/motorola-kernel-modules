@@ -23,11 +23,16 @@
 #include <linux/of_gpio.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spidev.h>
+#include <linux/version.h>
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #else
 #include <linux/notifier.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0)
+#include "../../../../drivers/gpu/drm/mediatek/mediatek_v2/mtk_disp_notify.h"
+#include "../../../../drivers/gpu/drm/mediatek/mediatek_v2/mtk_panel_ext.h"
+#endif
 #endif
 
 #ifdef CONFIG_OF
@@ -50,7 +55,6 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/spidev.h>
 #include <linux/platform_device.h>//shasha
-#include <linux/version.h>
 
 #include "gf_spi_tee.h"
 
@@ -107,6 +111,11 @@ static int pid = 0;
 
 static u8 g_vendor_id = 0;
 
+#ifndef CONFIG_HAS_EARLYSUSPEND
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0)
+static int gf_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
+#endif
+#endif
 static ssize_t gf_debug_show(struct device *dev,
 			struct device_attribute *attr, char *buf);
 
@@ -578,7 +587,37 @@ static void gf_late_resume(struct early_suspend *handler)
 	gf_netlink_send(gf_dev, GF_NETLINK_SCREEN_ON);
 }
 #else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0)
+static int gf_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+{
+       struct gf_device *gf_dev = NULL;
+       //struct fb_event *evdata = data;
+       int blank = 0;
+       int retval = 0;
+       FUNC_ENTRY();
 
+       gf_dev = container_of(self, struct gf_device, notifier);
+       blank = *((int *)data);
+
+       gf_debug(INFO_LOG, "[%s] : enter, event = %lu, blank=0x%x\n", __func__, event, blank);
+
+       if ((MTK_DISP_BLANK_UNBLANK == blank)  && MTK_DISP_EVENT_BLANK == event)
+       {
+               gf_debug(INFO_LOG, "[%s] : lcd on notify\n", __func__);
+               gf_netlink_send(gf_dev, GF_NETLINK_SCREEN_ON);
+       }
+       else if((MTK_DISP_BLANK_POWERDOWN == blank) && (MTK_DISP_EARLY_EVENT_BLANK == event))
+       {
+               gf_debug(INFO_LOG, "[%s] : lcd off notify\n", __func__);
+               gf_netlink_send(gf_dev, GF_NETLINK_SCREEN_OFF);
+       }
+       else
+               gf_debug(INFO_LOG, "[%s] : other notifier, ignore\n", __func__);
+
+       FUNC_EXIT();
+       return retval;
+}
+#else
 static int gf_fb_notifier_callback(struct notifier_block *self,
 			unsigned long event, void *data)
 {
@@ -615,6 +654,7 @@ static int gf_fb_notifier_callback(struct notifier_block *self,
 	FUNC_EXIT();
 	return retval;
 }
+#endif
 
 #endif /* CONFIG_HAS_EARLYSUSPEND */
 
@@ -755,9 +795,15 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		gf_dev->early_suspend.resume = gf_late_resume,
 		register_early_suspend(&gf_dev->early_suspend);
 #else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0)
+		gf_debug(INFO_LOG, "[%s] : register screen callback, Linux=%d,  kernel_ver = %d\n", __func__, LINUX_VERSION_CODE, KERNEL_VERSION(5,10,0));
+                gf_dev->notifier.notifier_call = gf_drm_notifier_callback;
+                mtk_disp_notifier_register("gf_drm_notify", &gf_dev->notifier);
+#else
 		/* register screen on/off callback */
 		gf_dev->notifier.notifier_call = gf_fb_notifier_callback;
 		fb_register_client(&gf_dev->notifier);
+#endif
 #endif
 
 		gf_dev->sig_count = 0;
@@ -1081,9 +1127,12 @@ static ssize_t gf_debug_store(struct device *dev,
 		gf_dev->early_suspend.resume = gf_late_resume,
 		register_early_suspend(&gf_dev->early_suspend);
 #else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,10,0)
+		gf_debug(INFO_LOG, "[%s] : register screen callback, Linux=%d,  kernel_ver = %d\n", __func__, LINUX_VERSION_CODE, KERNEL_VERSION(5,10,0));
 		/* register screen on/off callback */
 		gf_dev->notifier.notifier_call = gf_fb_notifier_callback;
 		fb_register_client(&gf_dev->notifier);
+#endif
 #endif
 
 		gf_dev->sig_count = 0;
