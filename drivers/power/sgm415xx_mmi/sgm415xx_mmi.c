@@ -1499,10 +1499,6 @@ static void charger_detect_work_func(struct work_struct *work)
 		sgm->chg_type = POWER_SUPPLY_TYPE_USB;
 		sgm->psy_usb_type = POWER_SUPPLY_USB_TYPE_SDP;
 		sgm4154x_power_supply_desc.type = POWER_SUPPLY_TYPE_USB;
-		if (sgm->force_detect_count < 3) {
-			pr_info("[%s] SGM4154x charger type: SDP, retry bc12 count:%d\n", __func__, sgm->force_detect_count);
-			schedule_delayed_work(&sgm->retry_charger_detect_work, 100);
-		}
 		break;
 
 	case SGM4154x_USB_CDP:
