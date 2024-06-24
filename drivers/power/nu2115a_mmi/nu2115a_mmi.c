@@ -1244,6 +1244,167 @@ static int nu2115_enable_acdrv1(struct charger_device *chg_dev, bool enable)
 }
 #endif
 
+static bool nu2115_is_vbusovp_en(struct nu2115 *bq)
+{
+	u8 state;
+	int ret;
+
+	ret = __nu2115_read(bq, NU2115_REG_07, &state);
+	if (ret < 0)
+		return ret;
+
+	ret = !!(state & NU2115_BUS_OVP_DIS_MASK);
+
+	return ret;
+}
+
+static int nu2115_config_mux(struct charger_device *chg_dev,
+			enum mmi_dvchg_mux_channel typec_mos, enum mmi_dvchg_mux_channel wls_mos)
+{
+	int ret;
+	u8 val;
+	struct nu2115 *bq  = charger_get_data(chg_dev);
+
+	if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_2F,
+			NU2115_EN_OTG_MASK, 0);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux close en otg fail ret=%d", __func__, ret);
+			return ret;
+		}
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_CLOSE) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV1_MASK, 0);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s mmi_mux close typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(100);
+	}
+
+	if (wls_mos == MMI_DVCHG_MUX_CLOSE) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV2_MASK, 0);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux close wls mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(100);
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_CHG_OPEN) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV1_MASK, NU2115_EN_ACDRV1_MASK);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux open typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+
+		if (nu2115_is_vbusovp_en(bq)) {
+			ret = __nu2115_update_bits(bq, NU2115_REG_07,NU2115_BUS_OVP_DIS_MASK,0);
+			dev_err(bq->dev, "%s need open vbus ovp function\n", __func__);
+		}
+
+	} else if (typec_mos == MMI_DVCHG_MUX_OTG_OPEN) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_2F,
+				NU2115_EN_OTG_MASK, NU2115_EN_OTG_MASK);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux  en otg fail ret=%d", __func__, ret);
+			return ret;
+		}
+
+		udelay(100);
+
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV1_MASK, NU2115_EN_ACDRV1_MASK);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux enable otg typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+#ifdef CONFIG_MOTO_CHANNEL_SWITCH
+	} else if (typec_mos == MMI_DVCHG_MUX_OTG_WLC_OPEN) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_2F,
+				NU2115_EN_OTG_MASK, NU2115_EN_OTG_MASK);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux  en otg fail ret=%d", __func__, ret);
+			return ret;
+		}
+
+		udelay(100);
+
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV1_MASK, 0);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux enable otg typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+#endif
+	}
+
+	if (wls_mos == MMI_DVCHG_MUX_CHG_OPEN) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV2_MASK, NU2115_EN_ACDRV2_MASK);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux  open wls mux fail ret=%d", __func__, ret);
+			return ret;
+		}
+	} else if (wls_mos == MMI_DVCHG_MUX_MANUAL_OPEN) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_2F,
+				NU2115_EN_OTG_MASK, NU2115_EN_OTG_MASK);
+
+		ret = __nu2115_read(bq, NU2115_REG_2F, &val);
+		if (ret < 0)
+			dev_err(bq->dev, "%s:NU2115_REG_2F = 0x%02X\n", __func__,val);
+
+		ret = __nu2115_update_bits(bq, NU2115_REG_07,
+				NU2115_BUS_OVP_DIS_MASK, NU2115_BUS_OVP_DIS_MASK);
+
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV1_MASK, 0);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux menu close wls mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		mdelay(200);
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV2_MASK, NU2115_EN_ACDRV2_MASK);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux enable otg typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_DISABLE) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV1_MASK, 0);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux close typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(1000);
+	}
+	if (wls_mos == MMI_DVCHG_MUX_DISABLE) {
+		ret = __nu2115_update_bits(bq, NU2115_REG_30,
+				NU2115_EN_ACDRV2_MASK, 0);
+		if (ret < 0) {
+			dev_err(bq->dev, "%s:mmi_mux close wls mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(1000);
+	}
+
+	ret = __nu2115_read(bq, NU2115_REG_2F, &val);
+	if (ret >= 0)
+		dev_err(bq->dev, "%s:mmi_mux [Reg NU2115_REG_2F] = 0x%02X\n", __func__,val);
+	ret = __nu2115_read(bq, NU2115_REG_30, &val);
+	if (ret >= 0)
+		dev_err(bq->dev, "%s:mmi_mux [Reg NU2115_REG_30] = 0x%02X\n", __func__, val);
+
+	return 0;
+}
+
 static const struct charger_ops nu2115_chg_ops = {
 	.enable = nu2115_enable_chg,
 	.is_enabled = nu2115_is_chg_enabled,
@@ -1269,6 +1430,7 @@ static const struct charger_ops nu2115_chg_ops = {
 #endif
 	//.set_chg_mode = nu2115_set_chg_mode,
 	//.get_chg_mode = nu2115_get_chg_mode,
+	.config_mux = nu2115_config_mux,
 };
 
 /******************psy start****************************/
