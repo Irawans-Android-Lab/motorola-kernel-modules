@@ -1507,11 +1507,27 @@ static void mmi_chrg_sm_work_func(struct work_struct *work)
 		&& chip->pres_temp_zone != ZONE_HOT
 		&& chrg_list->chrg_dev[PMIC_SW]->charger_enabled
 		&& chrg_step->chrg_step_cc_curr > 0) {
+#ifdef CONFIG_MOTO_FACTORY_PUMP_STOP_STATE_FIX
+			chip->pd_request_volt_prev = 0;
+			chip->pd_request_curr_prev = 0;
+			chip->pd_request_volt = 0;
+			chip->pd_request_curr = 0;
+#ifdef CONFIG_MOTO_CHG_WT6670F_SUPPORT
+			skip_qc3p_pdo = true;
+#endif
+#endif
 			mmi_chrg_sm_move_state(chip, PM_STATE_ENTRY);
 			heartbeat_dely_ms = HEARTBEAT_NEXT_STATE_MS;
 		}
+#ifdef CONFIG_MOTO_FACTORY_PUMP_STOP_STATE_FIX
+                else {
+			chip->pd_request_volt = SWITCH_CHARGER_PPS_VOLT;
+			chip->pd_request_curr = TYPEC_HIGH_CURRENT_UA;
+		}
+#else
 		chip->pd_request_volt = SWITCH_CHARGER_PPS_VOLT;
 		chip->pd_request_curr = TYPEC_HIGH_CURRENT_UA;
+#endif
 		break;
 	case PM_STATE_COOLING_LOOP:
 		mmi_chrg_info(chip,"In cooling loop, batt temp %d, cmp temp %d\n",
