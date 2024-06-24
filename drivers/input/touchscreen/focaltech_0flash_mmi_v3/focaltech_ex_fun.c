@@ -878,7 +878,7 @@ static ssize_t fts_ic_ver_show(struct device *dev,
     struct input_dev *input_dev = fts_data->input_dev;
     mutex_lock(&input_dev->mutex);
 #if FTS_ESDCHECK_EN
-    fts_esdcheck_proc_busy(1);
+    fts_esdcheck_proc_busy(fts_data, 1);
 #endif
 
 #ifdef CONFIG_FTS_MULTI_IC_EN
@@ -899,7 +899,7 @@ static ssize_t fts_ic_ver_show(struct device *dev,
     fts_read_reg(FTS_REG_VENDOR_ID, &val);
     count += scnprintf(buf + count, PAGE_SIZE, "Config ID: 0x%02x\n", val);
 #if FTS_ESDCHECK_EN
-    fts_esdcheck_proc_busy(0);
+    fts_esdcheck_proc_busy(fts_data, 0);
 #endif
     mutex_unlock(&input_dev->mutex);
     return count;
@@ -951,11 +951,11 @@ static ssize_t buildid_show(
     mutex_lock(&input_dev->mutex);
 
 #if FTS_ESDCHECK_EN
-    fts_esdcheck_proc_busy(1);
+    fts_esdcheck_proc_busy(fts_data, 1);
 #endif
     fts_read_reg(FTS_REG_FW_VER, &fwver);
 #if FTS_ESDCHECK_EN
-    fts_esdcheck_proc_busy(0);
+    fts_esdcheck_proc_busy(fts_data, 0);
 #endif
     if ((fwver == 0xFF) || (fwver == 0x00))
         num_read_chars = snprintf(buf, PAGE_SIZE, "get tp fw version fail!\n");
