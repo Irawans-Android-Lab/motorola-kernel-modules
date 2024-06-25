@@ -119,6 +119,12 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 #endif
 #endif
 
+#ifdef NVT_STOWED_MODE_SUPPORT
+#define NVT_STOWED_MODE_CMD 0x7C
+#define NVT_STOWED_MODE_EN  0x01
+#define NVT_STOWED_MODE_DIS 0x00
+#endif
+
 /* Enable only when module have tp reset pin and connected to host */
 #define NVT_TOUCH_SUPPORT_HW_RST 0
 
@@ -293,6 +299,10 @@ struct nvt_ts_data {
 	uint32_t build_id;
 	uint32_t config_id;
 
+#ifdef NVT_STOWED_MODE_SUPPORT
+	int set_stowed;
+	int get_stowed;
+#endif
 };
 
 #if NVT_TOUCH_PROC
@@ -389,6 +399,7 @@ uint8_t nvt_touch_is_awake(void);
 extern int touch_set_state(int state, int panel_idx);
 #endif
 #ifdef NVT_DOUBLE_TAP_CTRL
+int32_t nvt_cmd_ext_store(uint8_t cmd, uint8_t subcmd);
 extern int nvt_gesture_type_store(uint8_t g_type);
 #endif
 #if NVT_TOUCH_ESD_PROTECT
