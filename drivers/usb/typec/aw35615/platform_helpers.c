@@ -31,6 +31,7 @@
 #include "PD_Types.h"
 #include "TypeC_Types.h"
 #include "sysfs_header.h"
+#include "TypeC.h"
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -1390,6 +1391,9 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 			AW_LOG("aw35615 - stop_usb_host,event=0x%x,usb_state=%d\n",
 					event, usb_state);
 		}
+
+		if (!chip->port.water_check_set)
+			TimerStart(&chip->port.WaterRecoveryTimer, WaterRecoveryTimeout);
 		break;
 	case CC_AUDIO_OPEN:
 		AW_LOG("aw35615 CC_AUDIO_OPEN=0x%x\n", event);

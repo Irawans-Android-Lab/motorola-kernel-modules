@@ -79,6 +79,7 @@ extern struct aw35615_chip *g_chip;
 
 struct aw35615_chip *aw35615_GetChip(void);         // Getter for the global chip structure
 void aw35615_SetChip(struct aw35615_chip *newChip); // Setter for the global chip structure
+extern int tcpci_notify_wd_status(struct tcpc_device *tcpc, bool water_detected); //waterproof send event
 
 #endif /* _AW35615_GLOBAL_H_ */
 

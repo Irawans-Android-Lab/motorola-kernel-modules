@@ -27,7 +27,8 @@
 #define AW_PROTOCOL_BUFFER_SIZE 64
 
 /* Number of timer objects in list */
-#define AW_NUM_TIMERS 10
+#define AW_NUM_TIMERS 12
+#define AW_NUM_NO_WATERPROOF_TIMERS 10
 
 #ifndef NUM_PORTS
 #define NUM_PORTS		(1) /* Number of ports in this system */
@@ -119,7 +120,8 @@ struct Port {
 	AW_U8                  CollisionCounter;         /* Collisions for PE */
 	AW_U8                  HardResetCounter;
 	AW_U8                  CapsCounter;                /* Startup caps tx'd */
-
+	AW_U8                  WaterCounter;
+	AW_BOOL                water_check_set;
 	sopMainHeader_t         src_cap_header;
 	sopMainHeader_t         snk_cap_header;
 	doDataObject_t          src_caps[7];
@@ -178,7 +180,8 @@ struct Port {
 	struct TimerObj         PpsTimer;                   /* PPS timeout timer */
 	struct TimerObj         VBusPollTimer;              /* VBus monitor timer */
 	struct TimerObj         VdmTimer;                   /* VDM timer */
-
+	struct TimerObj         WaterDetectTimer;           /* Water timer */
+	struct TimerObj         WaterRecoveryTimer;         /* Water timer */
 	struct TimerObj         *Timers[AW_NUM_TIMERS];
 
 #ifdef AW_HAVE_EXT_MSG

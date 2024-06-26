@@ -43,7 +43,8 @@ void PortInit(Port_t *port)
 	port->Timers[7] = &port->PpsTimer;
 	port->Timers[8] = &port->VBusPollTimer;
 	port->Timers[9] = &port->VdmTimer;
-
+	port->Timers[10] = &port->WaterDetectTimer;
+	port->Timers[11] = &port->WaterRecoveryTimer;
 	for (i = 0; i < AW_NUM_TIMERS; ++i)
 		TimerDisable(port->Timers[i]);
 }
@@ -127,7 +128,7 @@ void SetPortDefaultConfiguration(Port_t *port)
 		port->PortConfig.PortType = USBTypeC_UNDEFINED;
 		break;
 	}
-
+	port->water_check_set = AW_TRUE;
 	/* Avoid undefined port type */
 	if (port->PortConfig.PortType == USBTypeC_UNDEFINED)
 		port->PortConfig.PortType = USBTypeC_DRP;

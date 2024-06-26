@@ -16,6 +16,7 @@
 #include "TypeC.h"
 #include "PDPolicy.h"
 #include "PDProtocol.h"
+#include "aw35615_global.h"
 
 void StateMachineTypeC(Port_t *port)
 {
@@ -53,6 +54,19 @@ void StateMachineTypeC(Port_t *port)
 			port->old_ConnState = port->ConnState;
 		}
 
+		if (TimerExpired(&port->WaterDetectTimer)) {
+			TimerDisable(&port->WaterDetectTimer);
+
+			if(port->WaterCounter >= 5){
+				AW_LOG("waterproof function trigger event\n");
+				port->water_check_set = false;
+				aw35615_set_cc_st(port->water_check_set);
+				TimerStart(&port->WaterRecoveryTimer, WaterRecoveryTimeout);
+				port->WaterCounter = 0;
+				return;
+			}
+			port->WaterCounter = 0;
+		}
 		switch (port->ConnState) {
 		case Disabled:
 			StateMachineDisabled(port);
@@ -158,6 +172,25 @@ void StateMachineErrorRecovery(Port_t *port)
 		SetStateUnattached(port);
 }
 
+/*
+	waterproof function after trigger,toggle close
+	function:mode=0 is UFP;mode=1 is DRP
+*/
+void aw35615_set_cc_st(int mode)
+{
+	AW_U8 control;
+	struct aw35615_chip *chip = aw35615_GetChip();
+	AW_LOG("enter\n");
+	chip->port.water_check_set = (AW_BOOL)mode;
+	SetStateUnattached(&chip->port);
+	chip->queued = AW_FALSE;
+	DeviceRead(&chip->port, regControl2, 1, &control);
+	AW_LOG("control(0x08h) = %d\n",control);
+	DeviceRead(&chip->port, regSwitches0, 1, &control);
+	AW_LOG("0x02h = 0x%x\n",control);
+	tcpci_notify_wd_status(chip->tcpc, (!mode));
+}
+
 void StateMachineUnattached(Port_t *port)
 {
 	/* AW_LOG("enter\n"); */
@@ -167,6 +200,14 @@ void StateMachineUnattached(Port_t *port)
 		/* Detached for ~100ms - safe to clear the loop counter */
 		TimerDisable(&port->LoopCountTimer);
 		port->loopCounter = 0;
+	}
+
+	if (TimerExpired(&port->WaterRecoveryTimer)){
+		TimerDisable(&port->WaterRecoveryTimer);
+		AW_LOG("waterproof function recovery\n");
+		port->water_check_set = true;
+		aw35615_set_cc_st(port->water_check_set);
+		return;
 	}
 
 	if ((port->Registers.Status.I_TOGDONE == 0) && port->Registers.Status.VBUSOK) {
@@ -179,10 +220,25 @@ void StateMachineUnattached(Port_t *port)
 		port->wait_toggle_num = WAITTOGGLE;
 	}
 
+	if (TimerExpired(&port->WaterDetectTimer)) {
+		TimerDisable(&port->WaterDetectTimer);
+
+		if(port->WaterCounter >= 5){
+			AW_LOG("waterproof function trigger event\n");
+			port->water_check_set = false;
+			aw35615_set_cc_st(port->water_check_set);
+			TimerStart(&port->WaterRecoveryTimer, WaterRecoveryTimeout);
+		}
+		port->WaterCounter = 0;
+		return;
+	}
+
 	if (port->Registers.Status.I_TOGDONE) {
 #ifdef WATERPROOF
-		/* waterproof function trigger event*/
-		AW_LOG("waterproof function trigger event\n")
+		if(port->WaterCounter == 0)
+			TimerStart(&port->WaterDetectTimer, WaterDetectTimeout);
+		port->WaterCounter++;
+		AW_LOG("waterproof trigger count=%d\n",port->WaterCounter);
 #endif
 		//TimerDisable(&port->LoopCountTimer);
 		DeviceRead(port, regStatus1a, 1, &port->Registers.Status.byte[1]);
@@ -974,11 +1030,20 @@ void SetStateErrorRecovery(Port_t *port)
 	clearState(port);
 }
 
+void SetStateOnlySink(Port_t *port)
+{
+	port->Registers.Switches.byte[0] = 0x03;/* Disable PU, PD, etc. */
+	DeviceWrite(port, regSwitches0, 1, &port->Registers.Switches.byte[0]);
+	port->Registers.Control.TOGGLE = 1;
+	port->Registers.Control.MODE = 2;
+	DeviceWrite(port, regControl2, 1, &port->Registers.Control.byte[2]);
+}
+
 void SetStateUnattached(Port_t *port)
 {
 	AW_U8 i = 0;
 
-	for (i = 0; i < AW_NUM_TIMERS; ++i)
+	for (i = 0; i < AW_NUM_NO_WATERPROOF_TIMERS; ++i)
 		TimerDisable(port->Timers[i]);
 
 	port->Registers.Reset.SW_RES = 1;
@@ -1065,6 +1130,12 @@ void SetStateUnattached(Port_t *port)
 	/* Delay before re-enabling toggle */
 	platform_delay_10us(250);
 	port->Registers.Control.TOGGLE = 1;
+
+	/* If water vapor is detected, set sink, otherwise restore the default state */
+	if (!port->water_check_set) {
+		port->Registers.Control.MODE = 0x2;
+	}
+
 	DeviceWrite(port, regControl0, 3, &port->Registers.Control.byte[0]);
 
 	port->Registers.Control5.VBUS_DIS_SEL = 0;
@@ -1209,7 +1280,7 @@ void SetStateAttachedSource(Port_t *port)
 {
 	/* AW_LOG("enter\n"); */
 	port->TCIdle = AW_TRUE;
-
+	port->WaterCounter = 0;
 	SetTypeCState(port, AttachedSource);
 
 	setStateSource(port, AW_TRUE);
@@ -1235,7 +1306,7 @@ void SetStateAttachedSink(Port_t *port)
 	port->DetachThreshold = VBUS_MV_VSAFE5V_DISC;
 
 	port->loopCounter = 0;
-
+	port->WaterCounter = 0;
 	SetTypeCState(port, AttachedSink);
 
 	setStateSink(port);

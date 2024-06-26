@@ -29,6 +29,12 @@
 /* Switch from Default to correct advertisement in AW.Src */
 #define tAttachWaitAdv  (20  * TICK_SCALE_TO_MS)
 #define VbusTimeout     (10  * TICK_SCALE_TO_MS)
+#define WaterDetectTimeout     (1500  * TICK_SCALE_TO_MS)
+#define WaterRecoveryTimeout     (10000  * TICK_SCALE_TO_MS)
+#if IS_ENABLED(CONFIG_MMI_AW35615_WATERPROOF)
+#define WATERPROOF     1
+#endif
+
 #define VBUSDEBOUNCE    (50)
 #define WAITTOGGLE      (30)
 
@@ -76,6 +82,7 @@ void SetStateAudioAccessory(Port_t *port);
 
 void SetStateErrorRecovery(Port_t *port);
 void SetStateUnattached(Port_t *port);
+void aw35615_set_cc_st(int mode);
 
 #ifdef AW_HAVE_SNK
 void SetStateAttachWaitSink(Port_t *port);
