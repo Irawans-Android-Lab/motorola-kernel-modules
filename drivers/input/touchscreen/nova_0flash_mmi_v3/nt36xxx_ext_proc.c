@@ -665,7 +665,7 @@ int32_t nvt_cmd_store(uint8_t u8Cmd)
 }
 
 #ifdef NVT_DOUBLE_TAP_CTRL
-static int32_t nvt_cmd_ext_store(uint8_t cmd, uint8_t subcmd)
+int32_t nvt_cmd_ext_store(uint8_t cmd, uint8_t subcmd)
 {
     int32_t i, retry = 5;
     uint8_t buf[4] = {0};
