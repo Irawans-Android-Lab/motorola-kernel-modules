@@ -1191,6 +1191,7 @@ static int sgm4154x_charger_set_property(struct power_supply *psy,
 			dev_info(sgm->dev, "%s: %d, vbus not online \n", __func__, val->intval);
 			sgm->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 			sgm->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
+			sgm4154x_power_supply_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
 			cancel_delayed_work(&sgm->charge_detect_delayed_work);
 			power_supply_changed(sgm->charger);
 		}
