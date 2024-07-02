@@ -251,6 +251,7 @@ struct sc8989x_chip {
 	struct power_supply *chg_psy;
 	struct iio_channel *vbus;
 	int retry_count;
+	atomic_t vbus_good_flag;
 };
 
 static const u32 sc8989x_iboost[] = {
@@ -612,11 +613,20 @@ err:
 	return -EINVAL;
 }
 
+static void determine_initial_status(struct sc8989x_chip *sc);
 __maybe_unused static int sc8989x_set_hiz(struct sc8989x_chip *sc, bool enable)
 {
+	int ret;
 	int reg_val = enable ? 1 : 0;
-
-	return sc8989x_field_write(sc, EN_HIZ, reg_val);
+	ret = sc8989x_field_write(sc, EN_HIZ, reg_val);
+	if (!reg_val) {
+		atomic_set(&sc->vbus_good_flag, 1);
+		dev_err(sc->dev, "tcmd cancel  sc8989x_set_hiz");
+		msleep(300);
+		atomic_set(&sc->vbus_good_flag, 0);
+		determine_initial_status(sc);
+	}
+	return ret;
 }
 
 static int sc8989x_set_iindpm(struct sc8989x_chip *sc, int curr_ma)
@@ -643,7 +653,7 @@ static int sc8989x_get_iindpm(struct sc8989x_chip *sc, int *curr_ma)
 	return ret;
 }
 
-static int sc8989x_set_dpdm_hiz(struct sc8989x_chip *sc)
+__maybe_unused static int sc8989x_set_dpdm_hiz(struct sc8989x_chip *sc)
 {
 	sc8989x_field_write(sc, DP_DRIVE, 0);
 	return sc8989x_field_write(sc, DM_DRIVE, 0);
@@ -1626,6 +1636,11 @@ static irqreturn_t sc8989x_irq_handler(int irq, void *data)
 
 	ret = sc8989x_field_read(sc, VBUS_GD, &reg_val);
 	if (ret) {
+		return IRQ_HANDLED;
+	}
+	if ((reg_val ==0) && (atomic_read(&sc->vbus_good_flag)))
+	{
+		dev_info(sc->dev, "%s: enter tcmd sc8989x_irq_handler test\n", __func__);
 		return IRQ_HANDLED;
 	}
 	prev_vbus_gd = sc->vbus_good;
