@@ -573,7 +573,14 @@ int ili_core_spi_setup(int num)
 	ilits->spi->bits_per_word = 8;
 	ilits->spi->max_speed_hz = freq[num];
 	ilits->spi->chip_select = 0;
-
+#ifdef ILI_TOUCH_COMPATIBILITY
+	ilits->spi->cs_setup.value =1;
+	ilits->spi->cs_setup.unit =0;
+	ilits->spi->cs_hold.value = 1;
+	ilits->spi->cs_hold.unit =0;
+	ilits->spi->cs_inactive.value =1;
+	ilits->spi->cs_inactive.unit = 0;
+#endif
 	if (spi_setup(ilits->spi) < 0) {
 		ILI_ERR("Failed to setup spi device\n");
 		return -ENODEV;
