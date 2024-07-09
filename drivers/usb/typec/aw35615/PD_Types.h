@@ -45,6 +45,7 @@
 #define CMTGetFRSwap            0x13
 #define CMTGetPPSStatus         0x14
 #define CMTGetCountryCodes      0x15
+#define CMTGetSinkCapExt        0x16
 #define CMTGetSourceInfo        0x17
 #define CMTGetRevisonMessage    0x18
 
@@ -76,6 +77,7 @@
 #define EXTPPSStatus            0xc
 #define EXTCountryInfo          0xd
 #define EXTCountryCodes         0xe
+#define EXTSinkCapExt           0xf
 
 /** Extended message data size in bytes
  *  This must be set in the extended header
@@ -103,7 +105,7 @@
 #define tSenderResponse         (26      * TICK_SCALE_TO_MS)
 #define tTypeCSendSourceCap     (150     * TICK_SCALE_TO_MS)
 #define tSinkWaitCap            (500     * TICK_SCALE_TO_MS)
-#define tTypeCSinkWaitCap       (550     * TICK_SCALE_TO_MS)
+#define tTypeCSinkWaitCap       (455     * TICK_SCALE_TO_MS)
 #define tSrcTransition          (25      * TICK_SCALE_TO_MS)
 #define tPSHardReset            (30      * TICK_SCALE_TO_MS)
 #define tPSHardResetMax         (34      * TICK_SCALE_TO_MS)
@@ -130,7 +132,7 @@
 #define tWaitCableReset         (1       * TICK_SCALE_TO_MS)
 #define tChunkReceiverRequest   (15      * TICK_SCALE_TO_MS)
 #define tChunkReceiverResponse  (15      * TICK_SCALE_TO_MS)
-#define tChunkSenderRequest     (30      * TICK_SCALE_TO_MS)
+#define tChunkSenderRequest     (10      * TICK_SCALE_TO_MS)
 #define tChunkSenderResponse    (30      * TICK_SCALE_TO_MS)
 #define tChunkingNotSupported   (40      * TICK_SCALE_TO_MS)
 
@@ -318,7 +320,7 @@ typedef union {
 		AW_U32:1;
 		AW_U32 CommandType :2;         /* Init, ACK, NAK, BUSY... */
 		AW_U32 ObjPos :3;              /* Object position */
-		AW_U32:2;
+		AW_U32 Version_Min:2;
 		AW_U32 Version :2;             /* Structured VDM version */
 		AW_U32 VDMType :1;             /* Unstructured or structured header */
 		AW_U32 SVID :16;               /* Unique SVID value */
@@ -615,6 +617,7 @@ typedef enum {
 	peGiveRevisonMessage,
 	peGetBatteryCap,
 	peGetBatteryStatus,
+	peGetSinkCapExt
 } PolicyState_t;
 
 /**

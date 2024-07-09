@@ -8,6 +8,7 @@
  * Version	   : 1.0
  * Function List :
  ******************************************************************************/
+#include <linux/delay.h>
 #include "platform_helpers.h"
 #include "vendor_info.h"
 #include "aw35615_driver.h"
@@ -509,7 +510,7 @@ void StateMachineAttachedSink(Port_t *port)
 	/* If using PD, sink can monitor CC as well as VBUS to allow detach */
 	/* during a hard reset */
 
-	if (port->USBPDActive && !port->IsPRSwap && port->CCTermPDDebounce == CCTypeOpen) {
+	if (port->USBPDActive && !port->IsPRSwap && !port->bist_doing && port->CCTermPDDebounce == CCTypeOpen) {
 		SetStateUnattached(port);
 		return;
 	}
@@ -559,6 +560,9 @@ void StateMachineAttachedSource(Port_t *port)
 		if ((port->CCTerm == CCTypeOpen) && (!port->IsPRSwap)) {
 			platform_set_pps_voltage(port->PortID, SET_VOUT_0000MV);
 			/* aw_vbus_path_disalbe(); */
+			/* VConn off and Pulldowns while detatching */
+			port->Registers.Switches.byte[0] = 0x03;
+			DeviceWrite(port, regSwitches0, 1, &port->Registers.Switches.byte[0]);
 			/* vbus discharge */
 			port->Registers.Control5.VBUS_DIS_SEL = 1;
 			DeviceWrite(port, regControl5, 1, &port->Registers.Control5.byte);
@@ -566,9 +570,6 @@ void StateMachineAttachedSource(Port_t *port)
 			notify_observers(CC_NO_ORIENT, port->I2cAddr, 0);
 
 			USBPDDisable(port, AW_TRUE);
-			/* VConn off and Pulldowns while detatching */
-			port->Registers.Switches.byte[0] = 0x03;
-			DeviceWrite(port, regSwitches0, 1, &port->Registers.Switches.byte[0]);
 
 			port->TypeCSubState++;
 
@@ -612,6 +613,8 @@ void StateMachineTryWaitSink(Port_t *port)
 	debounceCC(port);
 
 	if (port->CCTermPDDebounce == CCTypeOpen) {
+		port->Registers.Switches.byte[0] = 0xc0;
+		DeviceWrite(port, regSwitches0, 1, &port->Registers.Switches.byte[0]);
 		SetStateUnattached(port);
 		return;
 	}
@@ -655,6 +658,7 @@ void StateMachineTrySource(Port_t *port)
 		TimerDisable(&port->StateTimer);
 
 		/* Move onto the TryWait.Snk state to not get stuck in here */
+		usleep_range(15000, 18000);
 		SetStateTryWaitSink(port);
 	}
 }
@@ -1059,7 +1063,7 @@ void SetStateUnattached(Port_t *port)
 	}
 
 	/* Delay before re-enabling toggle */
-	platform_delay_10us(25);
+	platform_delay_10us(250);
 	port->Registers.Control.TOGGLE = 1;
 	DeviceWrite(port, regControl0, 3, &port->Registers.Control.byte[0]);
 
@@ -1252,7 +1256,7 @@ void RoleSwapToAttachedSink(Port_t *port)
 {
 	SetTypeCState(port, AttachedSink);
 	port->sourceOrSink = SINK;
-	port->no_clear_message = AW_TRUE;
+	port->no_clear_message = AW_FALSE;
 
 	/* Watch VBUS for sink disconnect */
 	port->Registers.Measure.MEAS_VBUS = 1;
@@ -1295,7 +1299,7 @@ void RoleSwapToAttachedSource(Port_t *port)
 
 	notify_observers(POWER_ROLE, port->I2cAddr, NULL);
 
-	port->no_clear_message = AW_TRUE;
+	port->no_clear_message = AW_FALSE;
 	port->SinkCurrent = utccNone;
 	TimerDisable(&port->StateTimer);
 	TimerDisable(&port->PDDebounceTimer);
@@ -1604,7 +1608,7 @@ CCTermType DecodeCCTerminationSource(Port_t *port)
 	/* Assume we are called with MDAC high. */
 	/* Delay to allow measurement to settle */
 	/* platform_delay_ms(3); */
-	platform_delay_10us(100);
+	platform_delay_10us(150);
 	DeviceRead(port, regStatus0, 1, &port->Registers.Status.byte[4]);
 
 	if (port->Registers.Status.COMP == 1) {
@@ -1680,7 +1684,7 @@ AW_BOOL IsCCPinRa(Port_t *port)
 	updateSourceMDACLow(port);
 
 	/* Delay to allow measurement to settle */
-	platform_delay_10us(25);
+	platform_delay_10us(150);
 	DeviceRead(port, regStatus0, 1, &port->Registers.Status.byte[4]);
 
 	isRa = (port->Registers.Status.COMP == 0) ? AW_TRUE : AW_FALSE;
@@ -1761,7 +1765,7 @@ void UpdateCurrentAdvert(Port_t *port, USBTypeCCurrent Current)
 
 AW_BOOL VbusVSafe0V(Port_t *port)
 {
-	return (!isVBUSOverVoltage(port, 3200)) ? AW_TRUE : AW_FALSE;
+	return (!isVBUSOverVoltage(port, 900)) ? AW_TRUE : AW_FALSE;
 }
 
 AW_BOOL isVSafe5V(Port_t *port)

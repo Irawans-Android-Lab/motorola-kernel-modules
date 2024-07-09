@@ -208,8 +208,6 @@ void ProtocolGetRxPacket(Port_t *port, AW_BOOL HeaderReceived)
 		port->ProtocolMsgRx = AW_TRUE;
 	}
 
-	/* AW_LOG("num = %d Type =%d\n", port->PolicyRxHeader.NumDataObjects, */
-	/* port->PolicyRxHeader.MessageType); */
 	if ((port->PolicyRxHeader.NumDataObjects == 0) &&
 		(port->PolicyRxHeader.MessageType == CMTGoodCRC)) {
 		/* Rare cases may result in the next GoodCRC being processed before */
@@ -447,6 +445,10 @@ void ProtocolTransmitMessage(Port_t *port)
 	/* Load the CRC, EOP and stop sequence */
 	ProtocolLoadEOP(port);
 
+	port->Registers.Control.N_RETRIES = DPM_Retries(port, port->ProtocolMsgTxSop);
+	port->Registers.Control.AUTO_RETRY = 1;
+	port->Registers.Control.SEND_HARDRESET = 0;
+	DeviceWrite(port, regControl3, 1, &port->Registers.Control.byte[3]);
 	/* Commit the FIFO to the device */
 	if (DeviceWrite(port, regFIFO, port->ProtocolTxBytes,
 					&port->ProtocolTxBuffer[0]) == AW_FALSE) {
@@ -457,10 +459,6 @@ void ProtocolTransmitMessage(Port_t *port)
 		return;
 	}
 
-	port->Registers.Control.N_RETRIES = DPM_Retries(port, port->ProtocolMsgTxSop);
-	port->Registers.Control.AUTO_RETRY = 1;
-
-	DeviceWrite(port, regControl3, 1, &port->Registers.Control.byte[3]);
 	port->Registers.Control.TX_START = 1;
 	DeviceWrite(port, regControl0, 1, &port->Registers.Control.byte[0]);
 	port->Registers.Control.TX_START = 0;
@@ -508,6 +506,7 @@ void ProtocolVerifyGoodCRC(Port_t *port)
 {
 	/* AW_LOG("enter\n"); */
 	AW_U8 data[4];
+	AW_U8 regStatus;
 	sopMainHeader_t header;
 	SopType sop;
 
@@ -530,8 +529,13 @@ void ProtocolVerifyGoodCRC(Port_t *port)
 		if (header.MessageID != MIDcompare) {
 			/* Read out the 4 CRC bytes to move the addr to the next packet */
 			DeviceRead(port, regFIFO, 4, data);
-			port->PDTxStatus = txError;
-			port->ProtocolState = PRLIdle;
+			DeviceRead(port, regStatus0a, 1, &regStatus);
+			if (regStatus & 0x10) {
+				AW_LOG("RETRYFAIL\n");
+				port->PDTxStatus = txError;
+				port->ProtocolState = PRLIdle;
+			}
+			AW_LOG("RETRY\n");
 		} else {
 			if (sop != SOP_TYPE_ERROR) {
 				/* Increment and roll over */

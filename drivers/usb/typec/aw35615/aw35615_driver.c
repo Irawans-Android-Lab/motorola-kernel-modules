@@ -33,7 +33,7 @@
 
 #include "aw35615_driver.h"
 
-#define AW35615_DRIVER_VERSION		"V1.5.0"
+#define AW35615_DRIVER_VERSION		"V1.6.6"
 
 /******************************************************************************
  * Driver functions
@@ -83,7 +83,41 @@ int aw35615_get_fault_status(struct tcpc_device *tcpc, uint8_t *status)
 
 static int aw35615_get_cc(struct tcpc_device *tcpc, int *cc1, int *cc2)
 {
+	struct aw35615_chip *chip = aw35615_GetChip();
+
 	AW_LOG("enter\n");
+
+	if (chip->port.sourceOrSink == SINK) {
+		if (chip->port.CCTerm == CCTypeRd3p0) {
+			if (chip->tcpc->typec_polarity) {
+				chip->tcpc->typec_remote_cc[0] = TYPEC_CC_VOLT_OPEN;
+				chip->tcpc->typec_remote_cc[1] = TYPEC_CC_VOLT_SNK_3_0;
+			} else {
+				chip->tcpc->typec_remote_cc[0] = TYPEC_CC_VOLT_SNK_3_0;
+				chip->tcpc->typec_remote_cc[1] = TYPEC_CC_VOLT_OPEN;
+			}
+		} else if (chip->port.CCTerm == CCTypeRdUSB) {
+			if (chip->tcpc->typec_polarity) {
+				chip->tcpc->typec_remote_cc[0] = TYPEC_CC_VOLT_OPEN;
+				chip->tcpc->typec_remote_cc[1] = TYPEC_CC_VOLT_SNK_DFT;
+			} else {
+				chip->tcpc->typec_remote_cc[0] = TYPEC_CC_VOLT_SNK_DFT;
+				chip->tcpc->typec_remote_cc[1] = TYPEC_CC_VOLT_OPEN;
+			}
+		}
+	} else if (chip->port.sourceOrSink == SOURCE) {
+		if (chip->tcpc->typec_polarity) {
+			chip->tcpc->typec_remote_cc[0] = TYPEC_CC_VOLT_OPEN;
+			chip->tcpc->typec_remote_cc[1] = TYPEC_CC_VOLT_RD;
+		} else {
+			chip->tcpc->typec_remote_cc[0] = TYPEC_CC_VOLT_RD;
+			chip->tcpc->typec_remote_cc[1] = TYPEC_CC_VOLT_OPEN;
+		}
+	} else {
+		chip->tcpc->typec_remote_cc[0] = TYPEC_CC_DRP_TOGGLING;
+		chip->tcpc->typec_remote_cc[1] = TYPEC_CC_DRP_TOGGLING;
+	}
+
 	return 0;
 }
 
@@ -257,9 +291,10 @@ static void aw35615_init_delay_work(struct work_struct *work)
 	AW_LOG("Core is initialized!\n");
 }
 
-static void aw35615_bist_delay_work(struct work_struct *work)
+static void aw35615_bist_work(struct work_struct *work)
 {
 	struct aw35615_chip *chip = aw35615_GetChip();
+	AW_U8 data_buf[3];
 
 	if (!chip) {
 		pr_err("AWINIC  %s - Chip structure is NULL!\n", __func__);
@@ -267,19 +302,41 @@ static void aw35615_bist_delay_work(struct work_struct *work)
 	}
 
 	if (chip->port.PolicyIsSource == 0) {
-		AW_LOG("test grp 2 sink_reg_bist = %x\r\n", chip->sink_reg_bist);
-		//chip->port.Registers.Slice.byte = 0x54;	//for SINK start  , test  group 2  ,
-		chip->port.Registers.Slice.byte = chip->sink_reg_bist;
-		DeviceWrite(&chip->port, regSlice, 1,	&chip->port.Registers.Slice.byte); //for test SINK group3
+		DeviceRead(&chip->port, regInterruptb, 2, &data_buf[0]);
+		DeviceRead(&chip->port, regInterrupt, 1, &data_buf[2]);
+		AW_LOG("regInterruptb = 0x%x regStatus0 = 0x%x regInterrupt = 0x%x\n", data_buf[0], data_buf[1], data_buf[2]);
+		if (data_buf[0] & 0x1) {
+			hrtimer_start(&chip->bist_timer, ktime_set(chip->source_end_timer / 1000, chip->source_end_timer * 1000000), HRTIMER_MODE_REL);
+			AW_LOG("go sink check\n");
+		} else {
+			AW_LOG("go sink set SDAC\n");
+			chip->port.Registers.Slice.byte = chip->sink_reg_bist;
+			DeviceWrite(&chip->port, regSlice, 1,	&chip->port.Registers.Slice.byte);
+		}
 	}
 
 	if (chip->port.PolicyIsSource == 1) {
 		chip->port.SOURCE_Flag_end = 1;
-		AW_LOG("test grp 3 source_reg_bist = %x\r\n", chip->source_reg_bist);
-		//chip->port.Registers.Slice.byte = 0x65;	//for SINK start  , test  group 2  ,
-		chip->port.Registers.Slice.byte = chip->source_reg_bist;
-		DeviceWrite(&chip->port, regSlice, 1,	&chip->port.Registers.Slice.byte); //for test SINK group3
+		DeviceRead(&chip->port, regInterruptb, 2, &data_buf[0]);
+		DeviceRead(&chip->port, regInterrupt, 1, &data_buf[2]);
+		AW_LOG("regInterruptb = 0x%x regStatus0 = 0x%x regInterrupt = 0x%x\n", data_buf[0], data_buf[1], data_buf[2]);
+		if (data_buf[0] & 0x1) {
+			hrtimer_start(&chip->bist_timer, ktime_set(chip->source_end_timer / 1000, chip->source_end_timer * 1000000), HRTIMER_MODE_REL);
+			AW_LOG("go source check\n");
+		} else {
+			AW_LOG("go source set SDAC\n");
+			chip->port.Registers.Slice.byte = chip->source_reg_bist;
+			DeviceWrite(&chip->port, regSlice, 1,	&chip->port.Registers.Slice.byte);
+		}
 	}
+}
+
+static enum hrtimer_restart aw35615_bist_timer_func(struct hrtimer *p_hrtimer)
+{
+	struct aw35615_chip *chip = container_of(p_hrtimer, struct aw35615_chip, bist_timer);
+
+	schedule_work(&chip->bist_work);
+	return HRTIMER_NORESTART;
 }
 
 static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *id)
@@ -325,6 +382,7 @@ static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *
 		return -EIO;
 	}
 
+	cpu_latency_qos_add_request(&chip->pm_gos_request, PM_QOS_DEFAULT_VALUE);
 	aw35615_SetChip(chip);
 	/* Initialize the chip's data members */
 	aw_InitChipData();
@@ -372,9 +430,12 @@ static int aw35615_probe(struct i2c_client *client, const struct i2c_device_id *
 	AW_LOG(" DebugFS nodes created!\n");
 #endif // AW_DEBUG
 
+	INIT_WORK(&chip->bist_work, aw35615_bist_work);
+	hrtimer_init(&chip->bist_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	chip->bist_timer.function = aw35615_bist_timer_func;
+
 	/* delay init */
 	INIT_DELAYED_WORK(&chip->init_delay_work, aw35615_init_delay_work);
-	INIT_DELAYED_WORK(&chip->bist_delay_work, aw35615_bist_delay_work);
 	schedule_delayed_work(&chip->init_delay_work, msecs_to_jiffies(3000));
 
 	AW_LOG(" AWINIC Driver loaded successfully!\n");
@@ -411,8 +472,11 @@ static void aw35615_shutdown(struct i2c_client *client)
 		return;
 	}
 
+	if (chip->gpio_IntN_irq)
+		disable_irq(chip->gpio_IntN_irq);
 	cancel_work_sync(&chip->sm_worker);
-	hrtimer_cancel(&chip->sm_timer);
+	//hrtimer_cancel(&chip->sm_timer);
+	alarm_cancel(&chip->alarmtimer);
 	aw_GPIO_Cleanup();
 
 	core_enable_typec(&chip->port, AW_FALSE);
@@ -420,7 +484,7 @@ static void aw35615_shutdown(struct i2c_client *client)
 	if (ret < 0)
 		pr_err("send hardreset failed, ret = %d\n", ret);
 
-	SetStateUnattached(&chip->port);
+	//SetStateUnattached(&chip->port);
 
 	/* keep the cc open status 20ms */
 	mdelay(5);

@@ -114,7 +114,7 @@
 #define VBUS_MV_VSAFE0V		840	 /* Closest value for MDAC resolution */
 #define VBUS_MV_VSAFE0V_DISCH	600
 #define VBUS_MV_VSAFE5V_DISC	3200
-#define VBUS_MV_VSAFE5V_L	4150
+#define VBUS_MV_VSAFE5V_L	4450
 #define VBUS_MV_VSAFE5V_H	5500
 
 #define VBUS_PD_TO_MV(v)   (v * 50)	 /* Convert 50mv PD values to mv */

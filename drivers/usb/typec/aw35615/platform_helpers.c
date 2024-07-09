@@ -46,7 +46,8 @@ const char *AW_DT_INTERRUPT_INTN =    "aw_interrupt_int_n";
 /* Internal forward declarations */
 static irqreturn_t _aw_isr_intn(int irq, void *dev_id);
 static void work_function(struct work_struct *work);
-static enum hrtimer_restart aw_sm_timer_callback(struct hrtimer *timer);
+static enum alarmtimer_restart aw_sm_timer_callback(struct alarm *alarm, ktime_t now);
+void aw_StartTimer(struct alarm *alarm, AW_U32 time_ms);
 
 const AW_U8 aw35615_reg_access[AW35615_REG_MAX] = {
 	[regDeviceID]   = (REG_RD_ACCESS),
@@ -188,6 +189,15 @@ AW_S32 aw_parse_dts(void)
 	} else {
 		chip->port.src_tog_time = (AW_U8)val;
 		AW_LOG("%s:aw35615,snk_tog_time, val = %d\n", __func__, val);
+	}
+
+	ret = of_property_read_u32(node, "aw35615,sink_bist_reg", &val);
+	if (ret < 0) {
+		chip->port.sink_bist_reg_dts = 0x60;
+		dev_err(&chip->client->dev, "%s: def aw35615,sink_bist_reg_dts = 0x60\n", __func__);
+	} else {
+		chip->port.sink_bist_reg_dts = (AW_U8)val;
+		AW_LOG("%s:aw35615,sink_bist_reg_dts, val = %d\n", __func__, val);
 	}
 
 	return 0;
@@ -815,11 +825,12 @@ void aw_InitializeCore(void)
 	}
 
 	core_initialize(&chip->port);
-	chip->sink_timer = 31500;
-	chip->source_timer = 28900;
-	chip->source_end_timer = 31500;
-	chip->port.sink_bist_reg = 0x60;
-	chip->sink_reg_bist = 0x54;
+	usleep_range(4000, 5000);
+	chip->sink_timer = 25000;
+	chip->source_timer = 25000;
+	chip->source_end_timer = 3;
+	chip->port.sink_bist_reg = chip->port.sink_bist_reg_dts;
+	chip->sink_reg_bist = 0x50;
 	chip->source_reg_bist = 0x65;
 	AW_LOG(" Core is initialized!\n");
 }
@@ -882,6 +893,7 @@ void aw_InitChipData(void)
 	chip->numRetriesI2C = RETRIES_I2C;
 
 	/* Worker thread setup */
+	chip->wakelock_flag = AW_FALSE;
 	INIT_WORK(&chip->sm_worker, work_function);
 
 	chip->queued = AW_FALSE;
@@ -894,8 +906,9 @@ void aw_InitChipData(void)
 	}
 
 	/* HRTimer Setup */
-	hrtimer_init(&chip->sm_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	chip->sm_timer.function = aw_sm_timer_callback;
+	//hrtimer_init(&chip->sm_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	alarm_init(&chip->alarmtimer, ALARM_REALTIME, aw_sm_timer_callback);
+	//chip->sm_timer.function = aw_sm_timer_callback;
 }
 
 
@@ -942,12 +955,13 @@ AW_S32 aw_EnableInterrupts(void)
 		return ret;
 	}
 
+	device_init_wakeup(&chip->client->dev, true);
 	enable_irq_wake(chip->gpio_IntN_irq);
 
 	return 0;
 }
 
-void aw_StartTimer(struct hrtimer *timer, AW_U32 time_ms)
+void aw_StartTimer(struct alarm *alarm, AW_U32 time_ms)
 {
 	ktime_t ktime;
 	struct aw35615_chip *chip = aw35615_GetChip();
@@ -959,10 +973,11 @@ void aw_StartTimer(struct hrtimer *timer, AW_U32 time_ms)
 
 	/* Set time in (seconds, nanoseconds) */
 	ktime = ktime_set(time_ms / 1000, time_ms * 1000000);
-	hrtimer_start(timer, ktime, HRTIMER_MODE_REL);
+	//hrtimer_start(timer, ktime, HRTIMER_MODE_REL);
+	alarm_start_relative(alarm, ktime);
 }
 
-void aw_StopTimer(struct hrtimer *timer)
+void aw_StopTimer(struct alarm *alarm)
 {
 	struct aw35615_chip *chip = aw35615_GetChip();
 
@@ -971,7 +986,8 @@ void aw_StopTimer(struct hrtimer *timer)
 		return;
 	}
 
-	hrtimer_cancel(timer);
+	//hrtimer_cancel(timer);
+	alarm_cancel(alarm);
 }
 
 AW_U64 get_system_time_ms(void)
@@ -998,33 +1014,37 @@ static irqreturn_t _aw_isr_intn(AW_S32 irq, void *dev_id)
 		return IRQ_NONE;
 	}
 
-	aw_StopTimer(&chip->sm_timer);
+	aw_StopTimer(&chip->alarmtimer);
 
 	/* Schedule the process to handle the state machine processing */
 	if (!chip->queued) {
 		chip->queued = AW_TRUE;
+		pm_wakeup_event(&chip->client->dev, 1500);
+		cpu_latency_qos_update_request(&chip->pm_gos_request, 175);
 		queue_work(chip->highpri_wq, &chip->sm_worker);
 	}
 
 	return IRQ_HANDLED;
 }
 
-static enum hrtimer_restart aw_sm_timer_callback(struct hrtimer *timer)
+static enum alarmtimer_restart aw_sm_timer_callback(struct alarm *alarm, ktime_t now)
 {
-	struct aw35615_chip *chip = container_of(timer, struct aw35615_chip, sm_timer);
+	struct aw35615_chip *chip = container_of(alarm, struct aw35615_chip, alarmtimer);
 
 	if (!chip) {
 		pr_err("AWINIC  %s - Chip structure is NULL!\n", __func__);
-		return HRTIMER_NORESTART;
+		return ALARMTIMER_NORESTART;
 	}
 
 	/* Schedule the process to handle the state machine processing */
 	if (!chip->queued) {
 		chip->queued = AW_TRUE;
+		pm_wakeup_event(&chip->client->dev, 1500);
+		cpu_latency_qos_update_request(&chip->pm_gos_request, 175);
 		queue_work(chip->highpri_wq, &chip->sm_worker);
 	}
 
-	return HRTIMER_NORESTART;
+	return ALARMTIMER_NORESTART;
 }
 
 AW_BOOL aw_set_pdo(AW_U16 pdo_num, AW_U16 pdo_cur)
@@ -1158,13 +1178,16 @@ static void work_function(struct work_struct *work)
 	}
 
 	/* Disable timer while processing */
-	aw_StopTimer(&chip->sm_timer);
+	aw_StopTimer(&chip->alarmtimer);
 
+	if (!chip->wakelock_flag) {
+		chip->wakelock_flag = AW_TRUE;
 #ifdef AW_KERNEL_VER_OVER_4_19_1
-	__pm_stay_awake(chip->aw35615_wakelock);
+		__pm_stay_awake(chip->aw35615_wakelock);
 #else
-	wake_lock(&chip->aw35615_wakelock);
+		wake_lock(&chip->aw35615_wakelock);
 #endif
+	}
 
 	down(&chip->suspend_lock);
 
@@ -1187,17 +1210,25 @@ static void work_function(struct work_struct *work)
 				queue_work(chip->highpri_wq, &chip->sm_worker);
 			} else {
 				/* A non-zero time requires a future timer interrupt */
-				aw_StartTimer(&chip->sm_timer, timeout);
+				aw_StartTimer(&chip->alarmtimer, timeout);
 			}
 		}
 	}
 
 	up(&chip->suspend_lock);
+	if (chip->wakelock_flag && ((chip->port.ConnState == AudioAccessory) ||
+			(chip->port.ConnState == AttachedSink) || (chip->port.ConnState == AttachVbusOnlyok) ||
+			(chip->port.ConnState == AttachedSource) || (chip->port.ConnState == PoweredAccessory) ||
+			(chip->port.ConnState == DebugAccessorySink) || (chip->port.ConnState == DebugAccessorySource) ||
+			(chip->port.ConnState == Unattached))) {
+		chip->wakelock_flag = AW_FALSE;
 #ifdef AW_KERNEL_VER_OVER_4_19_1
-	__pm_relax(chip->aw35615_wakelock);
+		__pm_relax(chip->aw35615_wakelock);
 #else
-	wake_unlock(&chip->aw35615_wakelock);
+		wake_unlock(&chip->aw35615_wakelock);
 #endif
+	}
+	cpu_latency_qos_update_request(&chip->pm_gos_request, PM_QOS_DEFAULT_VALUE);
 }
 
 void stop_usb_host(struct aw35615_chip *chip)
@@ -1304,10 +1335,10 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 		return;
 	}
 
-	if (event != chip->old_event) {
-		AW_LOG("event = %d\n", event);
-		chip->old_event = event;
-	}
+//	if (event != chip->old_event) {
+//		AW_LOG("event = %d\n", event);
+//		chip->old_event = event;
+//	}
 	switch (event) {
 	case CC1_ORIENT:
 	case CC2_ORIENT:
@@ -1347,6 +1378,7 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 		break;
 	case CC_NO_ORIENT:
 		AW_LOG("aw35615 CC_NO_ORIENT=0x%x\n", event);
+		chip->tcpc->pd_port.pe_data.pe_ready = AW_FALSE;
 		if (usb_state == 1) {
 			stop_usb_peripheral(chip);
 			usb_state = 0;
@@ -1364,11 +1396,12 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 		stop_acc_audio(chip);
 		break;
 	case PD_STATE_CHANGED:
-		AW_LOG("aw35615 :PD_STATE_CHANGED=0x%x, PE_ST=%d\n",
-				event, chip->port.PolicyState);
+		AW_LOG("aw35615 : PE_ST=%d\n", chip->port.PolicyState);
 
-		if (chip->port.PolicyState == peSinkSendHardReset)
+		if (chip->port.PolicyState == peSinkTransitionDefault) {
+			chip->tcpc->pd_port.pe_data.pe_ready = AW_FALSE;
 			tcpci_notify_pd_state(chip->tcpc, PD_CONNECT_HARD_RESET);
+		}
 
 		if (chip->port.PolicyState == peSinkReady &&
 			chip->port.PolicyHasContract == AW_TRUE) {
@@ -1376,33 +1409,28 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 				chip->port.pd_state = AW_TRUE;
 				chip->tcpc->pd_port.data_role = PD_ROLE_UFP;
 				chip->tcpc->pd_port.power_role = PD_ROLE_SINK;
+				chip->tcpc->pd_port.pe_data.pe_ready = AW_TRUE;
 				if (chip->port.src_support_pps)
 					tcpci_notify_pd_state(chip->tcpc, PD_CONNECT_PE_READY_SNK_APDO);
 				else
 					tcpci_notify_pd_state(chip->tcpc, PD_CONNECT_PE_READY_SNK_PD30);
 			}
-			AW_LOG("aw35615 req_obj=0x%x, sel_src_caps=0x%x\n",
-					chip->port.USBPDContract.FVRDO.ObjectPosition,
-				chip->port.SrcCapsReceived[
-				chip->port.USBPDContract.FVRDO.ObjectPosition - 1].object);
 		} else if (chip->port.PolicyState == peSourceReady &&
 			chip->port.PolicyHasContract == AW_TRUE) {
 			if (!chip->port.pd_state) {
 				chip->port.pd_state = AW_TRUE;
 				chip->tcpc->pd_port.data_role = PD_ROLE_DFP;
 				chip->tcpc->pd_port.power_role = PD_ROLE_SOURCE;
+				chip->tcpc->pd_port.pe_data.pe_ready = AW_TRUE;
 				tcpci_notify_pd_state(chip->tcpc, PD_CONNECT_PE_READY_SRC_PD30);
 			}
 		}
 		break;
 	case PD_NO_CONTRACT:
-		AW_LOG("aw35615 :PD_NO_CONTRACT=0x%x, PE_ST=%d\n",
-				event, chip->port.PolicyState);
+		AW_LOG("aw35615 : PE_ST=%d\n", chip->port.PolicyState);
 
 		break;
 	case PD_NEW_CONTRACT:
-		AW_LOG("aw35615 :PD_NEW_CONTRACT=0x%x, PE_ST=%d\n",
-				event, chip->port.PolicyState);
 		if (chip->port.SrcCapsReceived[chip->port.SinkRequest.FVRDO.ObjectPosition - 1].PDO.SupplyType == pdoTypeAugmented) {
 			AW_LOG("SinkRequestpps ObjectPosition = %d,Voltage = %d,Current = %d\n",
 				chip->port.SinkRequest.PPSRDO.ObjectPosition,
@@ -1453,7 +1481,7 @@ void handle_core_event(AW_U32 event, AW_U8 portId, void *usr_ctx, void *app_ctx)
 
 		break;
 	default:
-		AW_LOG("aw35615 - default=0x%x", event);
+		//AW_LOG("aw35615 - default=0x%x", event);
 		break;
 	}
 }
