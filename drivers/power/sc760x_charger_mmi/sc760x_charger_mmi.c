@@ -1096,11 +1096,11 @@ static int sc760x_get_state(struct sc760x_chip *sc,
 	sc760x_get_work_mode(sc, (int *)&state->work_mode);
 
 	sc760x_get_adc(sc, ADC_IBAT, &state->ibat_adc);
-	sc760x_get_adc(sc, ADC_IBAT, &state->ibat_adc);
 	sc760x_get_adc(sc, ADC_VBAT, &state->vbat_adc);
 	sc760x_get_adc(sc, ADC_VCHG, &state->vchg_adc);
-	sc760x_get_adc(sc, ADC_TBAT, &state->tbat_adc);
 	sc760x_get_adc(sc, ADC_TDIE, &state->tdie_adc);
+	dev_err(sc->dev, "work_mode=%d, ibat=%d, vbat=%d, vchg=%d, tdie=%d\n",
+		state->work_mode, state->ibat_adc, state->vbat_adc, state->vchg_adc, state->tdie_adc);
 	state->ibat_adc = state->ibat_adc * 1000;
 	state->vbat_adc = state->vbat_adc * 1000;
 	state->vchg_adc = state->vchg_adc * 1000;
