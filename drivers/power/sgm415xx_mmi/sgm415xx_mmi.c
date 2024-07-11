@@ -997,7 +997,7 @@ static int sgm4154x_plug_out(struct charger_device *chg_dev)
 	if (ret) {
 		pr_err("%s: Failed to disable charging:%d\n", __func__, ret);
 	}
-
+	sgm4154x_power_supply_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
 	return ret;
 }
 

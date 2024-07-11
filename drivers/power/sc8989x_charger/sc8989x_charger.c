@@ -948,6 +948,7 @@ static int sc8989x_plug_out(struct charger_device *chg_dev)
 	if (ret) {
 		dev_err(sc->dev, "Failed to disable charging:%d\n", ret);
 	}
+	sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
 	return ret;
 }
 
@@ -1588,7 +1589,7 @@ static int sc8989x_get_charger_type(struct sc8989x_chip *sc)
 	case VBUS_STAT_UNKOWN:
 		sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_SDP;
 		sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
-		sc->psy_desc.type = POWER_SUPPLY_TYPE_USB;
+		sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
 		dev_info(sc->dev, "%s: charger type: UNKNOWN\n", __func__);
 		if (sc->force_detect_count < 10) {
 			dev_info(sc->dev, "[%s] SC8989x charger type: UNKNOWN, retry bc12 count:%d\n", __func__, sc->force_detect_count);
