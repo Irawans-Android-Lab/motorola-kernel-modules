@@ -3010,6 +3010,16 @@ static int fts_ts_remove(struct spi_device *spi)
     return fts_ts_remove_entry(spi_get_drvdata(spi));
 }
 
+static void fts_ts_shutdown(struct spi_device *spi)
+{
+    FTS_FUNC_ENTER();
+    if (fts_data) {
+        fts_ts_remove_entry(fts_data);
+        spi_set_drvdata(spi, NULL);
+    }
+    FTS_FUNC_EXIT();
+}
+
 static const struct spi_device_id fts_ts_id[] = {
     {FTS_DRIVER_NAME, 0},
     {},
@@ -3023,6 +3033,7 @@ MODULE_DEVICE_TABLE(of, fts_dt_match);
 static struct spi_driver fts_ts_driver = {
     .probe = fts_ts_probe,
     .remove = fts_ts_remove,
+    .shutdown = fts_ts_shutdown,
     .driver = {
         .name = FTS_DRIVER_NAME,
         .owner = THIS_MODULE,
