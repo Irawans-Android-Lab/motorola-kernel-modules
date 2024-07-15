@@ -619,7 +619,9 @@ static int aw8622x_haptic_stop(struct aw8622x *aw8622x)
 				       AW8622X_BIT_SYSCTRL2_STANDBY_MASK,
 				       AW8622X_BIT_SYSCTRL2_STANDBY_OFF);
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
 	aw8622x_haptic_auto_brk_enable(aw8622x, false);
+#endif
 	return 0;
 }
 
@@ -873,6 +875,9 @@ static int aw8622x_haptic_cont_get_f0(struct aw8622x *aw8622x)
 	unsigned char reg_val = 0;
 	unsigned char brk_en_temp = 0;
 	unsigned char reg_array[3] = {0};
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0)
+	unsigned char drv_width = 0;
+#endif
 	unsigned int cnt = 200;
 	int ret = 0;
 
@@ -880,6 +885,12 @@ static int aw8622x_haptic_cont_get_f0(struct aw8622x *aw8622x)
 	aw8622x->f0 = aw8622x->dts_info.f0_ref;
 	/* enter standby mode */
 	aw8622x_haptic_stop(aw8622x);
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0)
+	/* config dts d2s_gain */
+	aw8622x_i2c_write_bits(aw8622x, AW8622X_REG_SYSCTRL7,
+				 AW8622X_BIT_SYSCTRL7_D2S_GAIN_MASK,
+				 aw8622x->dts_info.d2s_gain);
+#endif
 	/* f0 calibrate work mode */
 	aw8622x_haptic_play_mode(aw8622x, AW8622X_HAPTIC_CONT_MODE);
 	/* enable f0 detect */
@@ -915,9 +926,23 @@ static int aw8622x_haptic_cont_get_f0(struct aw8622x *aw8622x)
 		aw8622x_i2c_write(aw8622x, AW8622X_REG_CONTCFG11, &reg_val,
 				  AW_I2C_BYTE_ONE);
 	}
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0)
+	/* DRV_WIDTH */
+	drv_width = AW862XX_DRV_WIDTH_FORMULA(aw8622x->dts_info.f0_ref,
+					      aw8622x->dts_info.cont_track_margin,
+					      aw8622x->dts_info.cont_brk_gain);
+	if (drv_width < AW_DRV_WIDTH_MIN)
+		drv_width = AW_DRV_WIDTH_MIN;
+	if (drv_width > AW_DRV_WIDTH_MAX)
+		drv_width = AW_DRV_WIDTH_MAX;
+	aw8622x_i2c_write(aw8622x, AW8622X_REG_CONTCFG3, &drv_width, AW_I2C_BYTE_ONE);
+#endif
 	/* cont play go */
 	aw8622x_haptic_play_go(aw8622x, true);
 	/* 300ms */
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0)
+	usleep_range(20000, 20500);
+#endif
 	while (cnt) {
 		aw8622x_i2c_read(aw8622x, AW8622X_REG_GLBRD5, &reg_val,
 				 AW_I2C_BYTE_ONE);
@@ -2382,7 +2407,40 @@ static ssize_t aw8622x_f0_store(struct device *dev,
 
 	return count;
 }
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0)
+ssize_t haptic_nv_read_reg_array(struct aw8622x *aw8622x, char *buf, ssize_t len,unsigned char head_reg_addr, unsigned char tail_reg_addr)
+{
+    unsigned char reg_num = 0;
+    unsigned char i = 0;
+    unsigned char reg_array[AW_REG_MAX] = {0};
+    reg_num = tail_reg_addr - head_reg_addr + 1;
 
+    aw8622x_i2c_read(aw8622x, head_reg_addr, reg_array, reg_num);
+    for (i = 0 ; i < reg_num; i++) {
+        len += snprintf(buf + len, PAGE_SIZE - len, "reg:0x%02X=0x%02X\n",
+            head_reg_addr + i, reg_array[i]);
+    }
+
+    return len;
+}
+
+static ssize_t aw8622x_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    cdev_t *cdev = dev_get_drvdata(dev);
+    struct aw8622x *aw8622x = container_of(cdev, struct aw8622x, vib_dev);
+    ssize_t len = 0;
+
+    len = haptic_nv_read_reg_array(aw8622x, buf, len, AW8622X_REG_ID,AW8622X_REG_RTPDATA - 1);
+    if (!len)
+        return len;
+    len = haptic_nv_read_reg_array(aw8622x, buf, len, AW8622X_REG_RTPDATA + 1,AW8622X_REG_RAMDATA - 1);
+    if (!len)
+        return len;
+    len = haptic_nv_read_reg_array(aw8622x, buf, len, AW8622X_REG_RAMDATA + 1,AW8622X_REG_ANACFG8);
+
+    return len;
+}
+#else
 static ssize_t aw8622x_reg_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -2421,7 +2479,7 @@ static ssize_t aw8622x_reg_show(struct device *dev,
 	}
 	return len;
 }
-
+#endif
 static ssize_t aw8622x_reg_store(struct device *dev,
 				 struct device_attribute *attr, const char *buf,
 				 size_t count)

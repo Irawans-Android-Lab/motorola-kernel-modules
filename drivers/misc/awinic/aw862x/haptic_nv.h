@@ -63,6 +63,12 @@ typedef struct led_classdev cdev_t;
 #define AW_SET_BASEADDR_H(addr)		((addr) >> 8)
 #define AW_SET_BASEADDR_L(addr)		((addr) & 0x00FF)
 #define CPU_LATENCY_QOC_VALUE 			(0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 15, 0)
+#define AW_DRV_WIDTH_MIN			(0)
+#define AW_DRV_WIDTH_MAX			(255)
+#define AW862XX_DRV_WIDTH_FORMULA(f0, margin, brk_gain) \
+			((240000 / (f0)) - (margin) - (brk_gain) - 8)
+#endif
 /*********************************************************
  *
  * macro control
