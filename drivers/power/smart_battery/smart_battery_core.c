@@ -795,15 +795,43 @@ static ssize_t state_of_health_show(struct device *dev,
 			struct device_attribute *attr,
 			char *buf)
 {
+	int state_of_health;
+
+	if (!this_chip) {
+		pr_err("mmi_charger: chip is invalid\n");
+		return -ENODEV;
+	}
+	if (this_chip->fake_soh)
+		state_of_health = this_chip->fake_soh;
+	else
+		state_of_health = this_chip->combo_soh;
+
+	return scnprintf(buf, SMART_BATT_SHOW_MAX_SIZE, "%d\n", state_of_health);
+}
+
+static ssize_t state_of_health_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	unsigned long r;
+	unsigned long fake_soh;
+
 	if (!this_chip) {
 		pr_err("mmi_charger: chip is invalid\n");
 		return -ENODEV;
 	}
 
-	return scnprintf(buf, SMART_BATT_SHOW_MAX_SIZE, "%d\n", this_chip->combo_soh);
-}
+	r = kstrtoul(buf, 0, &fake_soh);
+	if (r) {
+		mmi_err(this_chip, "Invalid fake_soh value = %lu\n", fake_soh);
+		return -EINVAL;
+	}
 
-static DEVICE_ATTR(state_of_health, S_IRUGO, state_of_health_show, NULL);
+	this_chip->fake_soh = fake_soh % 101;
+
+	return r ? r : count;
+}
+static DEVICE_ATTR(state_of_health, 0644, state_of_health_show, state_of_health_store);
 
 static ssize_t first_usage_date_show(struct device *dev,
 			struct device_attribute *attr,
@@ -1005,6 +1033,7 @@ static int smart_battery_probe(struct platform_device *pdev)
 	chip->vbat0_flag   = 0;
 	chip->fake_soc	= -EINVAL;
 	chip->fake_temp	= -EINVAL;
+	chip->fake_soh = 0;
 	chip->resume_completed = true;
 	chip->uisoc = -EINVAL;
 	chip->main_batt_soc = -EINVAL;

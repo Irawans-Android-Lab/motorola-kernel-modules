@@ -100,6 +100,7 @@ struct mmi_smart_battery {
 	int				vbat0_flag;
 	int				fake_soc;
 	int				fake_temp;
+	int				fake_soh;
 	int				gauge_count;
 	bool				get_gauge_done;
 	int				vbatt_empty_cold_mv;
