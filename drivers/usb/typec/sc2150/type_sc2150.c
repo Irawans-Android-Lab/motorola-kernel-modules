@@ -135,7 +135,7 @@ static int sc2150_read_device(void *client, u32 reg, int len, void *dst)
 		ret = i2c_smbus_read_i2c_block_data(i2c, reg, len, dst);
 		t2 = local_clock();
 		SC2150_INFO("%s del = %lluus, reg = 0x%02X, len = %d, val = 0x%08X\n",
-			    __func__, (t2 - t1) / NSEC_PER_USEC, reg, len, *(u16 *)dst);
+			    __func__, (t2 - t1) / NSEC_PER_USEC, reg, len, *(u8 *)dst);
 		if (ret < 0 && count > 1)
 			count--;
 		else
