@@ -2382,7 +2382,8 @@ static void cps_rx_online_check(struct cps_wls_chrg_chip *chg)
     wls_online = cps_wls_rx_power_on();
     if(!chip->wls_online && wls_online) {
         chip->wls_online = true;
-        mmi_mux_wls_chg_chan(MMI_MUX_CHANNEL_WLC_CHG, true);
+        if (chip->factory_wls_en == false)
+                mmi_mux_wls_chg_chan(MMI_MUX_CHANNEL_WLC_CHG, true);
         power_supply_changed(chip->wl_psy);
     }
     if(chip->wls_online && !wls_online){
@@ -2763,7 +2764,7 @@ static irqreturn_t wls_det_irq_handler(int irq, void *dev_id)
 	int tx_detected = gpio_get_value(chip->wls_det_int);
 
 	if (tx_detected) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)) || (IS_ENABLED(CONFIG_MMI_WLS_FACTORY_MUX))
 		cps_wls_log(CPS_LOG_DEBG, "Detected an attach event.\n");
 #ifdef CONFIG_MOTO_CHANNEL_SWITCH
 		wls_control_cp_vbusovp(false);
@@ -4222,7 +4223,7 @@ static int cps_wls_register_psy(struct cps_wls_chrg_chip *chip)
 
 static int wireless_en(void *input, bool en)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)) && (!IS_ENABLED(CONFIG_MMI_WLS_FACTORY_MUX))
 	int ret = 0;
 	struct chg_alg_device *alg;
 
