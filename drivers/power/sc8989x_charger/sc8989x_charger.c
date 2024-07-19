@@ -235,7 +235,7 @@ struct sc8989x_chip {
 	struct power_supply *chg_psy;
 	struct delayed_work psy_dwork;
 #endif /*CONFIG_MTK_CHARGER_V4P19*/
-
+	bool mmi_charging_full;
 	int chg_type;
 	int psy_usb_type;
 	int irq_gpio;
@@ -1291,14 +1291,17 @@ static int sc8989x_do_event(struct charger_device *chg_dev, u32 event, u32 args)
 #else
 	switch (event) {
 	case EVENT_FULL:
+		sc->mmi_charging_full = true;
+		break;
 	case EVENT_RECHARGE:
 	case EVENT_DISCHARGE:
-		power_supply_changed(sc->psy);
+		sc->mmi_charging_full = false;
 		break;
 	default:
 		break;
 	}
 #endif /*CONFIG_MTK_CHARGER_V4P19*/
+	power_supply_changed(sc->psy);
 
 	return 0;
 }
@@ -1996,12 +1999,16 @@ static int sc8989x_chg_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = sc->vbus_good;
+		if (!sc->vbus_good)
+			sc->mmi_charging_full = false;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		ret = sc8989x_get_charge_stat(sc);
 		if (ret < 0)
 			break;
 		val->intval = ret;
+		if (sc->mmi_charging_full == true)
+			val->intval = POWER_SUPPLY_STATUS_FULL;
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
 		ret = sc8989x_get_ichg(sc, &data);
@@ -2233,7 +2240,7 @@ static int sc8989x_charger_probe(struct i2c_client *client,
 	if (!entry) {
 		dev_err(sc->dev, "%s create proc directory failed\n", __func__);
 	}
-
+	sc->mmi_charging_full = false;
 	determine_initial_status(sc);
 	sc8989x_dump_register(sc);
 

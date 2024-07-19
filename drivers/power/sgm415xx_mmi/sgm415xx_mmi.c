@@ -1226,6 +1226,8 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = sgm4154x_get_charge_stat(sgm);
+		if (sgm->mmi_charging_full == true)
+			val->intval = POWER_SUPPLY_STATUS_FULL;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		switch (state.chrg_stat) {
@@ -1255,6 +1257,8 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = state.online;
+		if (!state.online)
+			sgm->mmi_charging_full = false;
 		break;
 
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -1907,13 +1911,16 @@ static int sgm4154x_do_event(struct charger_device *chg_dev, u32 event, u32 args
 
 	switch (event) {
 	case EVENT_FULL:
+		sgm->mmi_charging_full = true;
+		break;
 	case EVENT_RECHARGE:
 	case EVENT_DISCHARGE:
-		power_supply_changed(sgm->charger);
+		sgm->mmi_charging_full = false;
 		break;
 	default:
 		break;
 	}
+	power_supply_changed(sgm->charger);
 	return 0;
 }
 
@@ -2273,7 +2280,7 @@ static int sgm4154x_driver_probe(struct i2c_client *client,
 
 	name = devm_kasprintf(sgm->dev, GFP_KERNEL, "%s","sgm4154x suspend wakelock");
 	sgm->charger_wakelock =	wakeup_source_register(sgm->dev, name);
-
+	sgm->mmi_charging_full = false;
 	/* Register charger device */
 	sgm->chg_dev = charger_device_register("primary_chg",
 				&client->dev, sgm,

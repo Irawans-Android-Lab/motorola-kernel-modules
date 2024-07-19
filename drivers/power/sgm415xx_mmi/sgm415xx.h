@@ -275,7 +275,7 @@ struct sgm4154x_device {
 
 	struct wakeup_source *charger_wakelock;
 	bool enable_sw_jeita;
-
+	bool mmi_charging_full;
 	int chg_type;
 	int psy_usb_type;
 	struct power_supply *battery;
