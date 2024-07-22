@@ -1468,7 +1468,7 @@ static void charger_detect_work_func(struct work_struct *work)
 
 	if (!sgm->charger_wakelock->active)
 		__pm_stay_awake(sgm->charger_wakelock);
-	ret = sgm4154x_set_vindpm_track(sgm, SGM4154x_TRACK_300);
+	ret = sgm4154x_set_vindpm_track(sgm, SGM4154x_TRACK_250);
 	ret = sgm4154x_get_state(sgm, &state);
 	mutex_lock(&sgm->lock);
 	sgm->state = state;
