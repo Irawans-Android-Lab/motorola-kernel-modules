@@ -417,6 +417,103 @@ static u8 val2reg(enum sc8989x_reg_range id, u32 val)
 	return reg;
 }
 
+static bool is_atm_mode(void)
+{
+        const char *bootargs_ptr = NULL;
+        char *bootargs_str = NULL;
+        char *idx = NULL;
+        char *kvpair = NULL;
+        struct device_node *n = of_find_node_by_path("/chosen");
+        size_t bootargs_ptr_len = 0;
+        char *value = NULL;
+        bool factory_mode = false;
+
+        if (n == NULL)
+                goto err_putnode;
+
+        bootargs_ptr = (char *)of_get_property(n, "mmi,bootconfig", NULL);
+
+        if (!bootargs_ptr) {
+                goto err_putnode;
+        }
+
+        bootargs_ptr_len = strlen(bootargs_ptr);
+        if (!bootargs_str) {
+                /* Following operations need a non-const version of bootargs */
+                bootargs_str = kzalloc(bootargs_ptr_len + 1, GFP_KERNEL);
+                if (!bootargs_str)
+                        goto err_putnode;
+        }
+        strlcpy(bootargs_str, bootargs_ptr, bootargs_ptr_len + 1);
+
+        idx = strnstr(bootargs_str, "androidboot.atm=", strlen(bootargs_str));
+        if (idx) {
+                kvpair = strsep(&idx, " ");
+                if (kvpair)
+                        if (strsep(&kvpair, "=")) {
+                                value = strsep(&kvpair, "\n");
+                        }
+        }
+        if (value) {
+                if (!strncmp(value, "enable", strlen("enable"))) {
+                        factory_mode = true;
+                }
+        }
+        kfree(bootargs_str);
+
+err_putnode:
+        if (n)
+                of_node_put(n);
+
+        return factory_mode;
+}
+static bool is_factory_build(void)
+{
+	struct device_node *np = of_find_node_by_path("/chosen");
+	bool factory = false;
+	const char *bootargs = NULL;
+	const char *mmi_bootconfig = NULL;
+	char *bl_version = NULL;
+	char *end = NULL;
+	bool mmi_bootconfig_set = false;
+
+	if (!np)
+		goto err_putnode1;
+	if (!of_property_read_string(np, "bootargs", &bootargs)) {
+			bl_version = strstr(bootargs, "androidboot.bootloader=");
+			if (bl_version) {
+				end = strpbrk(bl_version, " ");
+				bl_version = strpbrk(bl_version, "=");
+			} else {
+				mmi_bootconfig_set = true;
+			}
+
+			if (bl_version && end > bl_version &&
+			    strnstr(bl_version, "factory", end - bl_version)) {
+				factory = true;
+				goto err_putnode1;
+			}
+		}
+
+	if (mmi_bootconfig_set && (!of_property_read_string(np, "mmi,bootconfig", &mmi_bootconfig)) ) {
+			bl_version = strstr(mmi_bootconfig, "androidboot.bootloader=");
+			if (bl_version) {
+				end = strpbrk(bl_version, "\n");
+				bl_version = strpbrk(bl_version, "=");
+			}
+
+			if (bl_version && end > bl_version &&
+			    strnstr(bl_version, "factory", end - bl_version)) {
+				factory = true;
+			}
+		}
+err_putnode1:
+        if (np)
+                of_node_put(np);
+
+        return factory;
+}
+
 static u32 reg2val(enum sc8989x_reg_range id, u8 reg)
 {
 	const struct reg_range *range = &sc8989x_reg_range_ary[id];
@@ -1654,12 +1751,14 @@ static irqreturn_t sc8989x_irq_handler(int irq, void *data)
 	if (!prev_vbus_gd && sc->vbus_good) {
 		sc->force_detect_count = 0;
 		type = sc8989x_get_vbus_stat(sc);
-		Charger_Detect_Init(sc);
-		sc->retry_count = 0;
-		dev_info(sc->dev, "%s: adapter/usb inserted\n", __func__);
-		if ((type == VBUS_STAT_NO_INPUT) && (sc->retry_count <  SPECIAL_TYPE_MAX_RETRY)) {
-			schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(500));
-			++(sc->retry_count);
+		if((!is_atm_mode()) || (!is_factory_build())) {
+			Charger_Detect_Init(sc);
+			sc->retry_count = 0;
+			dev_info(sc->dev, "%s: adapter/usb inserted\n", __func__);
+			if ((type == VBUS_STAT_NO_INPUT) && (sc->retry_count <  SPECIAL_TYPE_MAX_RETRY)) {
+				schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(500));
+				++(sc->retry_count);
+			}
 		}
 
 		sc8989x_set_vindpm_track(sc, SC8989X_TRACK_250);
