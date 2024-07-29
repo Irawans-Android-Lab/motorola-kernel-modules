@@ -2118,6 +2118,7 @@ static int32_t nvt_ts_check_chip_ver_trim(struct nvt_ts_hw_reg_addr_info hw_regs
 				}
 				ts->hw_crc = trim_id_table[list].hwinfo->hw_crc;
 				ts->auto_copy = trim_id_table[list].hwinfo->auto_copy;
+				strncpy(ts->product_id, trim_id_table[list].trim_id, 10);
 
 				/* hw reg re-mapping */
 				ts->chip_ver_trim_addr = trim_id_table[list].hwinfo->hw_regs->chip_ver_trim_addr;
@@ -2381,6 +2382,21 @@ static ssize_t vendor_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "novatek_ts");
 }
 
+static ssize_t productinfo_show (
+    struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%s\n", ts->product_id);
+}
+
+static ssize_t buildid_show (
+    struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int buildid;
+	buildid = ts->fw_ver << 8 | ts->fw_type;
+
+	return scnprintf(buf, PAGE_SIZE, "%04x\n", buildid ? buildid : ts->build_id);
+}
+
 static ssize_t ic_ver_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -2615,6 +2631,8 @@ static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
 	__ATTR_RO(ic_ver),
+	__ATTR_RO(productinfo),
+	__ATTR_RO(buildid),
 #ifdef NVT_TOUCH_LAST_TIME
 	__ATTR_RO(timestamp),
 #endif
