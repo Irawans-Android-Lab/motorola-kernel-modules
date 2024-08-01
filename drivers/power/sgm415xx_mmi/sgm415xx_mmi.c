@@ -71,6 +71,16 @@ enum vindpm_track {
 	SGM4154x_TRACK_300,
 };
 
+enum attach_type {
+	ATTACH_TYPE_NONE,
+	ATTACH_TYPE_PWR_RDY,
+	ATTACH_TYPE_TYPEC,
+	ATTACH_TYPE_PD,
+	ATTACH_TYPE_PD_SDP,
+	ATTACH_TYPE_PD_DCP,
+	ATTACH_TYPE_PD_NONSTD,
+};
+
 /* SGM4154x REG06 BOOST_LIM[5:4], uV */
 static const unsigned int BOOST_VOLT_LIMIT[] = {
 	4850000, 5000000, 5150000, 5300000
@@ -997,7 +1007,9 @@ static int sgm4154x_plug_out(struct charger_device *chg_dev)
 	if (ret) {
 		pr_err("%s: Failed to disable charging:%d\n", __func__, ret);
 	}
+#if IS_ENABLED(CONFIG_MMI_SGM41543D_CHARGER)
 	sgm4154x_power_supply_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+#endif
 	return ret;
 }
 
@@ -1176,7 +1188,6 @@ static int sgm4154x_charger_set_property(struct power_supply *psy,
 {
 	struct sgm4154x_device *sgm = power_supply_get_drvdata(psy);
 	int ret = 0;
-
 	if (IS_ERR_OR_NULL(sgm)) {
 		pr_err("%s: get sgm device failed\n", __func__);
 		return -ENODEV;
@@ -1184,6 +1195,7 @@ static int sgm4154x_charger_set_property(struct power_supply *psy,
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_ONLINE:
+		atomic_set(&sgm->attach, val->intval);
 		if (val->intval == 2) {
 			dev_info(sgm->dev, "%s: %d, start charger detection\n", __func__, val->intval);
 			schedule_delayed_work(&sgm->charge_detect_delayed_work, msecs_to_jiffies(600));
@@ -1218,6 +1230,7 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 	struct sgm4154x_device *sgm = power_supply_get_drvdata(psy);
 	struct sgm4154x_state state;
 	int ret = 0;
+	int tcpc_attach = 0;
 
 	mutex_lock(&sgm->lock);
 	state = sgm->state;
@@ -1256,7 +1269,11 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = state.online;
+		tcpc_attach = atomic_read(&sgm->attach);
+		if (state.online || tcpc_attach == ATTACH_TYPE_TYPEC)
+			val->intval = 1;
+		else
+			val->intval = 0;
 		if (!state.online)
 			sgm->mmi_charging_full = false;
 		break;

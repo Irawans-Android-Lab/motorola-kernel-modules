@@ -162,6 +162,16 @@ enum sc8989x_reg_range {
 	SC8989X_IBUS,
 };
 
+enum attach_type {
+	ATTACH_TYPE_NONE,
+	ATTACH_TYPE_PWR_RDY,
+	ATTACH_TYPE_TYPEC,
+	ATTACH_TYPE_PD,
+	ATTACH_TYPE_PD_SDP,
+	ATTACH_TYPE_PD_DCP,
+	ATTACH_TYPE_PD_NONSTD,
+};
+
 struct reg_range {
 	u32 min;
 	u32 max;
@@ -252,6 +262,7 @@ struct sc8989x_chip {
 	struct iio_channel *vbus;
 	int retry_count;
 	atomic_t vbus_good_flag;
+	atomic_t attach;
 };
 
 static const u32 sc8989x_iboost[] = {
@@ -1045,7 +1056,10 @@ static int sc8989x_plug_out(struct charger_device *chg_dev)
 	if (ret) {
 		dev_err(sc->dev, "Failed to disable charging:%d\n", ret);
 	}
+#if IS_ENABLED(CONFIG_MMI_SGM41543D_CHARGER)
+        //tmp change for vegas
 	sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+#endif
 	return ret;
 }
 
@@ -2086,18 +2100,22 @@ static int sc8989x_chg_get_property(struct power_supply *psy,
 	struct sc8989x_chip *sc = power_supply_get_drvdata(psy);
 	int ret = 0;
 	int data = 0;
+	int tcpc_attach = 0;
 
 	if (!sc) {
 		dev_err(sc->dev, "%s:line%d: NULL pointer!!!\n", __func__, __LINE__);
 		return -EINVAL;
 	}
-
 	switch (psp) {
 	case POWER_SUPPLY_PROP_MANUFACTURER:
 		val->strval = "SouthChip";
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = sc->vbus_good;
+		tcpc_attach = atomic_read(&sc->attach);
+		if (sc->vbus_good || tcpc_attach == ATTACH_TYPE_TYPEC)
+			val->intval = 1;
+		else
+			val->intval = 0;
 		if (!sc->vbus_good)
 			sc->mmi_charging_full = false;
 		break;
@@ -2176,6 +2194,7 @@ static int sc8989x_chg_set_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
+		atomic_set(&sc->attach, val->intval);
 		if (val->intval == 2) {
 			dev_info(sc->dev, "%s: %d, start charger detection\n", __func__, val->intval);
 			schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(300));

@@ -283,6 +283,7 @@ struct sgm4154x_device {
 	int batt_curr;
 	struct iio_channel *vbus;
 	int force_detect_count;
+	atomic_t attach;
 };
 
 #endif /* _SGM4154x_CHARGER_H__ */
