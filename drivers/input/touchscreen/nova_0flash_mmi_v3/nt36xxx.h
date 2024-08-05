@@ -173,6 +173,13 @@ extern const uint16_t gesture_key_array[];
 
 #ifdef CONFIG_NVT_CS_SETUP
 #define NVT_CS_SETUP 1
+#ifdef CONFIG_NVT_CS_TIME
+#if (CONFIG_NVT_CS_SETUP_TIME > 1)
+#define NVT_CS_SETUP_TIME	CONFIG_NVT_CS_SETUP_TIME
+#else
+#define NVT_CS_SETUP_TIME	500
+#endif
+#endif
 #else
 #define NVT_CS_SETUP 0
 #endif
@@ -274,7 +281,6 @@ struct nvt_ts_data {
 	struct mt_chip_conf spi_ctrl;
 #endif
 	uint32_t charger_detection_enable;
-	uint32_t cs_setup_time;
 	uint32_t report_gesture_key;
 	struct usb_charger_detection *charger_detection;
 	bool usb_psp_online;

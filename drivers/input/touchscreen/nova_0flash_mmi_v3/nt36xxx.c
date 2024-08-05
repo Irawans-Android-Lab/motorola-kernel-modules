@@ -1497,14 +1497,6 @@ static int32_t nvt_parse_dt(struct device *dev)
 		ts->charger_detection_enable = 0;
 	}
 
-	ret = of_property_read_u32(np, "novatek,cs_setup_time", &ts->cs_setup_time);
-	if (ret) {
-		NVT_LOG("undeine novatek,cs_setup_time\n");
-		ts->cs_setup_time = 0;
-	} else {
-		NVT_LOG("novatek,cs_setup_time =%d\n", ts->cs_setup_time);
-	}
-
 	if (of_property_read_bool(np, "novatek,report_gesture_key")) {
 		NVT_LOG("novatek,report_gesture_key set");
 		ts->report_gesture_key = 1;
@@ -2948,10 +2940,12 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	ts->client->mode = SPI_MODE_0;
 	ts->client->chip_select = 0;
 #if NVT_CS_SETUP
-	if (ts->cs_setup_time)
-		ts->client->cs_setup.value = ts->cs_setup_time;
-	else
-		ts->client->cs_setup.value = 200;
+#ifdef NVT_CS_SETUP_TIME
+	ts->client->cs_setup.value = NVT_CS_SETUP_TIME;
+	NVT_LOG("get NVT_CS_SETUP_TIME=%d\n", NVT_CS_SETUP_TIME);
+#else
+	ts->client->cs_setup.value = 200;
+#endif
 	ts->client->cs_setup.unit = 1;
 	NVT_LOG("set cs_setup.value=%d\n", ts->client->cs_setup.value);
 #endif
