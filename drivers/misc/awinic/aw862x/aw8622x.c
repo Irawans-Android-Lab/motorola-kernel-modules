@@ -2941,6 +2941,53 @@ static ssize_t aw8622x_gain_store(struct device *dev,
 	return count;
 }
 
+static ssize_t aw8622x_strength_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+        cdev_t *cdev = dev_get_drvdata(dev);
+        struct aw8622x *aw8622x = container_of(cdev, struct aw8622x, vib_dev);
+        unsigned char reg = 0;
+
+        aw8622x_i2c_read(aw8622x, AW8622X_REG_PLAYCFG2, &reg, AW_I2C_BYTE_ONE);
+
+	return snprintf(buf, PAGE_SIZE, "strength show gain = 0x%02X\n", reg);
+}
+
+static ssize_t aw8622x_strength_store(struct device *dev, struct device_attribute *attr, const char *buf,
+			  size_t count)
+{
+	cdev_t *cdev = dev_get_drvdata(dev);
+	struct aw8622x *aw8622x = container_of(cdev, struct aw8622x, vib_dev);
+	unsigned int val = 0;
+	int rc = 0;
+
+	rc = kstrtouint(buf, 0, &val);
+	if (rc < 0)
+		return rc;
+
+	aw_dev_info("store strength value=0x%02X", val);
+
+        mutex_lock(&aw8622x->lock);
+	switch (val) {
+	case 0:
+		aw8622x->gain = AW8622X_LIGHT_GAIN;
+		break;
+	case 1:
+		aw8622x->gain = AW8622X_MEDIUM_GAIN;
+		break;
+	case 2:
+		aw8622x->gain = AW8622X_STRONG_GAIN;
+		break;
+	default:
+		aw_dev_err("Unsupported strength: %d", val);
+		break;
+	}
+
+        aw8622x_haptic_set_gain(aw8622x, aw8622x->gain);
+        mutex_unlock(&aw8622x->lock);
+
+	return count;
+}
+
 static ssize_t aw8622x_ram_update_show(struct device *dev,
 				       struct device_attribute *attr, char *buf)
 {
@@ -3690,6 +3737,7 @@ static DEVICE_ATTR(sram_size, 0644, aw8622x_sram_size_show,
 static DEVICE_ATTR(osc_cali, 0644, aw8622x_osc_cali_show,
 		   aw8622x_osc_cali_store);
 static DEVICE_ATTR(gain, 0644, aw8622x_gain_show, aw8622x_gain_store);
+static DEVICE_ATTR(strength, 0644, aw8622x_strength_show, aw8622x_strength_store);
 static DEVICE_ATTR(ram_update, 0644, aw8622x_ram_update_show,
 		   aw8622x_ram_update_store);
 static DEVICE_ATTR(f0_save, 0644, aw8622x_f0_save_show, aw8622x_f0_save_store);
@@ -3728,6 +3776,7 @@ static struct attribute *aw8622x_vibrator_attributes[] = {
 	&dev_attr_activate_mode.attr,
 	&dev_attr_index.attr,
 	&dev_attr_gain.attr,
+	&dev_attr_strength.attr,
 	&dev_attr_seq.attr,
 	&dev_attr_loop.attr,
 	&dev_attr_register.attr,
