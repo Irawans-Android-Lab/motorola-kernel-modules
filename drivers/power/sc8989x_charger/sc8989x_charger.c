@@ -49,6 +49,7 @@
 #define R_VBUS_CHARGER_1   330
 #define R_VBUS_CHARGER_2   39
 #define SPECIAL_TYPE_MAX_RETRY 1
+#define MAX_TRY  10
 
 static struct proc_dir_entry *entry;
 static bool dump_reg_enable;
@@ -1664,6 +1665,32 @@ static int sc8989x_get_vbus_stat(struct sc8989x_chip *sc)
 	return reg_val;
 }
 
+static int sc8989x_do_bc12(struct sc8989x_chip *sc)
+{
+	int ret = 0;
+	int reg_val;
+	int tries = 0;
+
+	dev_info(sc->dev," sc8989x_do_bc12 \n");
+	while (tries < MAX_TRY) {
+		ret = sc8989x_field_read(sc, VBUS_GD, &reg_val);
+		if (reg_val == 1) {
+			dev_info(sc->dev,"VBUS GD ,try %d times\n", tries);
+			schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(100));
+			break;
+		} else {
+			msleep(100);
+			tries++;
+		}
+	}
+
+	if (tries == MAX_TRY) {
+		dev_info(sc->dev,"VBUS GD alwalys is 0,try %d times?\n", tries);
+    }
+
+    return ret;
+}
+
 static int sc8989x_get_charger_type(struct sc8989x_chip *sc)
 {
 	int ret;
@@ -2197,7 +2224,7 @@ static int sc8989x_chg_set_property(struct power_supply *psy,
 		atomic_set(&sc->attach, val->intval);
 		if (val->intval == 2) {
 			dev_info(sc->dev, "%s: %d, start charger detection\n", __func__, val->intval);
-			schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(300));
+			sc8989x_do_bc12(sc);
 		} else if (val->intval == 0) {
 			sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 			sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
