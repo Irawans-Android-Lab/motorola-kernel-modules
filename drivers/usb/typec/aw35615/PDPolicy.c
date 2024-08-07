@@ -2361,6 +2361,11 @@ void PolicySinkSelectCapability(Port_t *port)
 					port->USBPDContract.object = port->SinkRequest.object;
 					TimerStart(&port->PolicyStateTimer, tPSTransition);
 					SetPEState(port, peSinkTransitionSink);
+					if (port->need_msg_id_add) {
+						port->MessageIDCounter[SOP_TYPE_SOP]++;
+						port->MessageIDCounter[SOP_TYPE_SOP] &= 0x07;
+						port->need_msg_id_add = AW_FALSE;
+					}
 
 					if (port->PpsEnabled == AW_TRUE)
 						TimerStart(&port->PpsTimer, tPPSRequest);
@@ -2642,6 +2647,7 @@ void PolicySinkReady(Port_t *port)
 			switch (port->PDTransmitHeader.MessageType) {
 			case DMTRequest:
 				port->SinkRequest.object = port->PDTransmitObjects[0].object;
+				port->need_msg_id_add = AW_TRUE;
 				SetPEState(port, peSinkSelectCapability);
 				break;
 			case DMTVenderDefined:

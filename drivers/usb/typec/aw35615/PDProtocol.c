@@ -541,6 +541,7 @@ void ProtocolVerifyGoodCRC(Port_t *port)
 				/* Increment and roll over */
 				port->MessageIDCounter[sop]++;
 				port->MessageIDCounter[sop] &= 0x07;
+				port->need_msg_id_add = AW_FALSE;
 #ifdef AW_HAVE_EXT_MSG
 				if (port->ExtTxOrRx != NoXfer) {
 					if (port->ExtChunkOffset >= port->ExtTxHeader.DataSize) {

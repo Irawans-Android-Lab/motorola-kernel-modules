@@ -65,6 +65,7 @@ struct Port {
 	AW_U8                  SINK_Flag;
 	AW_BOOL                sink_timer;
 	AW_BOOL                bist_doing;
+	AW_BOOL                need_msg_id_add;
 	AW_U32                 SOURCE_num;
 	AW_U8                  SOURCE_Flag;
 	AW_U8                  SOURCE_Flag_end;
