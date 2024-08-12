@@ -1470,6 +1470,53 @@ static void retry_charger_detect_work_func(struct work_struct *work)
 	return;
 }
 
+static bool is_factory_build(void)
+{
+	struct device_node *np = of_find_node_by_path("/chosen");
+	bool factory = false;
+	const char *bootargs = NULL;
+	const char *mmi_bootconfig = NULL;
+	char *bl_version = NULL;
+	char *end = NULL;
+	bool mmi_bootconfig_set = false;
+
+	if (!np)
+		goto err_putnode1;
+	if (!of_property_read_string(np, "bootargs", &bootargs)) {
+			bl_version = strstr(bootargs, "androidboot.bootloader=");
+			if (bl_version) {
+				end = strpbrk(bl_version, " ");
+				bl_version = strpbrk(bl_version, "=");
+			} else {
+				mmi_bootconfig_set = true;
+			}
+
+			if (bl_version && end > bl_version &&
+			    strnstr(bl_version, "factory", end - bl_version)) {
+				factory = true;
+				goto err_putnode1;
+			}
+		}
+
+	if (mmi_bootconfig_set && (!of_property_read_string(np, "mmi,bootconfig", &mmi_bootconfig)) ) {
+			bl_version = strstr(mmi_bootconfig, "androidboot.bootloader=");
+			if (bl_version) {
+				end = strpbrk(bl_version, "\n");
+				bl_version = strpbrk(bl_version, "=");
+			}
+
+			if (bl_version && end > bl_version &&
+			    strnstr(bl_version, "factory", end - bl_version)) {
+				factory = true;
+			}
+		}
+err_putnode1:
+        if (np)
+                of_node_put(np);
+
+        return factory;
+}
+
 static void charger_detect_work_func(struct work_struct *work)
 {
 	struct sgm4154x_device *sgm = NULL;
@@ -1626,8 +1673,10 @@ static irqreturn_t sgm4154x_irq_handler_thread(int irq, void *private)
 		Charger_Detect_Release(sgm);
 		sgm4154x_set_dpdm_hiz(sgm);
 		allow_set_dp_dm_vol = false;
+	} else if (is_factory_build()) {
+		dev_info(sgm->dev, "%s: start get charger type\n", __func__);
+		schedule_delayed_work(&sgm->charge_detect_delayed_work, msecs_to_jiffies(200));
 	}
-
 	//power_supply_changed(sgm->charger);
 
 	return IRQ_HANDLED;
