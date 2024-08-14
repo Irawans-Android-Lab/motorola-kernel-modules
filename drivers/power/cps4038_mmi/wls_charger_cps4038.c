@@ -3012,13 +3012,13 @@ static bool cps_wls_query_typec_attached_state(void)
 #endif /* CONFIG_MOTO_CHANNEL_SWITCH */
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)) && (!IS_ENABLED(CONFIG_WLC_WO_BOOST))
 static void cps_wls_fw_set_boost(bool val)
 #else
 static bool cps_wls_fw_set_boost(bool val)
 #endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)) && (!IS_ENABLED(CONFIG_WLC_WO_BOOST))
 #ifdef CONFIG_MOTO_CHANNEL_SWITCH
 	int ret = 0;
 	struct charger_device *chg_psy = NULL;
@@ -3085,7 +3085,7 @@ static bool cps_wls_fw_set_boost(bool val)
 	} else {
 		cps_wls_pm_set_awake(0);
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)) || (IS_ENABLED(CONFIG_WLC_WO_BOOST))
     return true;
 #endif
 }
