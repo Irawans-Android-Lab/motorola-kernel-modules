@@ -527,6 +527,13 @@ static int sc2150_tcpc_init(struct tcpc_device *tcpc, bool sw_reset)
 {
 	int ret;
 
+        ret = sc2150_i2c_read8(tcpc, SC2150_REG_ANA_CTRL2);
+        if (ret < 0)
+                return ret;
+
+        if (ret & SC2150_REG_SHUTDOWN_OFF)
+                return -EIO;
+
 	if (sw_reset) {
 		ret = sc2150_software_reset(tcpc);
 		if (ret < 0)
