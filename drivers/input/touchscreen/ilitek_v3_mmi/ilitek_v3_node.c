@@ -3981,6 +3981,21 @@ static ssize_t vendor_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "ilitek");
 }
 
+static ssize_t buildid_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d.%d.%.d.%d\n",
+			ilits->chip->fw_ver >> 24, (ilits->chip->fw_ver >> 16) & 0xFF,
+			(ilits->chip->fw_ver >> 8) & 0xFF, ilits->chip->fw_ver & 0xFF);
+}
+
+static ssize_t productinfo_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%x\n",
+			ilits->chip->product_id);
+}
+
 /* Attribute: ic_ver (RO) */
 static ssize_t ic_ver_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -4167,6 +4182,8 @@ static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
 	__ATTR_RO(ic_ver),
+	__ATTR_RO(productinfo),
+	__ATTR_RO(buildid),
 #ifdef ILI_TOUCH_LAST_TIME
 	__ATTR_RO(timestamp),
 #endif
