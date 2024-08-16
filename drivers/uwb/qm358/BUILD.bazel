@@ -1,0 +1,29 @@
+load("//build/bazel_mgk_rules:mgk_ko.bzl", "define_mgk_ko")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+mgk_outs = [
+	"qm35_apis.ko",
+	"qm35_coredump.ko",
+	"qm35_logs.ko",
+	"qm35_uci_dev.ko",
+	"qm35_spi.ko",
+]
+
+define_mgk_ko(
+    name = "qm35_spi",
+    srcs = glob([
+        "**/*.c",
+        "**/*.h",
+        "**/Kbuild",
+	"**/Makefile",
+    ]) + [
+	    "//motorola/kernel/modules:public_headers",
+    ],
+    outs = mgk_outs,
+)
+
