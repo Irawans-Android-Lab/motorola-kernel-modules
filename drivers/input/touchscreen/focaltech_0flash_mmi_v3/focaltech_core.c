@@ -2793,10 +2793,6 @@ static int fts_ts_suspend(struct device *dev)
     fts_esdcheck_suspend(ts_data);
 #endif
 
-#ifdef CONFIG_BOARD_USES_DOUBLE_TAP_CTRL
-    fts_gesture_type_store();
-#endif
-
 #if FTS_GESTURE_EN
 #ifdef FOCALTECH_SENSOR_EN
     if (ts_data->gesture_support && (fts_gesture_suspend(ts_data) == 0)) {
@@ -2813,6 +2809,11 @@ static int fts_ts_suspend(struct device *dev)
 		}
 	}
 #endif
+
+#ifdef CONFIG_BOARD_USES_DOUBLE_TAP_CTRL
+    fts_gesture_type_store();
+#endif
+
         mutex_unlock(&ts_data->state_mutex);
         FTS_INFO("tap gesture suspend\n");
         touch_set_state(TOUCH_LOW_POWER_STATE, TOUCH_PANEL_IDX_PRIMARY);
@@ -2822,6 +2823,10 @@ static int fts_ts_suspend(struct device *dev)
         ts_data->suspended = true;
         return 0;
     }
+#endif
+
+#ifdef CONFIG_BOARD_USES_DOUBLE_TAP_CTRL
+    fts_gesture_type_store();
 #endif
 
     //disable irq when deep sleep
