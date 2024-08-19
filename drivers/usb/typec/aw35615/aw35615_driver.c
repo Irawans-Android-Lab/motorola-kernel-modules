@@ -71,7 +71,14 @@ int aw35615_get_alert_status(struct tcpc_device *tcpc, uint32_t *alert)
 
 static int aw35615_get_power_status(struct tcpc_device *tcpc, uint16_t *pwr_status)
 {
+	struct aw35615_chip *chip = aw35615_GetChip();
 	AW_LOG("enter\n");
+
+	if (chip->port.Registers.Status.VBUSOK) {
+		*pwr_status |= TCPC_REG_POWER_STATUS_VBUS_PRES;
+	} else {
+		*pwr_status |= TCPC_REG_POWER_STATUS_EXT_VSAFE0V;
+	}
 	return 0;
 }
 
@@ -123,7 +130,17 @@ static int aw35615_get_cc(struct tcpc_device *tcpc, int *cc1, int *cc2)
 
 static int aw35615_set_cc(struct tcpc_device *tcpc, int pull)
 {
-	AW_LOG("enter\n");
+	struct aw35615_chip *chip = aw35615_GetChip();
+
+	AW_LOG("enter pull=%d\n", pull);
+
+	if (pull == TYPEC_CC_RP)
+		core_set_source(&chip->port);
+	else if (pull == TYPEC_CC_RD)
+		core_set_sink(&chip->port);
+	else if (pull == TYPEC_CC_DRP)
+		core_set_drp(&chip->port);
+
 	return 0;
 }
 
