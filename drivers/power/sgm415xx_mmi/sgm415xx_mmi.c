@@ -1007,9 +1007,7 @@ static int sgm4154x_plug_out(struct charger_device *chg_dev)
 	if (ret) {
 		pr_err("%s: Failed to disable charging:%d\n", __func__, ret);
 	}
-#if IS_ENABLED(CONFIG_MMI_SGM41543D_CHARGER)
-	sgm4154x_power_supply_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
-#endif
+
 	return ret;
 }
 
@@ -1223,6 +1221,26 @@ static int sgm4154x_charger_set_property(struct power_supply *psy,
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_MOTO_WLC_ALG_SUPPORT)
+static int mmi_is_wireless_online(void) {
+	static struct mtk_charger *info = NULL;
+	struct power_supply *chg_psy = NULL;
+
+	if (info == NULL || IS_ERR(info)) {
+		chg_psy = power_supply_get_by_name("mtk-master-charger");
+		if (chg_psy == NULL || IS_ERR(chg_psy)) {
+			pr_err("%s: get chg_psy failed\n", __func__);
+			return 0;
+		} else {
+			info = (struct mtk_charger *)power_supply_get_drvdata(chg_psy);
+		}
+
+	}
+
+	return info->wireless_online;
+}
+#endif //get wireless online
+
 static int sgm4154x_charger_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
@@ -1270,7 +1288,11 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 
 	case POWER_SUPPLY_PROP_ONLINE:
 		tcpc_attach = atomic_read(&sgm->attach);
+#if IS_ENABLED(CONFIG_MMI_SGM41543D_CHARGER)
+		if (state.online || tcpc_attach != ATTACH_TYPE_NONE)
+#else
 		if (state.online || tcpc_attach == ATTACH_TYPE_TYPEC)
+#endif
 			val->intval = 1;
 		else
 			val->intval = 0;
@@ -1283,6 +1305,12 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_TYPE:
+#if IS_ENABLED(CONFIG_MOTO_WLC_ALG_SUPPORT)
+		tcpc_attach = atomic_read(&sgm->attach);
+		if (!tcpc_attach && mmi_is_wireless_online()) {
+			sgm4154x_power_supply_desc.type = POWER_SUPPLY_TYPE_WIRELESS;
+		}
+#endif
 		val->intval = sgm4154x_power_supply_desc.type;
 		break;
 

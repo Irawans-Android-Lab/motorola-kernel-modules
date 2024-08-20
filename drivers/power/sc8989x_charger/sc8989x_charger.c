@@ -1057,10 +1057,7 @@ static int sc8989x_plug_out(struct charger_device *chg_dev)
 	if (ret) {
 		dev_err(sc->dev, "Failed to disable charging:%d\n", ret);
 	}
-#if IS_ENABLED(CONFIG_MMI_SGM41543D_CHARGER)
-        //tmp change for vegas
-	sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
-#endif
+
 	return ret;
 }
 
@@ -1705,7 +1702,11 @@ static int sc8989x_get_charger_type(struct sc8989x_chip *sc)
 	case VBUS_STAT_NO_INPUT:
 		sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 		sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
+#if IS_ENABLED(CONFIG_MMI_SGM41543D_CHARGER)
+		sc->psy_desc.type = POWER_SUPPLY_TYPE_USB;
+#else
 		sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+#endif
 		dev_info(sc->dev, "%s: charger type: NO INPUT\n", __func__);
 		break;
 	case VBUS_STAT_SDP:
@@ -1730,7 +1731,7 @@ static int sc8989x_get_charger_type(struct sc8989x_chip *sc)
 	case VBUS_STAT_UNKOWN:
 		sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_SDP;
 		sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
-		sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+		sc->psy_desc.type = POWER_SUPPLY_TYPE_USB;
 		dev_info(sc->dev, "%s: charger type: UNKNOWN\n", __func__);
 		if (sc->force_detect_count < 10) {
 			dev_info(sc->dev, "[%s] SC8989x charger type: UNKNOWN, retry bc12 count:%d\n", __func__, sc->force_detect_count);
@@ -2121,6 +2122,26 @@ static int sc8989x_chg_property_is_writeable(struct power_supply *psy,
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_MOTO_WLC_ALG_SUPPORT)
+static int mmi_is_wireless_online(void) {
+	static struct mtk_charger *info = NULL;
+	struct power_supply *chg_psy = NULL;
+
+	if (info == NULL || IS_ERR(info)) {
+		chg_psy = power_supply_get_by_name("mtk-master-charger");
+		if (chg_psy == NULL || IS_ERR(chg_psy)) {
+			pr_err("%s: get chg_psy failed\n", __func__);
+			return 0;
+		} else {
+			info = (struct mtk_charger *)power_supply_get_drvdata(chg_psy);
+		}
+
+	}
+
+	return info->wireless_online;
+}
+#endif //get wireless online
+
 static int sc8989x_chg_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
 {
@@ -2204,6 +2225,12 @@ static int sc8989x_chg_get_property(struct power_supply *psy,
 			val->intval = 12000000;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
+#if IS_ENABLED(CONFIG_MOTO_WLC_ALG_SUPPORT)
+		tcpc_attach = atomic_read(&sc->attach);
+		if (!tcpc_attach && mmi_is_wireless_online()) {
+			sc->psy_desc.type = POWER_SUPPLY_TYPE_WIRELESS;
+		}
+#endif
 		val->intval = sc->psy_desc.type;
 		break;
 	default:
