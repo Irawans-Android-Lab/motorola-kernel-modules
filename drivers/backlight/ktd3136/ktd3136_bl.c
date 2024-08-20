@@ -26,6 +26,7 @@
 #include "ktd3136_bl.h"
 #include "ktd3136_align.h"
 #include "ktd3136_align_1000.h"
+#include "ktd3136_align_gamma15.h"
 
 #define KTD3136_LED_DEV 	"ktd3136-BL"
 #define KTD3136_NAME 		"ktd3136-bl"
@@ -333,6 +334,10 @@ int ktd3136_set_brightness(struct ktd3136_data *drvdata, int brt_val)
 		if(ALIGN_BL_MAPPING_450 == drvdata->led_current_align) {
 			brt_val = bl_mapping_450[brt_val];
 			pr_info("%s bl_mapping brt_val: %d\n", __func__, brt_val);
+		}
+		else if(ALIGN_BL_MAPPING_1000_GAMMA15_AW == drvdata->led_current_align) {
+			brt_val = bl_mapping_1000_gamma15_aw[brt_val];
+			pr_info("%s bl_mapping_1000_gamma15 align aw brt_val: %d\n", __func__, brt_val);
 		}
 		else if(ALIGN_BL_MAPPING_1000 == drvdata->led_current_align) {
 			brt_val = bl_mapping_1000[brt_val];
