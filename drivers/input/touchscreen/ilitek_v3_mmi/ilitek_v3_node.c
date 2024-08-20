@@ -126,6 +126,9 @@ struct record_state {
 };
 
 static unsigned char g_user_buf[USER_STR_BUFF] = {0};
+#ifdef ENABLE_TP_TM_ILI_LOG_CAPTURE
+static unsigned char delta_buf[DEBUG_DATA_FILE_SIZE] = {0};
+#endif
 #define ILI_SPI_NAME "ilitek"
 #define ILI_SPI_NAME_PRIMARY "primary"
 
@@ -4178,6 +4181,130 @@ static ssize_t gesture_type_dbg_store(struct device *dev,
 }
 #endif //ILI_DOUBLE_TAP_CTRL
 
+#ifdef ENABLE_TP_TM_ILI_LOG_CAPTURE
+int ili_get_frame_log_capture(u8 *buf,u16 llen)
+{
+	int cdc_starIdx = 0;
+	int len =0;
+	
+	u8 row, col =0;
+	int j =0;
+	u16 temp =0;
+	unsigned char *ptr;
+	if(!ilits->allow_capture)
+	{
+		ILI_DBG("not allow capture");
+	}
+	if (ilits->rib.nReportResolutionMode == POSITION_LOW_RESOLUTION) {
+		cdc_starIdx = P5_X_DEBUG_LOW_RESOLUTION_FINGER_DATA_LENGTH;
+	} else if (ilits->rib.nReportResolutionMode == POSITION_HIGH_RESOLUTION) {
+		cdc_starIdx = P5_X_DEBUG_HIGH_RESOLUTION_FINGER_DATA_LENGTH;
+	}
+	row = ilits->ych_num;
+	col = ilits->xch_num;
+	
+	if(llen < cdc_starIdx+2*row*col)
+	{
+		ILI_ERR("data lens is not match\n");
+		return 0;
+	}
+//	ipio_memcpy(ilits->capture_buf, buf, llen, TR_BUF_SIZE);
+	ptr = &buf[cdc_starIdx];
+	
+	len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "======== Deltadata ========\n");
+	
+	for (j = 0; j < col; j++)
+		len += snprintf(delta_buf +len,DEBUG_DATA_FILE_SIZE - len, "[X%d] ,", j);
+	for (j = 0; j < row * col; j++, ptr += 2) {
+		temp = (*ptr << 8) + *(ptr + 1);
+		if (j % col == 0)
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "\n[Y%d] ,", (j / col));
+		if(temp & 0xF000)
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "-%d, ", (0xFFFF - temp+1));
+		else
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "%d, ", temp);
+	}
+	len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "\n[X] ,");
+	for (j = 0; j < row + col; j++, ptr += 2) {
+		temp = (*ptr << 8) + *(ptr + 1);
+		if (j == col)
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "\n[Y] ,");
+		if(temp & 0xF000)
+                         len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "-%d, ", (0xFFFF - temp+1));
+                else
+			 len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "%d, ", temp);
+	}
+	ili_put_fifo_with_discard(delta_buf,len);
+	
+	return len;
+}
+static int frame_log_capture_start(void)
+{
+	u8 data_type = 0;
+	int ret =0;
+	u8 cmd[2] = { 0 };
+	
+	if (atomic_read(&ilits->tp_reset) == START) {
+		ILI_ERR("ignore request! tp reset atomic is START.\n");
+		return -EINVAL;
+	}
+	if (ilits->tp_suspend == true) {
+		ILI_ERR("tp is in sleep mode\n");
+		return -EINVAL;
+	}
+	data_type = P5_X_FW_SIGNAL_DATA_MODE;
+	if (ili_set_tp_data_len(DATA_FORMAT_DEBUG, false, &data_type) < 0) {
+		ILI_ERR("Failed to set tp data length\n");
+		ret = -EINVAL;
+		goto out;
+	}
+	mutex_lock(&ilits->touch_mutex);
+
+	if (ilits->chip->core_ver < CORE_VER_1700) {
+		cmd[0] = 0xFA;
+		cmd[1] = P5_X_FW_SIGNAL_DATA_MODE;
+		ret = ilits->wrapper(cmd, 2, NULL, 0, ON, OFF);
+		if(ret <0) {
+			ILI_ERR("write diff cmd fail\n");
+		}
+	}
+	mutex_unlock(&ilits->touch_mutex);
+	ilits->allow_capture= true;
+out:
+	return ret;
+}
+
+void frame_log_capture_stop(void)
+{
+	u8 data_type =0;
+	data_type = P5_X_FW_SIGNAL_DATA_MODE;
+	if (ili_set_tp_data_len(DATA_FORMAT_DEMO, false, &data_type) < 0)
+		ILI_ERR("Failed to set tp data length\n");
+
+	ilits->allow_capture= false;
+
+}
+static ssize_t ili_dbg_data_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%02x\n", 0x01);
+}
+
+static ssize_t ili_dbg_data_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret =0;
+	if(!buf || count <=0)
+		return 0;
+
+	ili_clear_kfifo();
+	ret = frame_log_capture_start();
+	if(ret) {
+		ILI_ERR("start debug mode error\n");
+	}
+	return count;
+}
+#endif
 static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
@@ -4190,6 +4317,9 @@ static struct device_attribute touchscreen_attributes[] = {
 #ifdef ILI_DOUBLE_TAP_CTRL
 	__ATTR(gesture, S_IRUGO | S_IWUSR | S_IWGRP, gesture_show, gesture_store),
 	__ATTR(gesture_type_dbg, S_IRUGO | S_IWUSR | S_IWGRP, gesture_type_dbg_show, gesture_type_dbg_store),
+#ifdef ENABLE_TP_TM_ILI_LOG_CAPTURE
+	__ATTR(log_trigger, S_IRUGO | S_IWUSR | S_IWGRP, ili_dbg_data_show, ili_dbg_data_store),
+#endif
 #endif
 #ifdef ILI_STOWED_SUPPORT
 	__ATTR(stowed, S_IRUGO | S_IWUSR | S_IWGRP, stowed_show, stowed_store),
@@ -4277,4 +4407,7 @@ void ili_node_init(void)
 	}
 
 	ilitek_sys_init();
+#ifdef ENABLE_TP_TM_ILI_LOG_CAPTURE
+	ili_log_capture_register_misc();
+#endif
 }
