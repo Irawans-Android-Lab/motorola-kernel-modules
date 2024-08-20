@@ -27,6 +27,7 @@
 #include "leds_aw99703.h"
 #include "aw99703_align.h"
 #include "aw99703_align_1000.h"
+#include "aw99703_align_gamma15.h"
 
 #define AW99703_LED_DEV "aw99703-bl"
 #define AW99703_NAME "aw99703-bl"
@@ -370,6 +371,10 @@ int  aw99703_set_brightness(struct aw99703_data *drvdata, int brt_val)
 		if(ALIGN_BL_MAPPING_450 == drvdata->led_current_align) {
 			brt_val = bl_mapping_450[brt_val];
 			pr_info("%s bl_mapping brt_val: %d\n", __func__, brt_val);
+		}
+		else if(ALIGN_BL_MAPPING_1000_GAMMA15 == drvdata->led_current_align) {
+			brt_val = bl_mapping_1000_gamma15[brt_val];
+			pr_info("%s bl_mapping_1000_gamma15 brt_val: %d\n", __func__, brt_val);
 		}
 		else if(ALIGN_BL_MAPPING_1000 == drvdata->led_current_align) {
 			brt_val = bl_mapping_1000[brt_val];
