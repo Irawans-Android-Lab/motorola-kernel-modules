@@ -1054,7 +1054,36 @@ err_exit:
  * \retval 0 if ok.
  *
 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static void p61_remove(struct spi_device *spi)
+{
+	struct p61_dev *p61_dev = p61_get_data(spi);
+	P61_DBG_MSG("Entry : %s\n", __FUNCTION__);
 
+#ifdef P61_HARD_RESET
+	if (p61_regulator != NULL) {
+		regulator_disable(p61_regulator);
+		regulator_put(p61_regulator);
+	} else {
+		P61_ERR_MSG("ERROR %s p61_regulator not enabled \n", __func__);
+	}
+#endif
+	if (p61_dev != NULL) {
+#ifdef P61_RESET_GPIO
+		gpio_free(p61_dev->rst_gpio);
+#endif
+#ifdef P61_IRQ_ENABLE
+		free_irq(p61_dev->spi->irq, p61_dev);
+		gpio_free(p61_dev->irq_gpio);
+#endif
+		mutex_destroy(&p61_dev->read_mutex);
+		misc_deregister(&p61_dev->p61_device);
+		kfree(p61_dev);
+	}
+	P61_DBG_MSG("Exit : %s\n", __FUNCTION__);
+	return;
+}
+#else
 static int p61_remove(struct spi_device *spi)
 {
 	struct p61_dev *p61_dev = p61_get_data(spi);
@@ -1083,6 +1112,7 @@ static int p61_remove(struct spi_device *spi)
 	P61_DBG_MSG("Exit : %s\n", __FUNCTION__);
 	return 0;
 }
+#endif
 
 #if DRAGON_P61
 static struct of_device_id p61_dt_match[] = {

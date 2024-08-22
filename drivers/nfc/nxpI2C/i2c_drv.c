@@ -431,7 +431,33 @@ err:
 	pr_err("%s: probing not successful, check hardware\n", __func__);
 	return ret;
 }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+void nfc_i2c_dev_remove(struct i2c_client *client)
+{
+	struct nfc_dev *nfc_dev = NULL;
 
+	pr_info("%s: remove device\n", __func__);
+	nfc_dev = i2c_get_clientdata(client);
+	if (!nfc_dev) {
+		pr_err("%s: device doesn't exist anymore\n", __func__);
+		return;
+	}
+	if (nfc_dev->dev_ref_count > 0) {
+		pr_err("%s: device already in use\n", __func__);
+		return;
+	}
+	device_init_wakeup(&client->dev, false);
+	free_irq(client->irq, nfc_dev);
+	nfc_misc_unregister(nfc_dev, DEV_COUNT);
+	mutex_destroy(&nfc_dev->read_mutex);
+	mutex_destroy(&nfc_dev->write_mutex);
+	gpio_free_all(nfc_dev);
+	kfree(nfc_dev->read_kbuf);
+	kfree(nfc_dev->write_kbuf);
+	kfree(nfc_dev);
+	return;
+}
+#else
 int nfc_i2c_dev_remove(struct i2c_client *client)
 {
 	int ret = 0;
@@ -459,6 +485,7 @@ int nfc_i2c_dev_remove(struct i2c_client *client)
 	kfree(nfc_dev);
 	return ret;
 }
+#endif
 
 int nfc_i2c_dev_suspend(struct device *device)
 {

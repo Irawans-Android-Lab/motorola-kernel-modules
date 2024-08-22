@@ -1,0 +1,27 @@
+load("//build/bazel_mgk_rules:mgk_ko.bzl", "define_mgk_ko")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+define_mgk_ko(
+    name = "nxp_i2c",
+    srcs = glob([
+        "*.c",
+        "*.h",
+        "Kbuild",
+        "Makefile",
+    ]) + [
+        "//motorola/kernel/modules:public_headers",
+    ],
+    outs = ["nxp_i2c.ko"],
+)
+
+filegroup(
+    name = "nxp_headers",
+    srcs = glob([
+        "*.h",
+    ]),
+)
