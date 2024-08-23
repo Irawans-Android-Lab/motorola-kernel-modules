@@ -40,6 +40,17 @@
 #include "qm35_transport.h"
 #include <linux/clk.h>
 
+//Added by motorola begin
+#ifdef CONFIG_UWB_USES_MTK_RESERVED_CLOCK
+extern int clkbuf_xo_ctrl(char *cmd, int xo_id, u32 input);
+#define PMIC_RFCK_BUF2B 9
+#define FORCE_MTK_CLK_OUTPUT 0
+#define FORCE_MTK_CLK_INPUT 1
+#define FORCE_MTK_CLK_DISABLE 0
+#define FORCE_MTK_CLK_ENABLE 1
+#endif
+//Added by motorola end
+
 #ifndef DEFAULT_DEBUG_FLAGS
 #define DEFAULT_DEBUG_FLAGS QMSPI_AUTO_TRACE
 #endif
@@ -171,14 +182,20 @@ static int qm35_spi_driver_probe(struct spi_device *spi)
 	dev_info(&spi->dev, "Probing new QM35 SPI device...\n");
 
 	uwb_clk = devm_clk_get(&spi->dev, "uwb_rf_clk5");
-    if (IS_ERR(uwb_clk)) {
-            dev_err(&spi->dev, "%s: uwb_clk not found", __func__);
-    } else {
-            rc = clk_prepare_enable(uwb_clk);
-            if(rc)
-                dev_err(&spi->dev, "%s: uwb_clk enable failed", __func__);
-    }
+	if (IS_ERR(uwb_clk)) {
+		dev_err(&spi->dev, "%s: uwb_clk not found", __func__);
+	} else {
+		rc = clk_prepare_enable(uwb_clk);
+		if(rc)
+			dev_err(&spi->dev, "%s: uwb_clk enable failed", __func__);
+	}
 
+//Added by motorola begin
+#ifdef CONFIG_UWB_USES_MTK_RESERVED_CLOCK
+	clkbuf_xo_ctrl("SET_XO_MODE", PMIC_RFCK_BUF2B, FORCE_MTK_CLK_OUTPUT);
+	clkbuf_xo_ctrl("SET_XO_EN_M", PMIC_RFCK_BUF2B, FORCE_MTK_CLK_ENABLE);
+#endif
+//Added by motorola end
 
 	/* Parameters management. */
 	QM35_CONFIGURE_PARAMETER(cpu, s32, "%d", spi->dev, node);
@@ -319,6 +336,11 @@ err_spi_setup:
 	qm35_free_device(qm);
 	spi_set_drvdata(spi, NULL);
 err_alloc_hw:
+//Added by motorola begin
+#ifdef CONFIG_UWB_USES_MTK_RESERVED_CLOCK
+	clkbuf_xo_ctrl("SET_XO_EN_M", PMIC_RFCK_BUF2B, FORCE_MTK_CLK_DISABLE);
+#endif
+//Added by motorola end
 	return rc;
 }
 
@@ -360,6 +382,11 @@ static int qm35_spi_driver_remove(struct spi_device *spi)
 	/* Free allocated structures. */
 	qm35_free_device(qm);
 	spi_set_drvdata(spi, NULL);
+//Added by motorola begin
+#ifdef CONFIG_UWB_USES_MTK_RESERVED_CLOCK
+	clkbuf_xo_ctrl("SET_XO_EN_M", PMIC_RFCK_BUF2B, FORCE_MTK_CLK_DISABLE);
+#endif
+//Added by motorola end
 	return 0;
 }
 
