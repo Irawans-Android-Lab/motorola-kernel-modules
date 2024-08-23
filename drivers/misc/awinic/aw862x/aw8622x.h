@@ -154,6 +154,7 @@ struct aw862xx_trig {
 };
 
 struct aw8622x_dts_info {
+	unsigned int gain_bypass;
 	unsigned int lk_f0_cali;
 	unsigned int mode;
 	unsigned int f0_ref;

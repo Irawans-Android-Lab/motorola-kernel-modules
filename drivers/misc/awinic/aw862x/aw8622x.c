@@ -485,6 +485,12 @@ int aw8622x_parse_dt(struct aw8622x *aw8622x, struct device *dev,
 					 ARRAY_SIZE(prctmode_temp));
 	if (val != 0)
 		aw_dev_info("%s vib_prctmode not found\n", __func__);
+	/*gain start*/
+	val = of_property_read_u32(np, "aw8622x_gain_bypass",
+				   &aw8622x->dts_info.gain_bypass);
+	if (val != 0)
+		aw_dev_info("%s vib_gain_bypass not found\n", __func__);
+	/*gain end*/
 	memcpy(aw8622x->dts_info.prctmode, prctmode_temp,
 					sizeof(prctmode_temp));
 	val = of_property_read_u32_array(np,
@@ -4066,6 +4072,9 @@ static void aw8622x_haptic_misc_para_init(struct aw8622x *aw8622x)
 			       AW8622X_BIT_ANACFG8_TRTF_CTRL_HDRV_MASK,
 			       AW8622X_BIT_ANACFG8_TRTF_CTRL_HDRV);
 
+	/*gain_bypass config*/
+	aw8622x_i2c_write_bits(aw8622x,AW8622X_REG_SYSCTRL7,AW8622X_BIT_SYSCTRL7_GAIN_BYPASS_MASK,aw8622x->dts_info.gain_bypass << 6);
+	/*gain_bypass end*/
 	/* d2s_gain */
 	if (!aw8622x->dts_info.d2s_gain) {
 		aw_dev_err("%s aw8622x->dts_info.d2s_gain = 0!\n",
