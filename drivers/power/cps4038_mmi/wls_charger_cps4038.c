@@ -4280,7 +4280,7 @@ static int wireless_en(void *input, bool en)
 
 static int wireless_get_chip_id(void *input)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)) && (!IS_ENABLED(CONFIG_WLC_WO_BOOST))
 	int value = chip->chip_id;
 
 	if(0 != value)
