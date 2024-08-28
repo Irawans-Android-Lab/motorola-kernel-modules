@@ -1629,6 +1629,31 @@ static void sc8989x_set_chg_type(struct sc8989x_chip *sc, int type)
 
 /**********************interrupt*********************/
 static int sc8989x_get_charger_type(struct sc8989x_chip *sc);
+
+__maybe_unused static int sc8989x_wait_power_good(struct sc8989x_chip *sc)
+{
+	int ret = 0;
+	int reg_val;
+	int tries = 0;
+
+	dev_info(sc->dev," sc8989x_wait_power_good \n");
+	while (tries < MAX_TRY) {
+		ret = sc8989x_field_read(sc, PG_STAT, &reg_val);
+		if (reg_val == 1) {
+			dev_info(sc->dev,"sc8989x_wait_power_good GD ,try %d times\n", tries);
+			break;
+		} else {
+			msleep(100);
+			tries++;
+		}
+	}
+
+	if (tries == MAX_TRY) {
+		dev_info(sc->dev,"sc8989x_wait_power_good alwalys is 0,try %d times?\n", tries);
+	}
+	return ret;
+}
+
 static void sc8989x_force_detection_dwork_handler(struct work_struct *work)
 {
 	int ret;
@@ -1693,6 +1718,9 @@ static int sc8989x_get_charger_type(struct sc8989x_chip *sc)
 	int ret;
 	int reg_val = 0;
 
+	if (is_factory_build()) {
+		sc8989x_wait_power_good(sc);
+	}
 	ret = sc8989x_field_read(sc, VBUS_STAT, &reg_val);
 	if (ret) {
 		return ret;
