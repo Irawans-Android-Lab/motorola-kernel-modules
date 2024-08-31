@@ -396,6 +396,12 @@ int fts_bus_init(struct fts_ts_data *ts_data);
 int fts_bus_exit(struct fts_ts_data *ts_data);
 int fts_spi_transfer_direct(u8 *writebuf, u32 writelen, u8 *readbuf, u32 readlen);
 
+#ifdef CONFIG_FTS_LOG_CAPTURE
+int fts_test_init(struct fts_ts_data *ts_data);
+int fts_test_exit(struct fts_ts_data *ts_data);
+int tp_data_dump_capture (void);
+#endif
+
 /* Gesture functions */
 #if FTS_GESTURE_EN
 #define MAX_PANEL_IDX 2

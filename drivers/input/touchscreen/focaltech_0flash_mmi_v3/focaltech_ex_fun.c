@@ -1954,6 +1954,24 @@ static ssize_t stowed_show(struct device *dev,
 }
 #endif
 
+#ifdef CONFIG_FTS_LOG_CAPTURE
+static ssize_t fts_dbg_data_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	ret = tp_data_dump_capture ();
+	if (0 == ret)
+		FTS_INFO("capture rawdata succesful\n");
+	return ret;
+}
+
+static ssize_t fts_dbg_data_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	return count;
+}
+#endif
+
 static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
@@ -1971,6 +1989,9 @@ static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RW(stowed),
 #endif
 	__ATTR(debug_level_en, S_IRUGO | S_IWUSR | S_IWGRP, debug_level_en_show, debug_level_en_store),
+#ifdef CONFIG_FTS_LOG_CAPTURE
+	__ATTR(log_trigger, S_IRUGO | S_IWUSR | S_IWGRP, fts_dbg_data_show, fts_dbg_data_store),
+#endif
 	__ATTR_NULL
 };
 

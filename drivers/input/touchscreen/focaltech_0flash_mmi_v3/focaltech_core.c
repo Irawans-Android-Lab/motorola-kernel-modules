@@ -2532,6 +2532,13 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
     }
 #endif
 
+#ifdef CONFIG_FTS_LOG_CAPTURE
+    ret = fts_test_init(ts_data);
+    if (ret) {
+        FTS_ERROR("init host test fail");
+    }
+#endif
+
 #if FTS_ESDCHECK_EN
     ret = fts_esdcheck_init(ts_data);
     if (ret) {
@@ -2672,6 +2679,9 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 
     fts_fwupg_exit(ts_data);
 
+#ifdef CONFIG_FTS_LOG_CAPTURE
+    fts_test_exit(ts_data);
+#endif
 
 #if FTS_ESDCHECK_EN
     fts_esdcheck_exit(ts_data);
