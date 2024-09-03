@@ -1730,11 +1730,7 @@ static int sc8989x_get_charger_type(struct sc8989x_chip *sc)
 	case VBUS_STAT_NO_INPUT:
 		sc->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 		sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
-#if IS_ENABLED(CONFIG_MMI_SGM41543D_CHARGER)
 		sc->psy_desc.type = POWER_SUPPLY_TYPE_USB;
-#else
-		sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
-#endif
 		dev_info(sc->dev, "%s: charger type: NO INPUT\n", __func__);
 		break;
 	case VBUS_STAT_SDP:
