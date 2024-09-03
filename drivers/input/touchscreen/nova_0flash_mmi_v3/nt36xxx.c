@@ -2643,6 +2643,24 @@ static ssize_t stowed_show(struct device *dev,
 }
 #endif
 
+#ifdef CONFIG_NVT_LOG_CAPTURE
+static ssize_t nvt_dbg_data_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	ret = nvt_tp_data_dump_capture ();
+	if (0 == ret)
+		NVT_LOG("capture rawdata succesful\n");
+	return ret;
+}
+
+static ssize_t nvt_dbg_data_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	return count;
+}
+#endif
+
 static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
@@ -2661,6 +2679,9 @@ static struct device_attribute touchscreen_attributes[] = {
 #endif
 #ifdef NVT_STOWED_MODE_SUPPORT
 	__ATTR_RW(stowed),
+#endif
+#ifdef CONFIG_NVT_LOG_CAPTURE
+	__ATTR(log_trigger, S_IRUGO | S_IWUSR | S_IWGRP, nvt_dbg_data_show, nvt_dbg_data_store),
 #endif
 	__ATTR_NULL
 };

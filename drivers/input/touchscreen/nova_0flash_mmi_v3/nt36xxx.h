@@ -447,4 +447,8 @@ extern int __attribute__ ((weak)) panel_esd_notifier_call_chain(unsigned long va
 extern int __attribute__ ((weak)) touch_set_esd_recovery_state(int state, int panel_idx);
 #endif
 
+#ifdef CONFIG_NVT_LOG_CAPTURE
+int nvt_tp_data_dump_capture (void);
+#endif
+
 #endif /* _LINUX_NVT_TOUCH_H */

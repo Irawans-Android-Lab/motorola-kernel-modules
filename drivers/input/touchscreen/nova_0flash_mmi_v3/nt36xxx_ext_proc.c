@@ -836,6 +836,74 @@ static const struct proc_ops monitor_control_fops = {
 #endif
 };
 
+#ifdef CONFIG_NVT_LOG_CAPTURE
+int nvt_tp_data_dump_capture ()
+{
+	int32_t i = 0;
+	int32_t j = 0;
+	if (mutex_lock_interruptible(&ts->lock)) {
+		return -ERESTARTSYS;
+	}
+
+	NVT_LOG("++\n");
+
+#if NVT_TOUCH_ESD_PROTECT
+	nvt_esd_check_enable(false);
+#endif /* #if NVT_TOUCH_ESD_PROTECT */
+
+	if (nvt_clear_fw_status()) {
+		mutex_unlock(&ts->lock);
+		return -EAGAIN;
+	}
+
+	nvt_change_mode(TEST_MODE_2);
+
+	if (nvt_check_fw_status()) {
+		mutex_unlock(&ts->lock);
+		return -EAGAIN;
+	}
+
+	if (nvt_get_fw_info()) {
+		mutex_unlock(&ts->lock);
+		return -EAGAIN;
+	}
+
+	//get diff
+	if (nvt_get_fw_pipe() == 0)
+		nvt_read_mdata(ts->mmap->DIFF_PIPE0_ADDR, ts->mmap->DIFF_BTN_PIPE0_ADDR);
+	else
+		nvt_read_mdata(ts->mmap->DIFF_PIPE1_ADDR, ts->mmap->DIFF_BTN_PIPE1_ADDR);
+
+	for (i = 0; i < ts->y_num; i++) {
+		for (j = 0; j < ts->x_num; j++) {
+			NVT_LOG("diffdata:%5d\n", xdata[i * ts->x_num + j]);
+		}
+		NVT_LOG("col:%d\n", i);
+	}
+
+	//get raw
+	if (nvt_get_fw_pipe() == 0)
+		nvt_read_mdata(ts->mmap->RAW_PIPE0_ADDR, ts->mmap->RAW_BTN_PIPE0_ADDR);
+	else
+		nvt_read_mdata(ts->mmap->RAW_PIPE1_ADDR, ts->mmap->RAW_BTN_PIPE1_ADDR);
+
+	for (i = 0; i < ts->y_num; i++) {
+		for (j = 0; j < ts->x_num; j++) {
+			NVT_LOG("rawdata:%5d\n", xdata[i * ts->x_num + j]);
+		}
+		NVT_LOG("col:%d\n", i);
+	}
+
+	nvt_change_mode(NORMAL_MODE);
+
+	mutex_unlock(&ts->lock);
+
+	NVT_LOG("--\n");
+	return 0;
+
+}
+#endif
+
 /*******************************************************
 Description:
 	Novatek touchscreen extra function proc. file node
