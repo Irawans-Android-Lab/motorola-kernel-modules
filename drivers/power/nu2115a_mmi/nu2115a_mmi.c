@@ -872,7 +872,7 @@ static int nu2115_enable_chg(struct charger_device *chg_dev, bool en)
 	    ret = __nu2115_enable_adc(chip, true);
 	}
 
-
+	ret =  __nu2115_write(chip, NU2115_REG_32, 0x70);
 	ret = __nu2115_enable_chg(chip, true);
 	if (ret < 0) {
 		dev_err(chip->dev, "failed to enable chg\n");
@@ -884,6 +884,8 @@ static int nu2115_enable_chg(struct charger_device *chg_dev, bool en)
 		return -EIO;
 	}
 
+	msleep(30);
+	ret =  __nu2115_write(chip, NU2115_REG_32, 0x50);
 	dev_err(chip->dev, "nu2115 enable ok: %d\n", en);
 
 out:
