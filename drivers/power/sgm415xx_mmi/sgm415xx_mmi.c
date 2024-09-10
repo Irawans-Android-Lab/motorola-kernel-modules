@@ -1158,9 +1158,9 @@ static enum power_supply_property sgm4154x_power_supply_props[] = {
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 	POWER_SUPPLY_PROP_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_USB_TYPE,
-	POWER_SUPPLY_PROP_TYPE,
+	POWER_SUPPLY_PROP_TYPE
 	//POWER_SUPPLY_PROP_CHARGING_ENABLED,
-	POWER_SUPPLY_PROP_PRESENT
+	//POWER_SUPPLY_PROP_PRESENT
 };
 
 static int sgm4154x_property_is_writeable(struct power_supply *psy,
@@ -1300,9 +1300,9 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 			sgm->mmi_charging_full = false;
 		break;
 
-	case POWER_SUPPLY_PROP_PRESENT:
+/*	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = state.vbus_gd;
-		break;
+		break;*/
 
 	case POWER_SUPPLY_PROP_TYPE:
 #if IS_ENABLED(CONFIG_MOTO_WLC_ALG_SUPPORT)
