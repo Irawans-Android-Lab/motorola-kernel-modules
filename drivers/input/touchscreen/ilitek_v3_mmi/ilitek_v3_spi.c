@@ -691,7 +691,7 @@ static int ili_check_panel(void)
 
 	if (!active_panel_name)
 		ILI_INFO("active_panel NULL\n");
-	else if(strstr(active_panel_name, "ili78") || strstr(active_panel_name, "ili98") || strstr(active_panel_name, "il77"))
+	else if(strstr(active_panel_name, "ili7") || strstr(active_panel_name, "ili98") || strstr(active_panel_name, "il77"))
 	{
 		ILI_INFO("matched active_panel:%s ", active_panel_name);
 		return 0;
