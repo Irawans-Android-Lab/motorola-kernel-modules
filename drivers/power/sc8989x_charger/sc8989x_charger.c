@@ -1828,8 +1828,8 @@ static irqreturn_t sc8989x_irq_handler(int irq, void *data)
 		}
 
 		sc8989x_set_vindpm_track(sc, SC8989X_TRACK_250);
-		sc8989x_set_charging_current(sc->chg_dev,500000);
-		dev_info(sc->dev, "%s: set icc 500ma\n", __func__);
+		sc8989x_set_charging_current(sc->chg_dev,1000000);
+		dev_info(sc->dev, "%s: set icc 1000ma\n", __func__);
 #if IS_ENABLED(CONFIG_FACTORY_BUILD)
 		ret = sc8989x_set_chg_enable(sc, false);
 		if (ret)
