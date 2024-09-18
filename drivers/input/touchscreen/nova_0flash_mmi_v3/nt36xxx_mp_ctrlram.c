@@ -699,10 +699,6 @@ static int32_t nvt_read_fw_noise(int32_t *xdata)
 		return -EAGAIN;
 	}
 
-	if (nvt_get_fw_info()) {
-		return -EAGAIN;
-	}
-
 	if (nvt_get_fw_pipe() == 0)
 		nvt_read_mdata(ts->mmap->DIFF_PIPE0_ADDR, ts->mmap->DIFF_BTN_PIPE0_ADDR);
 	else
