@@ -1959,7 +1959,7 @@ static int sc8541_config_mux(struct bq25980_device *bq,
                 dev_err(bq->dev, "%s:mmi_mux menu close wls mos fail ret=%d", __func__, ret);
                 return ret;
             }
-            mdelay(50);
+            mdelay(30);
 
             ret = regmap_update_bits(bq->regmap, SC8541_CTRL6_REG,
                     SC8541_ENABLE_WLC_MOS, SC8541_ENABLE_WLC_MOS);

@@ -1591,7 +1591,7 @@ static int nu2115_config_mux(struct charger_device *chg_dev,
                 dev_err(bq->dev, "%s:mmi_mux menu close wls mos fail ret=%d", __func__, ret);
                 return ret;
             }
-            mdelay(200);
+            mdelay(30);
             ret = regmap_update_bits(bq->regmap, NU2115_ACDRV12_CTRL,
                     NU2115_ENABLE_WLC_MOS, NU2115_ENABLE_WLC_MOS);
             if (ret) {
