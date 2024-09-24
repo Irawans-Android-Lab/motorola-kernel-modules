@@ -429,6 +429,7 @@ static u8 val2reg(enum sc8989x_reg_range id, u32 val)
 	return reg;
 }
 
+#if IS_ENABLED(CONFIG_WLC_WO_BOOST)
 static bool is_atm_mode(void)
 {
         const char *bootargs_ptr = NULL;
@@ -479,6 +480,8 @@ err_putnode:
 
         return factory_mode;
 }
+#endif
+
 static bool is_factory_build(void)
 {
 	struct device_node *np = of_find_node_by_path("/chosen");
@@ -1817,7 +1820,10 @@ static irqreturn_t sc8989x_irq_handler(int irq, void *data)
 	if (!prev_vbus_gd && sc->vbus_good) {
 		sc->force_detect_count = 0;
 		type = sc8989x_get_vbus_stat(sc);
-		if((!is_atm_mode()) || (!is_factory_build())) {
+#if IS_ENABLED(CONFIG_WLC_WO_BOOST)
+		if((!is_atm_mode()) || (!is_factory_build()))
+#endif
+		{
 			Charger_Detect_Init(sc);
 			sc->retry_count = 0;
 			dev_info(sc->dev, "%s: adapter/usb inserted\n", __func__);
