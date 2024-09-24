@@ -1239,6 +1239,10 @@ int32_t nvt_update_firmware(char *firmware_name)
 		NVT_ERR("nvt_get_fw_info failed. (%d)\n", ret);
 	}
 
+	if (ts->charger_detection)
+		nvt_set_charger(ts->charger_detection->usb_connected);
+	else
+		NVT_LOG("charger_detection null, skip\n");
 
 download_fail:
 	if (!IS_ERR_OR_NULL(bin_map)) {
@@ -1288,12 +1292,6 @@ void Boot_Update_Firmware(struct work_struct *work)
 	}
 
 	mutex_unlock(&ts->lock);
-
-	if (ts->charger_detection && ts->charger_detection->nvt_charger_notify_wq) {
-		queue_work(ts->charger_detection->nvt_charger_notify_wq, &ts->charger_detection->charger_notify_work);
-	}
-	else
-		NVT_LOG("charger_detection null, skip\n");
 
 #ifdef NOVATECH_PEN_NOTIFIER
 	if(!ts->fw_ready_flag)

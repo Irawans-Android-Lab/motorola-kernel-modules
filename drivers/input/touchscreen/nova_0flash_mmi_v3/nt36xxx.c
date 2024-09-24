@@ -118,7 +118,6 @@ uint32_t SPI_RD_FAST_ADDR = 0;	//read from dtsi
 uint32_t panel_wakeup = 0;	//read from dtsi
 static int charger_notifier_callback(struct notifier_block *nb, unsigned long val, void *v);
 static int charger_set_state(struct power_supply *psy, struct usb_charger_detection *chg_detect);
-static int nvt_set_charger(uint8_t charger_on_off);
 static void nvt_charger_notify_work(struct work_struct *work);
 static int usb_detect_flag = 0;
 
@@ -3745,9 +3744,11 @@ static int32_t nvt_ts_resume(struct device *dev)
 			msecs_to_jiffies(NVT_TOUCH_ESD_CHECK_PERIOD));
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
+#if 0 // move to nvt_update_firmware for 0flash case
 	if (ts->charger_detection) {
 		queue_work(ts->charger_detection->nvt_charger_notify_wq, &ts->charger_detection->charger_notify_work);
 	}
+#endif
 
 #if WAKEUP_GESTURE
 #ifdef NVT_SENSOR_EN
@@ -3849,13 +3850,13 @@ static const struct spi_device_id nvt_ts_id[] = {
 	{ }
 };
 
-static int nvt_set_charger(uint8_t charger_on_off)
+int nvt_set_charger(uint8_t charger_on_off)
 {
 	uint8_t buf[8] = {0};
 	int32_t ret = 0;
 	uint8_t chg_cmd, chg_state = 0;
 
-	NVT_LOG("set charger: %d\n", charger_on_off);
+	NVT_DBG("set charger: %d\n", charger_on_off);
 
 	msleep(20);
 	//---set xdata index to EVENT BUF ADDR---
@@ -3924,25 +3925,24 @@ static int charger_set_state(struct power_supply *psy, struct usb_charger_detect
 
 	if (!ret) {
 		//NVT_LOG("saved usb_detect_flag=%d, prop.intval=%d", usb_detect_flag, prop.intval);
-		if (prop.intval && prop.intval <= USB_DETECT_NO_CHARGING) {
-			if (USB_DETECT_OUT == prop.intval)
-				usb_detect_flag = USB_DETECT_OUT;
-			else
-				usb_detect_flag = USB_DETECT_IN;
+		if ((USB_DETECT_OUT == prop.intval) || (USB_DETECT_UNKNOWN == prop.intval))
+			usb_detect_flag = USB_DETECT_OUT;
+		else
+			usb_detect_flag = USB_DETECT_IN;
 
-			if (usb_detect_flag != chg_detect->usb_connected) {
-				chg_detect->usb_connected = usb_detect_flag;
-				//NVT_LOG("charger state updated: %d", usb_detect_flag);
-				if (USB_DETECT_NO_CHARGING == prop.intval)
-					NVT_LOG("no_charging state, usb_detect_flag=%d, prop.intval=%d", usb_detect_flag, prop.intval);
-			}
-			else {
-				//NVT_LOG("charger state not changed");
-				ret = -1;
-			}
-		} else {
-			NVT_LOG("unsupport prop.intval: %d", prop.intval);
-			ret = -EINVAL;
+		if (usb_detect_flag != chg_detect->usb_connected) {
+			chg_detect->usb_connected = usb_detect_flag;
+
+			if (USB_DETECT_NO_CHARGING == prop.intval)
+				NVT_LOG("no_charging state, usb_detect_flag=%d, prop.intval=%d", usb_detect_flag, prop.intval);
+			else if (USB_DETECT_FULL == prop.intval)
+				NVT_LOG("charging full state, usb_detect_flag=%d, prop.intval=%d", usb_detect_flag, prop.intval);
+			else if (USB_DETECT_FULL < prop.intval || !prop.intval)
+				NVT_LOG("unknown charger state, usb_detect_flag=%d, prop.intval=%d", usb_detect_flag, prop.intval);
+		}
+		else {
+			//NVT_LOG("charger state not changed");
+			ret = -1;
 		}
 	}
 

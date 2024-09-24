@@ -223,9 +223,13 @@ struct nvt_sensor_platform_data {
 #endif
 
 /* charger detect */
+// keep consistent with POWER_SUPPLY_STATUS_  value in power_supply.h
+#define USB_DETECT_UNKNOWN 0
 #define USB_DETECT_IN 1
 #define USB_DETECT_OUT 2	//MTK
 #define USB_DETECT_NO_CHARGING 3
+#define USB_DETECT_FULL 	4 	//POWER_SUPPLY_STATUS_FULL
+
 #define CMD_CHARGER_ON (0x53)
 #define CMD_CHARGER_OFF (0x51)
 
@@ -413,6 +417,7 @@ void nvt_boot_ready(void);
 void nvt_fw_crc_enable(void);
 void nvt_tx_auto_copy_mode(void);
 void nvt_read_fw_history(uint32_t fw_history_addr);
+int nvt_set_charger(uint8_t charger_on_off);
 int32_t nvt_update_firmware(char *firmware_name);
 int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state);
 int32_t nvt_get_fw_info(void);
