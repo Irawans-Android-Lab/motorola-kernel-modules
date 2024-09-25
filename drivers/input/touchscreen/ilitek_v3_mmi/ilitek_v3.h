@@ -1070,6 +1070,7 @@ struct ilitek_pen_info {
 #define ILI9882_CHIP				0x9882
 #define ILI9883_CHIP					0x9883
 #define TDDI_PID_ADDR					0x4009C
+#define TDDI_SECOND_PID_ADDR			0x40098
 #define TDDI_OTP_ID_ADDR				0x400A0
 #define TDDI_ANA_ID_ADDR				0x400A4
 #define TDDI_PC_COUNTER_ADDR				0x44008
@@ -1476,7 +1477,8 @@ struct ilitek_ic_info {
 	u32 slave_pid;
 	u32 pid;
 	u32 pid_addr;
-	u32 product_id;
+	u32 second_pid;
+	u32 second_pid_addr;
 	u32 pc_counter_addr;
 	u32 pc_latch_addr;
 	u32 reset_addr;
@@ -1490,6 +1492,7 @@ struct ilitek_ic_info {
 	u32 max_count;
 	u32 reset_key;
 	u16 wtd_key;
+	u8 product_id[8];
 	int no_bk_shift;
 	bool dma_reset;
 	int (*dma_crc)(u32 start_addr, u32 block_size);

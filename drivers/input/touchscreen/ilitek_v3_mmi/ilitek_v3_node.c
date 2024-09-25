@@ -1722,7 +1722,7 @@ static ssize_t ilitek_node_ver_info_read(struct file *filp, char __user *buff, s
 
 	memset(g_user_buf, 0, USER_STR_BUFF * sizeof(unsigned char));
 
-	len += snprintf(g_user_buf + len, USER_STR_BUFF - len, "CHIP ID = %x\n", ilits->chip->product_id);
+	len += snprintf(g_user_buf + len, USER_STR_BUFF - len, "CHIP ID = %s\n", ilits->chip->product_id);
 	len += snprintf(g_user_buf + len, USER_STR_BUFF - len, "FW version = %d.%d.%d.%d\n",
 			ilits->chip->fw_ver >> 24, (ilits->chip->fw_ver >> 16) & 0xFF,
 			(ilits->chip->fw_ver >> 8) & 0xFF, ilits->chip->fw_ver & 0xFF);
@@ -3177,7 +3177,7 @@ static long ilitek_node_ioctl(struct file *filp, unsigned int cmd, unsigned long
 		break;
 	case ILITEK_IOCTL_TP_CHIP_ID:
 		ILI_DBG("ioctl: get chip id\n");
-		id_to_user[0] = (ilits->chip->product_id << 16) | (ilits->chip->pid & 0x0000FFFF);
+		id_to_user[0] = ilits->chip->pid;
 		id_to_user[1] = ilits->chip->otp_id;
 		id_to_user[2] = ilits->chip->ana_id;
 
@@ -3995,7 +3995,7 @@ static ssize_t buildid_show(struct device *dev,
 static ssize_t productinfo_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return scnprintf(buf, PAGE_SIZE, "%x\n",
+	return scnprintf(buf, PAGE_SIZE, "%s\n",
 			ilits->chip->product_id);
 }
 
@@ -4003,7 +4003,7 @@ static ssize_t productinfo_show(struct device *dev,
 static ssize_t ic_ver_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return scnprintf(buf, PAGE_SIZE, "%s%x\n%s%d.%d.%.d.%d\n%s%d.%d.%d.%d\n",
+	return scnprintf(buf, PAGE_SIZE, "%s%s\n%s%d.%d.%.d.%d\n%s%d.%d.%d.%d\n",
 			"Product ID: ", ilits->chip->product_id,
 			"Build ID: ", ilits->chip->fw_ver >> 24, (ilits->chip->fw_ver >> 16) & 0xFF,
 			(ilits->chip->fw_ver >> 8) & 0xFF, ilits->chip->fw_ver & 0xFF,

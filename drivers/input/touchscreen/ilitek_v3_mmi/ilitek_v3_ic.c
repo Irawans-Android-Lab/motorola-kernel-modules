@@ -2751,10 +2751,22 @@ out:
 	return ret;
 }
 
+static u8 ili_chip_id_translate_to_ascii(u8 data)
+{
+	u8 ret = 0;
+	if (data >= 0 && data <= 9) {
+		ret = data + 48;
+	} else if (data >= 0x0A && data <= 0x23) {
+		ret = data - 0x0A + 65;
+	}
+	return ret;
+}
+
 int ili_ic_get_info(void)
 {
 	int ret = 0;
 	u8 ddi_data = 0;
+	u8 tmp1 = 0, tmp2 = 0;
 
 	if (!atomic_read(&ilits->ice_stat)) {
 		ILI_ERR("ice mode doesn't enable\n");
@@ -2765,25 +2777,43 @@ int ili_ic_get_info(void)
 	if (ili_ice_mode_read(ilits->chip->pid_addr, &ilits->chip->pid, sizeof(u32)) < 0)
 		ILI_ERR("Read chip pid error\n");
 
+	if (((ilits->chip->pid >> 28) & 0xF) == 0xF) {
+		/* Need to Read Second Chip ID */
+		if (ili_ice_mode_read(ilits->chip->second_pid_addr, &ilits->chip->second_pid, sizeof(u32)) < 0)
+			ILI_ERR("Read second chip pid error\n");
+		ilits->chip->id = ((ilits->chip->second_pid & 0x0000FFFF) << 12) + ((ilits->chip->pid & 0x0FFF0000) >> 16);
+
+		tmp1 = (ilits->chip->second_pid & 0xFF00) >> 8;
+		tmp2 = (ilits->chip->pid & 0x00FF0000) >> 16;
+		tmp1 = ili_chip_id_translate_to_ascii(tmp1);
+		tmp2 = ili_chip_id_translate_to_ascii(tmp2);
+		if (tmp1 == 0 || tmp2 == 0) {
+			ILI_ERR("Chip id translate error\n");
+		}
+		snprintf(ilits->chip->product_id, sizeof(ilits->chip->product_id), "%c%02X%X%c",
+			tmp1, ilits->chip->second_pid & 0xFF, (ilits->chip->pid & 0x0F000000) >> 24, tmp2);
+	} else {
+		ilits->chip->id = ilits->chip->pid >> 16;
+		snprintf(ilits->chip->product_id, sizeof(ilits->chip->product_id), "%04X", ilits->chip->id);
+		if (ilits->chip->id == ILI9882_CHIP) {
+			ili_ic_get_ddi_reg_onepage(0x6, 0xF3, &ddi_data, OFF);
+			if (ddi_data == 0x30)
+				snprintf(ilits->chip->product_id, sizeof(ilits->chip->product_id), "%04X", ILI2882_CHIP);
+		}
+	}
+
+
 	if (ili_ice_mode_read(ilits->chip->otp_addr, &ilits->chip->otp_id, sizeof(u32)) < 0)
 		ILI_ERR("Read otp id error\n");
 	if (ili_ice_mode_read(ilits->chip->ana_addr, &ilits->chip->ana_id, sizeof(u32)) < 0)
 		ILI_ERR("Read ana id error\n");
 
-	ilits->chip->id = ilits->chip->pid >> 16;
 	ilits->chip->type = (ilits->chip->pid & 0x0000FF00) >> 8;
 	ilits->chip->ver = ilits->chip->pid & 0xFF;
 	ilits->chip->otp_id &= 0xFF;
 	ilits->chip->ana_id &= 0xFF;
 
-	ilits->chip->product_id = ilits->chip->id;
-	if (ilits->chip->id == ILI9882_CHIP) {
-		ili_ic_get_ddi_reg_onepage(0x6, 0xF3, &ddi_data, OFF);
-		if (ddi_data == 0x30)
-			ilits->chip->product_id = ILI2882_CHIP;
-	}
-
-	ILI_INFO("CHIP ID = %x\n", ilits->chip->product_id);
+	ILI_INFO("CHIP ID = %s\n", ilits->chip->product_id);
 
 	ret = ilitek_tddi_ic_check_info(ilits->chip->pid, ilits->chip->id);
 	return ret;
@@ -3010,6 +3040,7 @@ static struct ilitek_ic_info chip;
 void ili_ic_init(void)
 {
 	chip.pid_addr =		   	TDDI_PID_ADDR;
+	chip.second_pid_addr =		TDDI_SECOND_PID_ADDR;
 	chip.pc_counter_addr = 		TDDI_PC_COUNTER_ADDR;
 	chip.pc_latch_addr =		TDDI_PC_LATCH_ADDR;
 	chip.otp_addr =		   	TDDI_OTP_ID_ADDR;

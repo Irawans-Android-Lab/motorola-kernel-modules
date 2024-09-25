@@ -1583,9 +1583,9 @@ static void ili_update_tp_module_info(void)
 	}
 
 #ifdef ILI_FW_MULTI_CHIP_EN
-	if(ilits->chip && ilits->chip->product_id) {
-		ILI_DBG("product_id=0x%x", ilits->chip->product_id);
-		snprintf(tp_fwname, FW_NAME_LENGTH, "%s_%X", ilits->md_fw_rq_path, ilits->chip->product_id);
+	if(ilits->chip && ilits->chip->product_id[0]) {
+		ILI_DBG("product_id=0x%s", ilits->chip->product_id);
+		snprintf(tp_fwname, FW_NAME_LENGTH, "%s_%s", ilits->md_fw_rq_path, ilits->chip->product_id);
 		ilits->md_fw_rq_path = tp_fwname;
 		ILI_INFO("reconfig md_fw_rq_path=%s\n", ilits->md_fw_rq_path);
 	}
