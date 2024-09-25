@@ -264,6 +264,7 @@ struct sc8989x_chip {
 	int retry_count;
 	atomic_t vbus_good_flag;
 	atomic_t attach;
+	struct adapter_device *pd_adapter;
 };
 
 static const u32 sc8989x_iboost[] = {
@@ -2175,6 +2176,33 @@ static int mmi_is_wireless_online(void) {
 }
 #endif //get wireless online
 
+static bool is_pd_rdy(struct sc8989x_chip *sc) {
+	int type = 0;
+
+	if (IS_ERR_OR_NULL(sc)) {
+		pr_err("%s: sc is ERR or NULL\n", __func__);
+		return false;
+	}
+
+	if (IS_ERR_OR_NULL(sc->pd_adapter)) {
+		sc->pd_adapter = get_adapter_by_name("pd_adapter");
+		if (IS_ERR_OR_NULL(sc->pd_adapter)) {
+			pr_err("%s: No pd adapter found\n", __func__);
+			return false;
+		}
+	}
+
+	type = adapter_dev_get_property(sc->pd_adapter, PD_TYPE);
+	//pr_info("%s pd_type: %d\n", __func__, type);
+
+	if (type == MTK_PD_CONNECT_PE_READY_SNK_APDO ||
+		type == MTK_PD_CONNECT_PE_READY_SNK ||
+		type == MTK_PD_CONNECT_PE_READY_SNK_PD30)
+		return true;
+	else
+		return false;
+}
+
 static int sc8989x_chg_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
 {
@@ -2246,16 +2274,25 @@ static int sc8989x_chg_get_property(struct power_supply *psy,
 		val->intval = sc->psy_usb_type;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		if (is_pd_rdy(sc)) {
+			val->intval = 3225000;
+			break;
+		}
+
 		if (sc->psy_usb_type == POWER_SUPPLY_USB_TYPE_SDP)
 			val->intval = 500000;
-		else
+		else if (sc->psy_usb_type == POWER_SUPPLY_USB_TYPE_CDP)
 			val->intval = 1500000;
+		else if (sc->psy_usb_type == POWER_SUPPLY_USB_TYPE_DCP)
+			val->intval = 3225000;
+		else
+			val->intval = 500000;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		if (sc->psy_usb_type == POWER_SUPPLY_USB_TYPE_SDP)
-			val->intval = 5000000;
+		if (is_pd_rdy(sc))
+			val->intval = 9000000;
 		else
-			val->intval = 12000000;
+			val->intval = 5000000;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 #if IS_ENABLED(CONFIG_MOTO_WLC_ALG_SUPPORT)

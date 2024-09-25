@@ -1158,7 +1158,9 @@ static enum power_supply_property sgm4154x_power_supply_props[] = {
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
 	POWER_SUPPLY_PROP_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_USB_TYPE,
-	POWER_SUPPLY_PROP_TYPE
+	POWER_SUPPLY_PROP_TYPE,
+	POWER_SUPPLY_PROP_CURRENT_MAX,
+	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	//POWER_SUPPLY_PROP_CHARGING_ENABLED,
 	//POWER_SUPPLY_PROP_PRESENT
 };
@@ -1240,6 +1242,33 @@ static int mmi_is_wireless_online(void) {
 	return info->wireless_online;
 }
 #endif //get wireless online
+
+static bool is_pd_rdy(struct sgm4154x_device *sgm) {
+	int type = 0;
+
+	if (IS_ERR_OR_NULL(sgm)) {
+		pr_err("%s: sgm is ERR or NULL\n", __func__);
+		return false;
+	}
+
+	if (IS_ERR_OR_NULL(sgm->pd_adapter)) {
+		sgm->pd_adapter = get_adapter_by_name("pd_adapter");
+		if (IS_ERR_OR_NULL(sgm->pd_adapter)) {
+			pr_err("%s: No pd adapter found\n", __func__);
+			return false;
+		}
+	}
+
+	type = adapter_dev_get_property(sgm->pd_adapter, PD_TYPE);
+	//pr_info("%s pd_type: %d\n", __func__, type);
+
+	if (type == MTK_PD_CONNECT_PE_READY_SNK_APDO ||
+		type == MTK_PD_CONNECT_PE_READY_SNK ||
+		type == MTK_PD_CONNECT_PE_READY_SNK_PD30)
+		return true;
+	else
+		return false;
+}
 
 static int sgm4154x_charger_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
@@ -1365,6 +1394,27 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 #endif
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
 		val->intval = sgm->batt_vol * 1000;
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		if (is_pd_rdy(sgm)) {
+			val->intval = 3225000;
+			break;
+		}
+
+		if (sgm->psy_usb_type == POWER_SUPPLY_USB_TYPE_SDP)
+			val->intval = 500000;
+		else if (sgm->psy_usb_type == POWER_SUPPLY_USB_TYPE_CDP)
+			val->intval = 1500000;
+		else if (sgm->psy_usb_type == POWER_SUPPLY_USB_TYPE_DCP)
+			val->intval = 3225000;
+		else
+			val->intval = 500000;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		if (is_pd_rdy(sgm))
+			val->intval = 9000000;
+		else
+			val->intval = 5000000;
 		break;
 	default:
 		return -EINVAL;

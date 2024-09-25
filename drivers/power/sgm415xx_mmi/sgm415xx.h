@@ -284,6 +284,7 @@ struct sgm4154x_device {
 	struct iio_channel *vbus;
 	int force_detect_count;
 	atomic_t attach;
+	struct adapter_device *pd_adapter;
 };
 
 #endif /* _SGM4154x_CHARGER_H__ */
