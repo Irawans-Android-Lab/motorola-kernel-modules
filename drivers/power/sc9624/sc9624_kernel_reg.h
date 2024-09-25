@@ -510,6 +510,8 @@ struct sc9624 {
     struct power_supply_desc psy_desc;
     struct power_supply_config psy_cfg;
     struct power_supply *wl_psy;
+    uint16_t reg_addr;
+    uint32_t reg_data;
 };
 
 int mtp_program(struct sc9624 *sc);

@@ -983,9 +983,61 @@ static ssize_t sc9624_store_register(struct device *dev,
 static DEVICE_ATTR(registers, 0660, sc9624_show_registers,
         sc9624_store_register);
 
+//-----------------------------reg addr----------------------------------
+static ssize_t show_reg_addr(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct sc9624 *sc = dev_get_drvdata(dev);
+	return sprintf(buf, "reg addr 0x%08x\n", sc->reg_addr);
+}
+
+static ssize_t store_reg_addr(struct device *dev,
+			struct device_attribute *attr, const char *buf, size_t count)
+{
+	int tmp;
+	struct sc9624 *sc = dev_get_drvdata(dev);
+
+	tmp = simple_strtoul(buf, NULL, 0);
+	sc->reg_addr = tmp;
+
+	return count;
+}
+static DEVICE_ATTR(reg_addr, 0664, show_reg_addr, store_reg_addr);
+
+//-----------------------------reg data----------------------------------
+static ssize_t show_reg_data(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	uint8_t data[4] = {0x00};
+	struct sc9624 *sc = dev_get_drvdata(dev);
+
+	ret = sc9624_read_block(sc, sc->reg_addr, data, 4);
+	if (ret == 0)
+		sc->reg_data = *((uint32_t *)data);
+	return sprintf(buf, "reg addr 0x%08x -> 0x%08x\n", sc->reg_addr, sc->reg_data);
+}
+
+static ssize_t store_reg_data(struct device *dev,
+			struct device_attribute *attr, const char *buf, size_t count)
+{
+	int tmp;
+	struct sc9624 *sc = dev_get_drvdata(dev);
+
+	tmp = simple_strtoul(buf, NULL, 0);
+	sc->reg_data = tmp;
+	if (sc->reg_addr >= 0x0000 && sc->reg_addr <= 0x0200)
+		sc9624_write_block(sc, sc->reg_addr, (uint8_t *)&sc->reg_data, 4);
+
+	return count;
+}
+static DEVICE_ATTR(reg_data, 0664, show_reg_data, store_reg_data);
+
 static void sc9624_create_device_node(struct device *dev)
 {
     device_create_file(dev, &dev_attr_registers);
+    device_create_file(dev, &dev_attr_reg_addr);
+    device_create_file(dev, &dev_attr_reg_data);
 }
 
 
