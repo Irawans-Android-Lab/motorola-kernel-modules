@@ -143,7 +143,7 @@ static int sc9624_get_custid(struct sc9624 *sc, uint16_t *cust_id)
     return ret;
 }
 
-static int sc9624_get_fwver(struct sc9624 *sc, uint32_t *fw_ver)
+int sc9624_get_fwver(struct sc9624 *sc, uint32_t *fw_ver)
 {
     int ret;
     uint16_t offset = 0;
@@ -1033,11 +1033,27 @@ static ssize_t store_reg_data(struct device *dev,
 }
 static DEVICE_ATTR(reg_data, 0664, show_reg_data, store_reg_data);
 
+static ssize_t wireless_fw_update_store(struct device *dev,
+			struct device_attribute *attr, const char *buf, size_t count)
+{
+	bool val;
+	struct sc9624 *sc = dev_get_drvdata(dev);
+
+	if (kstrtobool(buf, &val) || !val)
+		return -EINVAL;
+
+	mtp_program(sc);
+
+	return count;
+}
+static DEVICE_ATTR(wireless_fw_update, 0220, NULL, wireless_fw_update_store);
+
 static void sc9624_create_device_node(struct device *dev)
 {
     device_create_file(dev, &dev_attr_registers);
     device_create_file(dev, &dev_attr_reg_addr);
     device_create_file(dev, &dev_attr_reg_data);
+    device_create_file(dev, &dev_attr_wireless_fw_update);
 }
 
 
@@ -1204,6 +1220,8 @@ static int sc9624_parse_dt(struct sc9624 *sc, struct device *dev)
         sc_err("failed to read intEn\n");
         return ret;
     }*/
+    of_property_read_string(np, "wireless-fw-name", &sc->wls_fw_name);
+    sc_info("wls_fw_name: %s\n", sc->wls_fw_name);
 
     return 0;
 }

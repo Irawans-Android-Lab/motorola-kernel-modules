@@ -30,6 +30,7 @@
 #include <linux/semaphore.h>
 #include <linux/sched/clock.h>
 #include <uapi/linux/sched/types.h>
+#include <linux/firmware.h>
 
 #include "sc9624_kernel_reg.h"
 #include "sc9624_kernel_program.h"
@@ -920,6 +921,21 @@ mtp_crc_check_fail:
     return false;
 }
 
+int sc962x_get_image_fm_ver(const uint8_t *firmware, int len, uint32_t *image_ver)
+{
+    if (len < 0x200) {
+        sc_err("Firmware image length is too short");
+        return -1;
+    }
+    *image_ver = (uint32_t) firmware[0X100 + 4] & 0x00FF;
+    *image_ver |= ((uint32_t) firmware[0X100 + 5] & 0x00FF) << 8;
+    *image_ver |= ((uint32_t) firmware[0X100 + 6] & 0x00FF) << 16;
+    *image_ver |= ((uint32_t) firmware[0X100 + 7] & 0x00FF) << 24;
+    sc_info(" *image_ver:0x%X\n", *image_ver);
+
+    return 0;
+}
+
 int mtp_program(struct sc9624 *sc)
 {
     int ret = 0;
@@ -927,24 +943,52 @@ int mtp_program(struct sc9624 *sc)
     uint32_t crc_stop;
     uint32_t firmware_length = 0;
     uint8_t *firmware_buf = NULL;
+    const struct firmware *fw = NULL;
+    uint32_t image_ver = 0;
+    uint32_t fw_ver = -1;
 
-    sc_info("program start\n");
-    sc->fw_program = true;
+    sc_info("load firmware %s\n", sc->wls_fw_name);
 
     //read bin
     firmware_buf = kzalloc(MTP_SIZE, GFP_KERNEL);  // 32K buffer
+    if (IS_ERR_OR_NULL(firmware_buf)) {
+        sc_err("Error:firmware buf alloc failed,Exit.\n");
+        return -1;
+    }
     memset(firmware_buf, 0x00, MTP_SIZE);
     //ret = sc9624_read_bin(sc, firmware_buf, &firmware_length);
-	if (ret != 0 || firmware_buf == NULL) {
-		sc_err("firmware get error %d\n", ret);
-		goto program_fail;
-	}
+
+    ret = firmware_request_nowarn(&fw, sc->wls_fw_name , sc->dev);
+    if (IS_ERR_OR_NULL(fw) || ret != 0) {
+        sc_err("Error:firmware get error %d\n", ret);
+        goto program_fail;
+    } else if (fw->size > MTP_SIZE) {
+        sc_info("Error:firmware size(%lu) is larger then MTP_SIZE(%d).\n", fw->size, MTP_SIZE);
+        goto program_fail;
+    } else {
+        memcpy(firmware_buf, fw->data, fw->size);
+        sc_info("firmware size %lu, ret %d\n", fw->size, ret);
+        firmware_length = (uint32_t)fw->size;
+    }
 
     sc_err("firmware len ---> %d", firmware_length);
+
+    sc_info("FW version check\n");
+    ret = sc962x_get_image_fm_ver(firmware_buf, firmware_length, &image_ver);
+    ret |= sc9624_get_fwver(sc, &fw_ver);
+
+    sc_info("image_ver:0x%X fw_ver:0x%X\n", image_ver, fw_ver);
+
+    if (image_ver == fw_ver || ret != 0) {
+        sc_info("image_ver:0x%X fw_ver:0x%X, Skip FW update\n", image_ver, fw_ver);
+        goto program_fail;
+    }
 
     //sector alignment
     firmware_length = firmware_length + (MTP_SECTOR - (firmware_length % MTP_SECTOR));
 
+    sc_info("program start\n");
+    sc->fw_program = true;
     //op init
     ret = dig_tm_entry(sc, true);
     ret |= wait_warmup_done(sc);
@@ -995,11 +1039,15 @@ int mtp_program(struct sc9624 *sc)
     sc_info("program successful\n");
     kfree(firmware_buf);
     sc->fw_program = false;
+    if (fw != NULL)
+        release_firmware(fw);
     return 0;
 
 program_fail:
     sc_err("program fail\n");
     kfree(firmware_buf);
     sc->fw_program = false;
+    if (fw != NULL)
+        release_firmware(fw);
     return -1;
 }

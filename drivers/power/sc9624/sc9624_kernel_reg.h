@@ -512,8 +512,9 @@ struct sc9624 {
     struct power_supply *wl_psy;
     uint16_t reg_addr;
     uint32_t reg_data;
+    const char *wls_fw_name;
 };
 
 int mtp_program(struct sc9624 *sc);
-
+int sc9624_get_fwver(struct sc9624 *sc, uint32_t *fw_ver);
 #endif
