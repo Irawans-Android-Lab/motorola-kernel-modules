@@ -34,7 +34,7 @@
 #include "sc9624_kernel_reg.h"
 #include "sc9624_kernel_program.h"
 
-#define FIRMWARE_FILE_PATH      "/data/misc/sc/TigerH.BIN"
+//#define FIRMWARE_FILE_PATH      "/data/misc/sc/TigerH.BIN"
 #define MTP_SIZE                32 * 1024
 #define MTP_SECTOR              256
 
@@ -106,7 +106,7 @@ static int sc9624_write_byte(struct sc9624 *sc, uint16_t reg, uint8_t data)
     return ret;
 }
 
-
+#if 0
 static int fp_size(struct file *f)
 {
     int error = -EBADF;
@@ -170,6 +170,7 @@ static int sc9624_read_bin(struct sc9624 *sc, char *firmware_buf, uint32_t *firm
 
     return -1;
 }
+#endif
 
 static uint32_t endian_conversion(uint32_t value)
 {
@@ -921,7 +922,7 @@ mtp_crc_check_fail:
 
 int mtp_program(struct sc9624 *sc)
 {
-    int ret;
+    int ret = 0;
     uint32_t crc_start = 0xFFFFFFFF;
     uint32_t crc_stop;
     uint32_t firmware_length = 0;
@@ -933,7 +934,7 @@ int mtp_program(struct sc9624 *sc)
     //read bin
     firmware_buf = kzalloc(MTP_SIZE, GFP_KERNEL);  // 32K buffer
     memset(firmware_buf, 0x00, MTP_SIZE);
-    ret = sc9624_read_bin(sc, firmware_buf, &firmware_length);
+    //ret = sc9624_read_bin(sc, firmware_buf, &firmware_length);
 	if (ret != 0 || firmware_buf == NULL) {
 		sc_err("firmware get error %d\n", ret);
 		goto program_fail;

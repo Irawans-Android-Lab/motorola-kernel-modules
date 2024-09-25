@@ -1,0 +1,17 @@
+ifeq ($(ANDROID_BUILD_TOP),)
+	ANDROID_BUILD_TOP := $(srctree)/..
+endif
+
+# add -Wall to try to catch everything we can.
+EXTRA_CFLAGS += -Wall
+
+EXTRA_CFLAGS += -I$(PWD)
+EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/kernel_device_modules-6.1/include
+EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/kernel_device_modules-6.1/drivers/power/supply
+EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/include
+
+obj-m += sc9624.o
+sc9624-objs += sc9624_kernel_driver.o
+sc9624-objs += sc9624_kernel_program.o
+
+KBUILD_EXTRA_SYMBOLS += $(CURDIR)/$(KBUILD_EXTMOD)/../../power/mmi_wireless_class/$(GKI_OBJ_MODULE_DIR)/Module.symvers

@@ -1,0 +1,25 @@
+load("//build/bazel_mgk_rules:mgk_ko.bzl", "define_mgk_ko")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+define_mgk_ko(
+    name = "sc9624",
+    srcs = glob([
+        "*.c",
+        "*.h",
+        "Kbuild",
+        "Makefile",
+        "Makefile.include",
+    ]) + [
+        "//kernel_device_modules-6.1:mtk_public_headers",
+        "//motorola/kernel/modules:public_headers",
+    ],
+    deps = [
+        "//motorola/kernel/modules/drivers/power/mmi_wireless_class:mmi_wireless_class",
+    ],
+    outs = ["sc9624.ko"],
+)

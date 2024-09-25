@@ -565,6 +565,7 @@ static int sc9624_tx_set_cmd(struct sc9624 *sc, TX_CMD cmd)
     return ret;
 }
 
+/*
 static int sc9624_tx_func_enable(struct sc9624 *sc)
 {
     return sc9624_tx_set_cmd(sc, TX_ENABLE);
@@ -578,6 +579,7 @@ static int sc9624_tx_fod_enable(struct sc9624 *sc, bool enable)
         return sc9624_tx_set_cmd(sc, TX_FOD_DISABLE);
     }
 }
+*/
 
 int sc9624_tx_clr_int(struct sc9624 *sc, uint32_t txint)
 {
@@ -989,14 +991,17 @@ static void sc9624_create_device_node(struct device *dev)
 
 static enum power_supply_property sc9624_charger_props[] = {
     POWER_SUPPLY_PROP_ONLINE,
-    POWER_SUPPLY_PROP_SC_VOLTAGE,
-    POWER_SUPPLY_PROP_SC_CURRENT,
-    POWER_SUPPLY_PROP_SC_ILIMIT,
-    POWER_SUPPLY_PROP_SC_VRECT,
-    POWER_SUPPLY_PROP_SC_TX_ENABLE,
-    POWER_SUPPLY_PROP_SC_TX_FOD_ENABLE,
-    POWER_SUPPLY_PROP_SC_WORK_MODE,
-    POWER_SUPPLY_PROP_SC_MTP_PROGRAM,
+    POWER_SUPPLY_PROP_VOLTAGE_NOW,
+    POWER_SUPPLY_PROP_CURRENT_NOW,
+    POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+    //POWER_SUPPLY_PROP_SC_VOLTAGE,
+    //POWER_SUPPLY_PROP_SC_CURRENT,
+    //POWER_SUPPLY_PROP_SC_ILIMIT,
+    //POWER_SUPPLY_PROP_SC_VRECT,
+    //POWER_SUPPLY_PROP_SC_TX_ENABLE,
+    //POWER_SUPPLY_PROP_SC_TX_FOD_ENABLE,
+    //POWER_SUPPLY_PROP_SC_WORK_MODE,
+    //POWER_SUPPLY_PROP_SC_MTP_PROGRAM,
 };
 
 static int sc9624_charger_get_property(struct power_supply *psy,
@@ -1016,19 +1021,19 @@ static int sc9624_charger_get_property(struct power_supply *psy,
             val->intval = 1;
         }
         break;
-    case POWER_SUPPLY_PROP_SC_VOLTAGE:
+    case POWER_SUPPLY_PROP_VOLTAGE_NOW:
         ret = sc9624_get_voltage(sc, &regval);
         if (!ret) {
             val->intval = regval;
         }
         break;
-    case POWER_SUPPLY_PROP_SC_CURRENT:
+    case POWER_SUPPLY_PROP_CURRENT_NOW:
         ret = sc9624_get_current(sc, &regval);
         if (!ret) {
             val->intval = regval;
         }
         break;
-
+#if 0
     case POWER_SUPPLY_PROP_SC_VRECT:
         ret = sc9624_get_vrect(sc, &regval);
         if (!ret) {
@@ -1044,6 +1049,7 @@ static int sc9624_charger_get_property(struct power_supply *psy,
     case POWER_SUPPLY_PROP_SC_WORK_MODE:
         val->intval = sc->work_mode;
         break;
+#endif
     default:
         return -EINVAL;
 
@@ -1057,15 +1063,16 @@ static int sc9624_charger_set_property(struct power_supply *psy,
                         const union power_supply_propval *val)
 {
     struct sc9624 *sc = power_supply_get_drvdata(psy);
-    int ret;
+    int ret = 0;
 
     switch (prop) {
-    case POWER_SUPPLY_PROP_SC_VOLTAGE:
+    case POWER_SUPPLY_PROP_VOLTAGE_NOW:
         ret = sc9624_rx_set_Vout(sc, val->intval);
         break;
-    case POWER_SUPPLY_PROP_SC_ILIMIT:
+    case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
         ret = sc9624_rx_set_Ilimit(sc, val->intval);
     break;
+#if 0
     case POWER_SUPPLY_PROP_SC_TX_ENABLE:
         ret = sc9624_tx_func_enable(sc);
     break;
@@ -1078,11 +1085,12 @@ static int sc9624_charger_set_property(struct power_supply *psy,
     case POWER_SUPPLY_PROP_SC_MTP_PROGRAM:
         ret = mtp_program(sc);
     break;
+#endif
     default:
         return -EINVAL;
     }
 
-    return 0;
+    return ret;
 }
 
 
@@ -1352,7 +1360,7 @@ static int sc9624_resume(struct device *dev)
 
     return 0;
 }
-static int sc9624_charger_remove(struct i2c_client *client)
+static void sc9624_charger_remove(struct i2c_client *client)
 {
     struct sc9624 *sc = i2c_get_clientdata(client);
 
@@ -1360,8 +1368,6 @@ static int sc9624_charger_remove(struct i2c_client *client)
 
     mutex_destroy(&sc->data_lock);
     mutex_destroy(&sc->i2c_rw_lock);
-
-    return 0;
 }
 
 static void sc9624_charger_shutdown(struct i2c_client *client)
