@@ -320,4 +320,5 @@ typedef enum ept_reason
 }ept_reason_e;
 
 
+extern int __attribute__ ((weak)) moto_wireless_chg_ops_register(struct moto_wls_chg_ops *ops);
 #endif
