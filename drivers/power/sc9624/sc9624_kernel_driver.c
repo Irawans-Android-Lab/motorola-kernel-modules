@@ -1225,6 +1225,14 @@ static int sc9624_parse_dt(struct sc9624 *sc, struct device *dev)
     sc->wls_det_gpio = ret;
     sc_info("irq_gpio=%d, wls_det_gpio=%d\n", sc->irq_gpio, sc->wls_det_gpio);
 
+    sc->wls_mode_select = of_get_named_gpio(np, "wls-mode-select", 0);
+    if (gpio_is_valid(sc->wls_mode_select)) {
+        gpio_set_value(sc->wls_mode_select, 1);
+        sc_info("set wls_mode_select(%d) high level\n", sc->wls_mode_select);
+    } else {
+        sc_info("wls_mode_select(%d) is invalid\n", sc->wls_mode_select);
+    }
+
     of_property_read_string(np, "wireless-fw-name", &sc->wls_fw_name);
     sc_info("wls_fw_name: %s\n", sc->wls_fw_name);
 
