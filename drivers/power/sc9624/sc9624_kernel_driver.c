@@ -1088,6 +1088,8 @@ static int sc9624_charger_get_property(struct power_supply *psy,
         } else {
             val->intval = 1;
         }
+        sc_info("online:%d wls_det_gpio:%d\n",
+                ret, gpio_get_value(sc->wls_det_gpio));
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_NOW:
         ret = sc9624_get_voltage(sc, &regval);
@@ -1202,24 +1204,27 @@ static int sc9624_psy_register(struct sc9624 *sc)
 
 static int sc9624_parse_dt(struct sc9624 *sc, struct device *dev)
 {
-    //int ret;
+    int ret = 0;
     struct device_node *np = dev->of_node;
 
     if (!np)
         return -ENOMEM;
 
-    /*ret = of_get_named_gpio(np, "sc,sc9624,intr_gpio", 0);
+    ret = of_get_named_gpio(np, "wls-int", 0);
     if (ret < 0) {
-        sc_err("no intr_gpio info\n");
+        sc_err("no wls-int gpio info\n");
         return ret;
-    }*/
-    sc->irq_gpio = 12;
-    /*ret = of_property_read_u32(np, "sc,sc9624-int-enable",
-            &sc->cust->IntEn);
-    if (ret) {
-        sc_err("failed to read intEn\n");
+    }
+    sc->irq_gpio = ret;
+
+    ret = of_get_named_gpio(np, "wls-det-int", 0);
+    if (ret < 0) {
+        sc_err("no wl-det-int gpio info\n");
         return ret;
-    }*/
+    }
+    sc->wls_det_gpio = ret;
+    sc_info("irq_gpio=%d, wls_det_gpio=%d\n", sc->irq_gpio, sc->wls_det_gpio);
+
     of_property_read_string(np, "wireless-fw-name", &sc->wls_fw_name);
     sc_info("wls_fw_name: %s\n", sc->wls_fw_name);
 
@@ -1346,6 +1351,86 @@ static int sc9624_irq_init(struct sc9624 *sc)
     return 0;
 }
 
+static void sc9624_wls_det_work_handler(struct kthread_work *work)
+{
+    struct sc9624 *sc =
+            container_of(work, struct sc9624, wls_det_work);
+
+    /* make sure I2C bus had resumed */
+    down(&sc->wls_det_lock);
+
+    up(&sc->wls_det_lock);
+    power_supply_changed(sc->wl_psy);
+}
+
+static irqreturn_t sc9624_wls_det_handler(int irq, void *dev_id)
+{
+    struct sc9624 *sc = dev_id;
+
+    sc_info("");
+    __pm_wakeup_event(sc->wls_det_wake_lock, SC9624_IRQ_WAKE_TIME);
+    kthread_queue_work(&sc->wls_det_worker, &sc->wls_det_work);
+
+    return IRQ_HANDLED;
+}
+
+static int sc9624_wls_det_irq_init(struct sc9624 *sc)
+{
+    int ret;
+    struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
+
+    if (!gpio_is_valid(sc->wls_det_gpio)) {
+        sc_err("Error: wls_det_gpio(%d) is invalid\n", sc->wls_det_gpio);
+        return -EINVAL;
+    }
+
+    sema_init(&sc->wls_det_lock, 1);
+
+    ret = devm_gpio_request(sc->dev, sc->wls_det_gpio, "sc9624-wls_det-gpio");
+    if (ret < 0) {
+        sc_err("Error: failed to request GPIO%d (ret = %d)\n",
+            sc->wls_det_gpio, ret);
+        return -EINVAL;
+    }
+
+    ret = gpio_direction_input(sc->wls_det_gpio);
+    if (ret < 0) {
+        sc_err("Error: failed to set GPIO%d as input pin(ret = %d)\n",
+            sc->wls_det_gpio, ret);
+        return -EINVAL;
+    }
+
+    sc->wls_det_irq = gpio_to_irq(sc->wls_det_gpio);
+    if (sc->wls_det_irq < 0) {
+        sc_err("failed get wls_det irq num %d", sc->wls_det_irq);
+        return -EINVAL;
+    }
+
+    sc_info(" : IRQ number = %d\n", sc->wls_det_irq);
+
+    kthread_init_worker(&sc->wls_det_worker);
+    sc->wls_det_worker_task = kthread_run(kthread_worker_fn,
+            &sc->wls_det_worker, "%s", "sc9624_wls_det_thread");
+    if (IS_ERR(sc->wls_det_worker_task)) {
+        sc_err("Error: Could not create wls_det task\n");
+        return -EINVAL;
+    }
+
+    sched_setscheduler(sc->wls_det_worker_task, SCHED_FIFO, &param);
+    kthread_init_work(&sc->wls_det_work, sc9624_wls_det_work_handler);
+
+    ret = request_irq(sc->wls_det_irq, sc9624_wls_det_handler,
+        IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT, "sc9624_wls_det_irq", sc);
+    if (ret < 0) {
+        sc_err("Error: failed to request wls_det irq%d (gpio = %d, ret = %d)\n",
+            sc->wls_det_irq, sc->wls_det_gpio, ret);
+        return -EINVAL;
+    }
+
+    enable_irq_wake(sc->wls_det_irq);
+    return 0;
+}
+
 static struct of_device_id sc9624_charger_match_table[] = {
     {
         .compatible = "sc,sc9624-wireless-charger",
@@ -1383,6 +1468,9 @@ static int sc9624_charger_probe(struct i2c_client *client,
     sc->irq_wake_lock =
         wakeup_source_register(sc->dev, "sc9624_irq_wake_lock");
 
+    sc->wls_det_wake_lock =
+        wakeup_source_register(sc->dev, "sc9624_wls_det_wake_lock");
+
     ret = sc9624_parse_dt(sc, &client->dev);
     if (ret)
         return -EIO;
@@ -1392,6 +1480,7 @@ static int sc9624_charger_probe(struct i2c_client *client,
         goto err_1;
 
     ret = sc9624_irq_init(sc);
+    ret = sc9624_wls_det_irq_init(sc);
 
     device_init_wakeup(sc->dev, 1);
 
@@ -1400,6 +1489,7 @@ static int sc9624_charger_probe(struct i2c_client *client,
     return 0;
 
 err_1:
+    wakeup_source_unregister(sc->wls_det_wake_lock);
     wakeup_source_unregister(sc->irq_wake_lock);
     power_supply_unregister(sc->wl_psy);
     return ret;

@@ -501,6 +501,13 @@ struct sc9624 {
     struct wakeup_source *irq_wake_lock;
     int irq_gpio;
     int irq;
+    struct semaphore wls_det_lock;
+    struct kthread_worker wls_det_worker;
+    struct kthread_work wls_det_work;
+    struct task_struct *wls_det_worker_task;
+    struct wakeup_source *wls_det_wake_lock;
+    int wls_det_gpio;
+    int wls_det_irq;
 
     int work_mode;
     bool fw_program;
