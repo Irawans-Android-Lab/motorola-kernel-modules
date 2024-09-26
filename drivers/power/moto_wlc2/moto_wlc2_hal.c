@@ -1,27 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
-/*
- * Copyright (c) 2019 MediaTek Inc.
- */
-
-/*
- *
- * Filename:
- * ---------
- *    mtk_charger.c
- *
- * Project:
- * --------
- *   Android_Software
- *
- * Description:
- * ------------
- *   This Module defines functions of Battery charging
- *
- * Author:
- * -------
- * Wy Chuang
- *
- */
 #include <linux/init.h>		/* For init/exit macros */
 #include <linux/module.h>	/* For MODULE_ marcros  */
 #include <linux/fs.h>
@@ -57,7 +33,7 @@
 #include <linux/of_address.h>
 #include <linux/reboot.h>
 /* necessary header */
-#include "moto_wlc.h"
+#include "moto_wlc2.h"
 #include "charger_class.h"
 
 /* dependent on platform */
@@ -70,7 +46,7 @@ struct wlc_hal {
 
 int wlc_hal_init_hardware(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	struct wlc_hal *hal;
 
 	wlc_dbg("%s\n", __func__);
@@ -137,7 +113,7 @@ int wlc_hal_get_uisoc(struct chg_alg_device *alg)
 	union power_supply_propval prop;
 	struct power_supply *bat_psy = NULL;
 	int ret;
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	if (alg == NULL)
 		return -EINVAL;
@@ -243,13 +219,13 @@ int wlc_hal_get_batt_cv(struct chg_alg_device *alg)
 int wlc_hal_set_mivr(struct chg_alg_device *alg, enum chg_idx chgidx, int uV)
 {
 	int ret = 0;
-	struct mtk_wlc *wlc;
+	//struct moto_wlc *wlc;
 	struct wlc_hal *hal;
 
 	if (alg == NULL)
 		return -EINVAL;
 
-	wlc = dev_get_drvdata(&alg->dev);
+	//wlc = dev_get_drvdata(&alg->dev);
 	hal = chg_alg_dev_get_drv_hal_data(alg);
 
 	ret = charger_dev_set_mivr(hal->chg1_dev, uV);
@@ -299,7 +275,7 @@ int wlc_hal_enable_charger(struct chg_alg_device *alg,
 	enum chg_idx chgidx, bool en)
 {
 	struct wlc_hal *hal;
-	int ret;
+	int ret = 0;
 
 	if (alg == NULL)
 		return -EINVAL;
@@ -311,14 +287,14 @@ int wlc_hal_enable_charger(struct chg_alg_device *alg,
 		ret = charger_dev_enable(hal->chg2_dev, en);
 
 	wlc_dbg("%s idx:%d %d\n", __func__, chgidx, en);
-	return 0;
+	return ret;
 }
 
 int wlc_hal_is_charger_enable(struct chg_alg_device *alg,
 	enum chg_idx chgidx, bool *en)
 {
 	struct wlc_hal *hal;
-	int ret;
+	int ret = 0;
 
 	if (alg == NULL)
 		return -EINVAL;
@@ -330,7 +306,7 @@ int wlc_hal_is_charger_enable(struct chg_alg_device *alg,
 		ret = charger_dev_is_enabled(hal->chg2_dev, en);
 
 	wlc_dbg("%s idx:%d %d\n", __func__, chgidx, *en);
-	return 0;
+	return ret;
 }
 
 int wlc_hal_reset_ta(struct chg_alg_device *alg, enum chg_idx chgidx)
@@ -397,7 +373,7 @@ int wlc_hal_get_vbat(struct chg_alg_device *alg)
 	union power_supply_propval prop;
 	struct power_supply *bat_psy = NULL;
 	int ret;
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	if (alg == NULL)
 		return -EINVAL;
@@ -431,7 +407,7 @@ int wlc_hal_get_ibat(struct chg_alg_device *alg)
 	union power_supply_propval prop;
 	struct power_supply *bat_psy = NULL;
 	int ret;
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	if (alg == NULL)
 		return -EINVAL;
@@ -606,7 +582,7 @@ int wlc_hal_get_min_charging_current(struct chg_alg_device *alg,
 	enum chg_idx chgidx, u32 *uA)
 {
 	struct wlc_hal *hal;
-	int ret;
+	int ret = 0;
 
 	if (alg == NULL)
 		return -EINVAL;
@@ -617,14 +593,14 @@ int wlc_hal_get_min_charging_current(struct chg_alg_device *alg,
 	if (chgidx == CHG2 && hal->chg2_dev != NULL)
 		ret = charger_dev_get_min_charging_current(hal->chg2_dev, uA);
 	wlc_dbg("%s idx:%d %d\n", __func__, chgidx, *uA);
-	return 0;
+	return ret;
 }
 
 int wlc_hal_get_min_input_current(struct chg_alg_device *alg,
 	enum chg_idx chgidx, u32 *uA)
 {
 	struct wlc_hal *hal;
-	int ret;
+	int ret = 0;
 
 	if (alg == NULL)
 		return -EINVAL;
@@ -635,7 +611,7 @@ int wlc_hal_get_min_input_current(struct chg_alg_device *alg,
 	if (chgidx == CHG2 && hal->chg2_dev != NULL)
 		ret = charger_dev_get_min_input_current(hal->chg2_dev, uA);
 	wlc_dbg("%s idx:%d %d\n", __func__, chgidx, *uA);
-	return 0;
+	return ret;
 }
 
 

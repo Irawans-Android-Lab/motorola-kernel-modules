@@ -1,10 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0 */
-/*
- * Copyright (c) 2019 MediaTek Inc.
- */
-
-#ifndef __MOTO_WLC_H
-#define __MOTO_WLC_H
+#ifndef __MOTO_WLC2_H
+#define __MOTO_WLC2_H
 
 #include "mtk_charger_algorithm_class.h"
 
@@ -59,7 +54,7 @@ struct wlc_profile {
 	unsigned int vchr;
 };
 
-struct mtk_wlc {
+struct moto_wlc {
 	struct platform_device *pdev;
 	struct chg_alg_device *alg;
 
@@ -164,4 +159,4 @@ extern int wlc_hal_get_log_level(struct chg_alg_device *alg);
 extern int wlc_hal_get_batt_temp(struct chg_alg_device *alg);
 extern int wlc_hal_get_batt_cv(struct chg_alg_device *alg);
 extern int moto_wireless_chg_ops_register(struct moto_wls_chg_ops *ops);
-#endif /* __MTK_wlc_H */
+#endif /* __MOTO_WLC2_H */

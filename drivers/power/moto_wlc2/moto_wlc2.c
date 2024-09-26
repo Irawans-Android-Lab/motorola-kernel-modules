@@ -1,27 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
-/*
- * Copyright (c) 2019 MediaTek Inc.
- */
-
-/*
- *
- * Filename:
- * ---------
- *    mtk_wlc.c
- *
- * Project:
- * --------
- *   Android_Software
- *
- * Description:
- * ------------
- *   This Module defines functions of Battery charging
- *
- * Author:
- * -------
- * Wy Chuang
- *
- */
 #include <linux/init.h> /* For init/exit macros */
 #include <linux/module.h> /* For MODULE_ marcros  */
 #include <linux/fs.h>
@@ -57,7 +33,7 @@
 #include <linux/of_address.h>
 #include <linux/reboot.h>
 #include "mtk_charger.h"
-#include "moto_wlc.h"
+#include "moto_wlc2.h"
 #include "mtk_charger_algorithm_class.h"
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
@@ -78,7 +54,7 @@ int wlc_get_debug_level(void)
 
 void moto_wlc_control_gpio(struct chg_alg_device *alg, bool enable)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	wlc = dev_get_drvdata(&alg->dev);
 	if (gpio_is_valid(wlc->wls_control_en))
@@ -88,7 +64,7 @@ void moto_wlc_control_gpio(struct chg_alg_device *alg, bool enable)
 static int wlc_plugout_reset(struct chg_alg_device *alg)
 {
 	int ret = 0, cnt = 0;
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	wlc_dbg("%s\n", __func__);
 	wlc = dev_get_drvdata(&alg->dev);
@@ -144,7 +120,7 @@ static int wlc_plugout_reset(struct chg_alg_device *alg)
 int wlc_reset_ta_vchr(struct chg_alg_device *alg)
 {
 	int ret;
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	wlc_dbg("%s: starts\n", __func__);
 	wlc = dev_get_drvdata(&alg->dev);
@@ -165,7 +141,7 @@ int wlc_reset_ta_vchr(struct chg_alg_device *alg)
 static int wlc_leave(struct chg_alg_device *alg)
 {
 	int ret = 0;
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	wlc_dbg("%s: starts\n", __func__);
 	wlc = dev_get_drvdata(&alg->dev);
@@ -193,7 +169,7 @@ static int wlc_leave(struct chg_alg_device *alg)
 static int __wlc_check_charger(struct chg_alg_device *alg)
 {
 	int ret = 0, ret_value = 0;
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	wlc = dev_get_drvdata(&alg->dev);
 
@@ -227,7 +203,7 @@ out:
 
 static int _wlc_init_algo(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	int log_level;
 
 	wlc = dev_get_drvdata(&alg->dev);
@@ -278,7 +254,7 @@ static char *wlc_state_to_str(int state)
 
 static int _wlc_is_algo_ready(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	int ret_value;
 
 	wlc = dev_get_drvdata(&alg->dev);
@@ -317,7 +293,7 @@ static int _wlc_is_algo_ready(struct chg_alg_device *alg)
 #define VBUS_DEFAULT_MV 5000
 static int wlc_sc_set_charger(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	int ichg1_min = -1, aicr1_min = -1;
 	int ret;
 	int charging_current, input_current, vbus, input_thermal_limit;
@@ -446,7 +422,7 @@ static int wlc_tcd_set_cur_state(struct thermal_cooling_device *tcd,
 
 static void mmi_thermal_check_status(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc = dev_get_drvdata(&alg->dev);
+	struct moto_wlc *wlc = dev_get_drvdata(&alg->dev);
 	int boot_mode = wlc_hal_get_boot_mode(alg);
 	int batt_temp = 0;
 	int i = 0;
@@ -479,7 +455,7 @@ static void mmi_thermal_check_status(struct chg_alg_device *alg)
 
 static int __wlc_run(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	int ret = 0, ret_value = 0, uisoc = 0;
 	wlc_dbg("%s \n", __func__);
 	wlc = dev_get_drvdata(&alg->dev);
@@ -515,7 +491,7 @@ out:
 static int _wlc_start_algo(struct chg_alg_device *alg)
 {
 	int ret = 0, ret_value = 0;
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	bool again;
 	wlc_dbg("%s \n", __func__);
 	wlc = dev_get_drvdata(&alg->dev);
@@ -568,7 +544,7 @@ static int _wlc_start_algo(struct chg_alg_device *alg)
 
 static bool _wlc_is_algo_running(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	wlc_dbg("%s\n", __func__);
 	wlc = dev_get_drvdata(&alg->dev);
@@ -581,7 +557,7 @@ static bool _wlc_is_algo_running(struct chg_alg_device *alg)
 
 static int _wlc_stop_algo(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	wlc = dev_get_drvdata(&alg->dev);
 
@@ -601,7 +577,7 @@ static int _wlc_stop_algo(struct chg_alg_device *alg)
 
 static int wlc_full_event(struct chg_alg_device *alg)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	int ret_value = 0;
 	wlc_dbg("%s \n", __func__);
 	wlc = dev_get_drvdata(&alg->dev);
@@ -629,7 +605,7 @@ static int wlc_full_event(struct chg_alg_device *alg)
 static int _wlc_notifier_call(struct chg_alg_device *alg,
 			      struct chg_alg_notify *notify)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	int ret_value = 0;
 
 	wlc = dev_get_drvdata(&alg->dev);
@@ -662,7 +638,7 @@ static int _wlc_notifier_call(struct chg_alg_device *alg,
 	return ret_value;
 }
 
-static void mtk_wlc_parse_dt(struct mtk_wlc *wlc, struct device *dev)
+static void moto_wlc_parse_dt(struct moto_wlc *wlc, struct device *dev)
 {
 	struct device_node *np = dev->of_node;
 	u32 val;
@@ -757,7 +733,7 @@ int _wlc_get_prop(struct chg_alg_device *alg,
 int _wlc_set_prop(struct chg_alg_device *alg,
 		enum chg_alg_props s, int value)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 	struct power_supply *psy = NULL;
 	union  power_supply_propval chip_state;
 	int ret = 0;
@@ -811,7 +787,7 @@ int _wlc_set_prop(struct chg_alg_device *alg,
 int _wlc_set_setting(struct chg_alg_device *alg_dev,
 		     struct chg_limit_setting *setting)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
 	wlc = dev_get_drvdata(&alg_dev->dev);
 
@@ -864,7 +840,7 @@ EXPORT_SYMBOL(moto_wireless_chg_ops_register);
 static int wlc_tcd_get_max_state(struct thermal_cooling_device *tcd,
 	unsigned long *state)
 {
-	struct mtk_wlc *wlc = tcd->devdata;
+	struct moto_wlc *wlc = tcd->devdata;
 
 	*state = wlc->max_state;
 
@@ -874,7 +850,7 @@ static int wlc_tcd_get_max_state(struct thermal_cooling_device *tcd,
 static int wlc_tcd_get_cur_state(struct thermal_cooling_device *tcd,
 	unsigned long *state)
 {
-	struct mtk_wlc *wlc = tcd->devdata;
+	struct moto_wlc *wlc = tcd->devdata;
 
 	*state = wlc->cur_state;
 
@@ -884,7 +860,7 @@ static int wlc_tcd_get_cur_state(struct thermal_cooling_device *tcd,
 static int wlc_tcd_set_cur_state(struct thermal_cooling_device *tcd,
 	unsigned long state)
 {
-	struct mtk_wlc *wlc = tcd->devdata;
+	struct moto_wlc *wlc = tcd->devdata;
 
 	if (state > wlc->max_state)
 		return -EINVAL;
@@ -911,9 +887,9 @@ static const struct thermal_cooling_device_ops wlc_tcd_ops = {
 	.set_cur_state = wlc_tcd_set_cur_state,
 };
 
-static int mtk_wlc_probe(struct platform_device *pdev)
+static int moto_wlc_probe(struct platform_device *pdev)
 {
-	struct mtk_wlc *wlc = NULL;
+	struct moto_wlc *wlc = NULL;
 	int rc;
 
 	pr_notice("%s: starts\n", __func__);
@@ -932,7 +908,7 @@ static int mtk_wlc_probe(struct platform_device *pdev)
 	mutex_init(&wlc->data_lock);
 
 	wlc->state = WLC_HW_UNINIT;
-	mtk_wlc_parse_dt(wlc, &pdev->dev);
+	moto_wlc_parse_dt(wlc, &pdev->dev);
 
 	if(gpio_is_valid(wlc->wls_control_en)) {
 		rc  = devm_gpio_request_one(&wlc->pdev->dev, wlc->wls_control_en,
@@ -953,29 +929,29 @@ static int mtk_wlc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int mtk_wlc_remove(struct platform_device *dev)
+static int moto_wlc_remove(struct platform_device *dev)
 {
-	struct mtk_wlc *wlc;
+	struct moto_wlc *wlc;
 
-	wlc = (struct mtk_wlc  *)platform_get_drvdata(dev);
+	wlc = (struct moto_wlc  *)platform_get_drvdata(dev);
 	if(wlc->tcd)
 		thermal_cooling_device_unregister(wlc->tcd);
 
 	return 0;
 }
 
-static void mtk_wlc_shutdown(struct platform_device *dev)
+static void moto_wlc_shutdown(struct platform_device *dev)
 {
 }
 
-static const struct of_device_id mtk_wlc_of_match[] = {
+static const struct of_device_id moto_wlc_of_match[] = {
 	{
 		.compatible = "moto,charger,wlc",
 	},
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, mtk_wlc_of_match);
+MODULE_DEVICE_TABLE(of, moto_wlc_of_match);
 
 struct platform_device wlc_device = {
 	.name = "wlc",
@@ -983,26 +959,26 @@ struct platform_device wlc_device = {
 };
 
 static struct platform_driver wlc_driver = {
-	.probe = mtk_wlc_probe,
-	.remove = mtk_wlc_remove,
-	.shutdown = mtk_wlc_shutdown,
+	.probe = moto_wlc_probe,
+	.remove = moto_wlc_remove,
+	.shutdown = moto_wlc_shutdown,
 	.driver = {
 		   .name = "wlc",
-		   .of_match_table = mtk_wlc_of_match,
+		   .of_match_table = moto_wlc_of_match,
 	},
 };
 
-static int __init mtk_wlc_init(void)
+static int __init moto_wlc_init(void)
 {
 	return platform_driver_register(&wlc_driver);
 }
-module_init(mtk_wlc_init);
+module_init(moto_wlc_init);
 
-static void __exit mtk_wlc_exit(void)
+static void __exit moto_wlc_exit(void)
 {
 	platform_driver_unregister(&wlc_driver);
 }
-module_exit(mtk_wlc_exit);
+module_exit(moto_wlc_exit);
 
 MODULE_DESCRIPTION("moto wlc algorithm Driver");
 MODULE_LICENSE("GPL");
