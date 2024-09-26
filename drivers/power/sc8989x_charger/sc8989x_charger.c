@@ -1832,8 +1832,11 @@ static irqreturn_t sc8989x_irq_handler(int irq, void *data)
 				++(sc->retry_count);
 			}
 		}
-
+#if IS_ENABLED(CONFIG_WLC_WO_BOOST)
 		sc8989x_set_vindpm_track(sc, SC8989X_TRACK_250);
+#else
+		sc8989x_set_vindpm_track(sc, SC8989X_TRACK_300);
+#endif
 		sc8989x_set_charging_current(sc->chg_dev,1000000);
 		dev_info(sc->dev, "%s: set icc 1000ma\n", __func__);
 #if IS_ENABLED(CONFIG_FACTORY_BUILD)
