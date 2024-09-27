@@ -867,6 +867,8 @@ static int moto_wlc_probe(struct platform_device *pdev)
 	wlc->tcd = thermal_of_cooling_device_register(dev_of_node(&pdev->dev),
 		"moto_wlc", wlc, &wlc_tcd_ops);
 
+	wls_chg_register_psy(wlc);
+
 	return 0;
 }
 

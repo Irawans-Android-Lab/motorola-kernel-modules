@@ -64,7 +64,8 @@ struct moto_wlc {
 	struct mutex data_lock;
 	bool is_cable_out_occur; /* Plug out happened while detect PE+20 */
 	struct power_supply *bat_psy;
-	struct power_supply *wlc_psy;
+	struct power_supply *wls_psy;
+	struct power_supply_desc wls_psd;
 	int idx;
 	int vbus;
 
@@ -103,6 +104,8 @@ struct moto_wlc {
 
 	struct mmi_thermal_config *wlc_thermal_com;
 	int num_wlc_thermal_com;
+
+	bool wls_online;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
@@ -147,4 +150,7 @@ extern int wlc_hal_get_log_level(struct chg_alg_device *alg);
 
 extern int wlc_hal_get_batt_temp(struct chg_alg_device *alg);
 extern int wlc_hal_get_batt_cv(struct chg_alg_device *alg);
+
+extern int wls_chg_register_psy(struct moto_wlc *wlc);
+
 #endif /* __MOTO_WLC2_H */
