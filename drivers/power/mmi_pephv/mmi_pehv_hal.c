@@ -90,6 +90,7 @@ int pehv_hal_set_ta_vbus(struct chg_alg_device *alg, int target_mV)
 	int ret = 0;
 	struct pehv_hal *hal = chg_alg_dev_get_drv_hal_data(alg);
 	int pulse_cnt, curr_vbus_mv, step, i, val;
+	int type = 0;
 
 	ret = charger_dev_get_dp_dm(hal->chgdevs[MMI_CHGTYP_SWCHG], &pulse_cnt);
 	if (ret < 0) {
@@ -118,6 +119,13 @@ int pehv_hal_set_ta_vbus(struct chg_alg_device *alg, int target_mV)
 	}
 	PEHV_INFO("curr_vbus= %d, target_vbus = %d, step = %d\n",curr_vbus_mv, target_mV, step);
 	for (i = 0; i < step; i++) {
+
+		charger_dev_get_protocol(hal->chgdevs[MMI_CHGTYP_SWCHG], &type);
+		if (type != USB_TYPE_QC3P_18 && type != USB_TYPE_QC3P_27 && type != USB_TYPE_QC3P_45) {
+			PEHV_ERR("Qc3+ plug out, Couldn't set dpdm pulse\n");
+			break;
+		}
+
 		ret = charger_dev_set_dp_dm(hal->chgdevs[MMI_CHGTYP_SWCHG], val);
 		if (ret < 0) {
 			PEHV_ERR("Couldn't set dpdm pulse ret=%d\n", ret);
@@ -452,7 +460,7 @@ int pehv_hal_is_hv_adapter_ready(struct chg_alg_device *alg)
 	charger_dev_get_protocol(hal->chgdevs[MMI_CHGTYP_SWCHG], &type);
 	pr_notice("%s type:%d\n", __func__, type);
 
-	if (type == USB_TYPE_QC3P_18 || type == USB_TYPE_QC3P_27)
+	if (type == USB_TYPE_QC3P_18 || type == USB_TYPE_QC3P_27 || type == USB_TYPE_QC3P_45)
 		return ALG_READY;
 	else if (type == USB_TYPE_UNKNOWN)
 		return ALG_TA_CHECKING;
