@@ -40,7 +40,6 @@
 #include <linux/thermal.h>
 
 static int wlc_dbg_level = WLC_DEBUG_LEVEL;
-struct moto_wls_chg_ops *wls_chg_ops = NULL;
 
 #define CHARGER_STATE_NUM 8
 static int wlc_state_to_current_limit[CHARGER_STATE_NUM] = {
@@ -314,10 +313,6 @@ static int wlc_sc_set_charger(struct chg_alg_device *alg)
 	vbus = VBUS_DEFAULT_MV;
 	charging_current = wlc->wireless_charger_max_current;
 
-	if (NULL != wls_chg_ops)
-		wls_chg_ops->wls_current_select(&input_current, &vbus,
-						&cable_ready);
-
 	wlc->cable_ready = cable_ready;
 	if (!cable_ready) {
 		mutex_unlock(&wlc->data_lock);
@@ -363,10 +358,6 @@ static int wlc_sc_set_charger(struct chg_alg_device *alg)
 		} else
 			wlc->input_current1 = input_current;
 
-		if (NULL != wls_chg_ops &&
-			NULL != wls_chg_ops->wls_notify_thermal_icl)
-			wls_chg_ops->wls_notify_thermal_icl(input_thermal_limit);
-
 		wlc_info("%s input current = %d:%d:%d:%d, vout = %d\n",
 			 __func__, wlc->input_current1, input_current,
 			 input_thermal_limit, wlc->charging_current_limit1,
@@ -379,13 +370,8 @@ static int wlc_sc_set_charger(struct chg_alg_device *alg)
 			return -1;
 		}
 
-		if (NULL != wls_chg_ops &&
-			NULL != wls_chg_ops->wls_set_current) {
-			wls_chg_ops->wls_set_current(wlc->input_current1, wlc->charging_current1);
-		} else {
-			wlc_hal_set_charging_current(alg, CHG1, wlc->charging_current1);
-			wlc_hal_set_input_current(alg, CHG1, wlc->input_current1);
-		}
+		wlc_hal_set_charging_current(alg, CHG1, wlc->charging_current1);
+		wlc_hal_set_input_current(alg, CHG1, wlc->input_current1);
 	}
 	if (wlc->old_cv == 0 || (wlc->old_cv != wlc->cv) ||
 	    wlc->wlc_6pin_en == 0) {
@@ -468,8 +454,6 @@ static int __wlc_run(struct chg_alg_device *alg)
 	mmi_thermal_check_status(alg);
 
 	uisoc = wlc_hal_get_uisoc(alg);
-	if((NULL != wls_chg_ops) && true == wlc->cable_ready && uisoc == 100)
-		wls_chg_ops->wls_set_battery_soc(uisoc);
 
 	if (wlc_sc_set_charger(alg) != 0) {
 		ret = wlc_leave(alg);
@@ -563,11 +547,6 @@ static int _wlc_stop_algo(struct chg_alg_device *alg)
 
 	wlc_dbg("%s %d\n", __func__, wlc->state);
 	if (wlc->state == WLC_RUN) {
-		if (NULL != wls_chg_ops &&
-			true == wlc->cable_ready &&
-			NULL != wls_chg_ops->wls_stop_epp) {
-			wls_chg_ops->wls_stop_epp();
-		}
 		wlc_reset_ta_vchr(alg);
 		wlc->state = WLC_HW_READY;
 	}
@@ -734,9 +713,6 @@ int _wlc_set_prop(struct chg_alg_device *alg,
 		enum chg_alg_props s, int value)
 {
 	struct moto_wlc *wlc;
-	struct power_supply *psy = NULL;
-	union  power_supply_propval chip_state;
-	int ret = 0;
 
 	pr_notice("%s %d %d\n", __func__, s, value);
 
@@ -754,28 +730,10 @@ int _wlc_set_prop(struct chg_alg_device *alg,
 		if (!value) {
 			wlc_plugout_reset(alg);
 		}
-		if (NULL != wls_chg_ops) {
-			psy = power_supply_get_by_name("wireless");
-			if (!IS_ERR_OR_NULL(psy)) {
-				chip_state.intval = value;
-				ret = power_supply_set_property(
-					psy,
-					POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
-					&chip_state);
-				if (ret < 0)
-					chr_err("set wlc chip state fail\n");
-			}
-		}
 		break;
 	case ALG_WLC_TX_MODE:
-		if (!IS_ERR_OR_NULL(wls_chg_ops) && wls_chg_ops->wls_set_tx_mode) {
-			wls_chg_ops->wls_set_tx_mode(!!value);
-		}
 		break;
 	case ALG_NOTIFY_OTG_PLUGIN:
-		if (!IS_ERR_OR_NULL(wls_chg_ops) && wls_chg_ops->wls_notify_otg_plugin) {
-			wls_chg_ops->wls_notify_otg_plugin(!!value);
-		}
 		break;
 	default:
 		break;
@@ -824,19 +782,6 @@ static struct chg_alg_ops wlc_alg_ops = {
 	.set_current_limit = _wlc_set_setting,
 };
 
-int moto_wireless_chg_ops_register(struct moto_wls_chg_ops *ops)
-{
-	if (!ops) {
-		pr_err("%s invalide wls chg ops(null)\n", __func__);
-		return -EINVAL;
-	}
-
-	wls_chg_ops = ops;
-
-	return 0;
-}
-EXPORT_SYMBOL(moto_wireless_chg_ops_register);
-
 static int wlc_tcd_get_max_state(struct thermal_cooling_device *tcd,
 	unsigned long *state)
 {
@@ -870,10 +815,6 @@ static int wlc_tcd_set_cur_state(struct thermal_cooling_device *tcd,
 
 	wlc->charging_current_limit1 = wlc_state_to_current_limit[state];
 	wlc->cur_state = state;
-
-	if (NULL != wls_chg_ops &&
-		NULL != wls_chg_ops->wls_notify_cur_state)
-		wls_chg_ops->wls_notify_cur_state(state, wlc->charging_current_limit1);
 
 	wlc_info("%s cur state = %d, config state = %ld, cur limt = %d\n",
 		__func__, wlc->cur_state, state, wlc->charging_current_limit1);

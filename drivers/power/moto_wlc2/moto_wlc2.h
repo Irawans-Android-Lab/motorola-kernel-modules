@@ -104,17 +104,6 @@ struct moto_wlc {
 	struct mmi_thermal_config *wlc_thermal_com;
 	int num_wlc_thermal_com;
 };
-struct moto_wls_chg_ops {
-	void *data;
-	void (*wls_current_select)(int  *icl, int *vbus, bool *cable_ready);
-	void (*wls_set_battery_soc)(int uisoc);
-	void (*wls_stop_epp)(void);
-	void (*wls_notify_thermal_icl)(int thermal_icl);
-	void (*wls_notify_cur_state)(int cur_state, int wls_ccl);
-	int (*wls_set_tx_mode)(bool en);
-	int (*wls_set_current)(int icl, int cc);
-	int (*wls_notify_otg_plugin)(bool en);
-};
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
 extern int wlc_hal_get_boot_mode(struct chg_alg_device *alg);
@@ -158,5 +147,4 @@ extern int wlc_hal_get_log_level(struct chg_alg_device *alg);
 
 extern int wlc_hal_get_batt_temp(struct chg_alg_device *alg);
 extern int wlc_hal_get_batt_cv(struct chg_alg_device *alg);
-extern int moto_wireless_chg_ops_register(struct moto_wls_chg_ops *ops);
 #endif /* __MOTO_WLC2_H */
