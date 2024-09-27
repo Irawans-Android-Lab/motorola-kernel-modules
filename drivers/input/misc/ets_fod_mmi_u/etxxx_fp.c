@@ -62,6 +62,27 @@
 #include <linux/fb.h>
 
 
+#define EGIS_IOC_MAGIC 'E'
+#define EGIS_IOC_SENSOR_RESET             (_IO(EGIS_IOC_MAGIC, FP_SENSOR_RESET))
+#define EGIS_IOC_SPICLK_ENABLE                  (_IO(EGIS_IOC_MAGIC, FP_SPICLK_ENABLE))
+#define EGIS_IOC_SPICLK_DISABLE                (_IO(EGIS_IOC_MAGIC, FP_SPICLK_DISABLE))
+#define EGIS_IOC_GET_RESOURCE                  (_IO(EGIS_IOC_MAGIC, FP_GET_RESOURCE))
+#define EGIS_IOC_FREE_RESOURCE                 (_IO(EGIS_IOC_MAGIC, FP_FREE_RESOURCE))
+
+#define EGIS_IOC_INT_TRIGGER_CLOSE             (_IO(EGIS_IOC_MAGIC, INT_TRIGGER_CLOSE))
+#define EGIS_IOC_INT_TRIGGER_ABORT             (_IO(EGIS_IOC_MAGIC, INT_TRIGGER_ABORT))
+#define EGIS_IOC_WAKELOCK_ENABLE                (_IO(EGIS_IOC_MAGIC, FP_WAKELOCK_ENABLE))
+#define EGIS_IOC_WAKELOCK_DISABLE               (_IO(EGIS_IOC_MAGIC, FP_WAKELOCK_DISABLE))
+#define EGIS_IOC_GET_IO_STUS                          (_IO(EGIS_IOC_MAGIC, GET_IO_STUS))
+
+#define EGIS_IOC_INT_TRIGGER_INIT             (_IOW(EGIS_IOC_MAGIC, INT_TRIGGER_INIT,struct egisfp_ioctl_cmd_t))
+#define EGIS_IOC_SEND_NAVI_EVENT             (_IOW(EGIS_IOC_MAGIC, SEND_NAVI_EVENT,struct egisfp_ioctl_cmd_t))
+
+#define EGIS_IOC_RESET_SET                (_IOW(EGIS_IOC_MAGIC, FP_RESET_SET, struct egisfp_ioctl_cmd_t))
+#define EGIS_IOC_POWER_CONTROL                (_IOW(EGIS_IOC_MAGIC, FP_POWER_ONOFF, struct egisfp_ioctl_cmd_t))
+#define EGIS_IOC_WAKELOCK_TIMEOUT_ENABLE                (_IOW(EGIS_IOC_MAGIC, FP_WAKELOCK_TIMEOUT_ENABLE, struct egisfp_ioctl_cmd_t))
+#define EGIS_IOC_GET_SCREEN_ONOFF                (_IOR(EGIS_IOC_MAGIC, GET_SCREEN_ONOFF, struct egisfp_ioctl_cmd_t))
+
 extern void mt_spi_enable_master_clk(struct spi_device *spidev);
 extern void mt_spi_disable_master_clk(struct spi_device *spidev);
 
@@ -69,7 +90,7 @@ struct egisfp_dev_t *g_data = NULL;
 DECLARE_BITMAP(minors, N_SPI_MINORS);
 LIST_HEAD(device_list);
 DEFINE_MUTEX(device_list_lock);
-
+#ifdef EGIS_NAVI_SUPPORT
 static struct egis_key_map_t key_maps[] = {
 	{EV_KEY, EGIS_NAV_INPUT_UP},
 	{EV_KEY, EGIS_NAV_INPUT_DOWN},
@@ -81,12 +102,15 @@ static struct egis_key_map_t key_maps[] = {
 	{EV_KEY, EGIS_NAV_INPUT_FINGER_DOWN},
 	{EV_KEY, EGIS_NAV_INPUT_FINGER_UP},
 };
-
+#endif
+#ifdef EGIS_SPI_DEVICE
+int egisfp_probe(struct spi_device *pdev);
+void egisfp_remove(struct spi_device *pdev);
+#else
 int egisfp_probe(struct platform_device *pdev);
 int egisfp_remove(struct platform_device *pdev);
+#endif
 
-int egisfp_spi_probe(struct spi_device *spi);
-void egisfp_spi_remove(struct spi_device *spi);
 /* -------------------------------------------------------------------- */
 
 struct of_device_id egistec_match_table[] = {
@@ -98,55 +122,29 @@ struct of_device_id egistec_match_table[] = {
 	},
 	{},
 };
-
+#ifdef EGIS_SPI_DEVICE
+static struct spi_driver  egisfp_driver = {
+#else
 static struct platform_driver egisfp_driver = {
+#endif
 	.driver = {
 		.name = EGIS_DEV_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table = egistec_match_table,
+#ifdef EGIS_SPI_DEVICE
+            .bus = &spi_bus_type,
+#endif
+
 	},
 	.probe = egisfp_probe,
 	.remove = egisfp_remove,
 };
-static struct spi_driver egisfp_spi_driver = {
-	.driver = {
-		.name = EGIS_SPI_DEV_NAME,
-		.owner = THIS_MODULE,
-		.of_match_table = egistec_match_table,
-	},
-	.probe = egisfp_spi_probe,
-	.remove = egisfp_spi_remove,
-};
-int egisfp_spi_probe(struct spi_device *spi)
-{
-	int error = 0;
-	struct egisfp_spi_dev_t *egis_spi_dev = NULL;
-	/* size_t buffer_size; */
-	INFO_PRINT(" %s \n", __func__);
-	egis_spi_dev = kzalloc(sizeof(struct egisfp_spi_dev_t), GFP_KERNEL);
-	if (egis_spi_dev == NULL)
-	{
-		ERROR_PRINT(" %s : Failed to kzalloc \n", __func__);
-		return -ENOMEM;
-	}
-	spi_set_drvdata(spi, egis_spi_dev);
-	g_data->spi = spi;
-	return error;
-}
-/* -------------------------------------------------------------------- */
-void egisfp_spi_remove(struct spi_device *spi)
-{
-	struct egisfp_spi_dev_t *egis_spi_dev = spi_get_drvdata(spi);
-	g_data->spi = NULL;
-	kfree(egis_spi_dev);
-	return;
-}
 
 /* add for clk enable from kernel*/
 
 void spi_clk_enable(struct egisfp_dev_t *egis_dev, int bonoff)
 {
-	if (!egis_dev->spi)
+	if (!egis_dev->dd)
 	{
 		ERROR_PRINT(" %s : enable/disable spi clk fail: device is null \n", __func__);
 		return;
@@ -159,13 +157,13 @@ void spi_clk_enable(struct egisfp_dev_t *egis_dev, int bonoff)
 	if (bonoff)
 	{
 		DEBUG_PRINT(" %s : enable spi clk \n", __func__);
-		mt_spi_enable_master_clk(egis_dev->spi);
+		mt_spi_enable_master_clk(egis_dev->dd);
 		egis_dev->clk_enabled = 1;
 	}
 	else
 	{
 		DEBUG_PRINT(" %s : disable spi clk \n", __func__);
-		mt_spi_disable_master_clk(egis_dev->spi);
+		mt_spi_disable_master_clk(egis_dev->dd);
 		egis_dev->clk_enabled = 0;
 	}
 }
@@ -471,7 +469,7 @@ void egisfp_interrupt_abort(struct egisfp_dev_t *egis_dev)
 }
 
 /*-------------------------------------------------------------------------*/
-
+#ifdef EGIS_NAVI_SUPPORT
 static void send_navi_event(struct egisfp_dev_t *egis_dev, int nav_event)
 {
 	uint32_t input_event;
@@ -527,8 +525,9 @@ static void send_navi_event(struct egisfp_dev_t *egis_dev, int nav_event)
 		input_report_key(egis_dev->input_dev, input_event, 0);
 		input_sync(egis_dev->input_dev);
 	}
-}
 
+}
+#endif
 int do_egisfp_reset(struct egisfp_dev_t *egis_dev)
 {
 	int ret = 0;
@@ -650,11 +649,11 @@ static void egis_get_io_stus(struct egisfp_dev_t *egis_dev)
 
 	INFO_PRINT(" %s : reset_pin value = %d irq_pin value = %d \n", __func__, gpio_get_value(egis_dev->rstPin), gpio_get_value(egis_dev->irqPin));
 }
-
+#ifndef TEE_SPI_LOCKED
 int set_egisfp_spi_pin_active(struct egisfp_dev_t *egis_dev, int en)
 {
 	DEBUG_PRINT(" %s : en = 0x%X \n", __func__, en);
-#ifndef TEE_SPI_LOCKED
+
 	int ret;
 	if (en)
 	{
@@ -667,11 +666,10 @@ int set_egisfp_spi_pin_active(struct egisfp_dev_t *egis_dev, int en)
 	if (ret)
 		ERROR_PRINT(" %s : failed ret = %d \n", __func__, ret);
 	return ret;
-#else
-    return 0;
-#endif
-}
 
+    return 0;
+}
+#endif
 long egisfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int retval = 0;
@@ -680,7 +678,9 @@ long egisfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	INFO_PRINT(" %s : cmd = 0x%X \n", __func__, cmd);
 	egis_dev = (struct egisfp_dev_t *)filp->private_data;
-
+	if (!egis_dev) {
+		ERROR_PRINT(" %s : egis_dev is NULL --------------- \n", __func__);
+	}
 	if (!egis_dev->pars_dtsi_done)
 	{
 		ERROR_PRINT(" %s : egis_dev is NULL \n", __func__);
@@ -692,24 +692,16 @@ long egisfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd)
 	{
-	case FP_GET_RESOURCE:
+	case EGIS_IOC_GET_RESOURCE:
 		DEBUG_PRINT(" %s : FP_GET_RESOURCE \n", __func__);
 		if (egisfp_platforminit(egis_dev))
 			retval = -EIO;
 		break;
-	case FP_FREE_RESOURCE:
+	case EGIS_IOC_FREE_RESOURCE:
 		DEBUG_PRINT(" %s : FP_FREE_RESOURCE \n", __func__);
 		egisfp_platformfree(egis_dev);
 		break;
-	case FP_SET_SPI_CLOCK:
-		if (copy_from_user(&data, (int __user *)arg, sizeof(data)))
-		{
-			return -EFAULT;
-		}
-		egis_dev->clk_speed = data.int_mode * 1000000;
-		DEBUG_PRINT(" %s : FP_SET_SPI_CLOCK %d \n", __func__, egis_dev->clk_speed);
-		break;
-	case INT_TRIGGER_INIT:
+	case EGIS_IOC_INT_TRIGGER_INIT:
 		if (copy_from_user(&data, (int __user *)arg, sizeof(data)))
 		{
 			return -EFAULT;
@@ -717,11 +709,11 @@ long egisfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		retval = egisfp_interrupt_init(egis_dev, data.int_mode, data.detect_period, data.detect_threshold);
 		DEBUG_PRINT(" %s : INT_TRIGGER_INIT %x \n", __func__, retval);
 		break;
-	case FP_SENSOR_RESET:
+	case EGIS_IOC_SENSOR_RESET:
 		DEBUG_PRINT(" %s : FP_SENSOR_RESET \n", __func__);
 		do_egisfp_reset(egis_dev);
 		break;
-	case FP_POWER_ONOFF:
+	case EGIS_IOC_POWER_CONTROL:
 		if (copy_from_user(&data, (int __user *)arg, sizeof(data)))
 		{
 			return -EFAULT;
@@ -729,7 +721,7 @@ long egisfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		DEBUG_PRINT(" %s : FP_POWER_ONOFF \n", __func__);
 		retval = do_egisfp_power_onoff(egis_dev, &data);
 		break;
-	case FP_RESET_SET:
+	case EGIS_IOC_RESET_SET:
 		if (copy_from_user(&data, (int __user *)arg, sizeof(data)))
 		{
 			return -EFAULT;
@@ -737,26 +729,29 @@ long egisfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		DEBUG_PRINT(" %s : FP_RESET_SET \n", __func__);
 		retval = do_egisfp_reset_set(egis_dev, data.int_mode); // Use data.int_mode as reset setting. 1 = on, 0 = off.
 		break;
-	case FP_WAKELOCK_ENABLE:
+	case EGIS_IOC_WAKELOCK_ENABLE:
 		DEBUG_PRINT(" %s : FP_WAKELOCK_ENABLE \n", __func__);
 		pm_stay_awake(&egis_dev->dd->dev);
 		break;
-	case FP_WAKELOCK_DISABLE:
+	case EGIS_IOC_WAKELOCK_DISABLE:
 		DEBUG_PRINT(" %s : FP_WAKELOCK_DISABLE \n", __func__);
 		pm_relax(&egis_dev->dd->dev);
 		break;
-	case GET_IO_STUS:
+	case EGIS_IOC_GET_IO_STUS:
 		DEBUG_PRINT(" %s : GET_IO_STUS \n", __func__);
 		egis_get_io_stus(egis_dev);
 		break;
-	case SEND_NAVI_EVENT:
+	case EGIS_IOC_SEND_NAVI_EVENT:
+#ifdef EGIS_NAVI_SUPPORT
 		if (copy_from_user(&data, (int __user *)arg, sizeof(data)))
 		{
 			return -EFAULT;
 		}
 		DEBUG_PRINT(" %s : SEND_NAVI_EVENT \n", __func__);
 		send_navi_event(egis_dev, data.int_mode);
+#endif
 		break;
+#ifndef TEE_SPI_LOCKED
 	case FP_SPIPIN_SETTING:
 		DEBUG_PRINT(" %s : FP_SPIPIN_SETTING \n", __func__);
 		retval = set_egisfp_spi_pin_active(egis_dev, 1);
@@ -765,18 +760,16 @@ long egisfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		DEBUG_PRINT(" %s : FP_SPIPIN_PULLLOW \n", __func__);
 		retval = set_egisfp_spi_pin_active(egis_dev, 0);
 		break;
-	case INT_TRIGGER_CLOSE:
+#endif
+	case EGIS_IOC_INT_TRIGGER_CLOSE:
 		retval = egisfp_interrupt_free(egis_dev);
 		DEBUG_PRINT(" %s : INT_TRIGGER_CLOSE %d  \n", __func__, retval);
 		break;
-	case INT_TRIGGER_ABORT:
+	case EGIS_IOC_INT_TRIGGER_ABORT:
 		DEBUG_PRINT(" %s : INT_TRIGGER_ABORT \n", __func__);
 		egisfp_interrupt_abort(egis_dev);
 		break;
-	case FP_FREE_GPIO:
-		DEBUG_PRINT(" %s : FP_FREE_GPIO \n", __func__);
-		break;
-	case FP_WAKELOCK_TIMEOUT_ENABLE: //0Xb1
+	case EGIS_IOC_WAKELOCK_TIMEOUT_ENABLE: //0Xb1
 		if (copy_from_user(&data, (int __user *)arg, sizeof(data)))
 		{
 			data.int_mode = WAKE_HOLD_TIME;
@@ -787,20 +780,13 @@ long egisfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		DEBUG_PRINT(" %s : FP_WAKELOCK_TIMEOUT_ENABLE %d ms \n", __func__, data.int_mode);
 		pm_wakeup_event(&egis_dev->dd->dev, data.int_mode);
 		break;
-	case FP_WAKELOCK_TIMEOUT_DISABLE: //0Xb2
-		DEBUG_PRINT(" %s : FP_WAKELOCK_TIMEOUT_DISABLE \n", __func__);
-		break;
-	case FP_SPICLK_ENABLE:
+	case EGIS_IOC_SPICLK_ENABLE:
 		DEBUG_PRINT(" %s : FP_SPICLK_ENABLE \n", __func__);
 		spi_clk_enable(egis_dev, 1);
 		break;
-	case FP_SPICLK_DISABLE:
+	case EGIS_IOC_SPICLK_DISABLE:
 		DEBUG_PRINT(" %s : FP_SPICLK_DISABLE \n", __func__);
 		spi_clk_enable(egis_dev, 0);
-		break;
-	case DELETE_DEVICE_NODE:
-		DEBUG_PRINT(" %s : DELETE_DEVICE_NODE \n", __func__);
-		//delete_device_node();
 		break;
 	case GET_SCREEN_ONOFF:
 		DEBUG_PRINT(" %s : GET_SCREEN_ONOFF \n", __func__);
@@ -836,13 +822,13 @@ int egisfp_open(struct inode *inode, struct file *filp)
 	mutex_lock(&device_list_lock);
 	list_for_each_entry(egis_dev, &device_list, device_entry)
 	{
-		if (egis_dev->devt == inode->i_rdev)
+		if (egis_dev->devno == inode->i_rdev)
 		{
 			status = 0;
 			break;
 		}
 	}
-
+	mutex_unlock(&device_list_lock);
 	if (status == 0)
 	{
 		/* device tree call */
@@ -868,25 +854,25 @@ int egisfp_open(struct inode *inode, struct file *filp)
 	{
 		ERROR_PRINT(" %s : nothing for minor %d \n", __func__, iminor(inode));
 	}
-	mutex_unlock(&device_list_lock);
+
 	return status;
 }
 
 int egisfp_release(struct inode *inode, struct file *filp)
 {
-	struct egisfp_dev_t *egis_dev;
+	struct egisfp_dev_t *egis_dev = NULL;
 	DEBUG_PRINT(" %s \n", __func__);
-	mutex_lock(&device_list_lock);
 	egis_dev = filp->private_data;
-	filp->private_data = NULL;
 	/* last close? */
-	egis_dev->users--;
-	if (egis_dev->users == 0)
-	{
-		INFO_PRINT(" %s : egis_dev->users == %d \n", __func__, egis_dev->users);
-		egisfp_platformfree(egis_dev);
+	if(egis_dev) {
+		egis_dev->users--;
+		if (egis_dev->users == 0)
+		{
+			INFO_PRINT(" %s : egis_dev->users == %d \n", __func__, egis_dev->users);
+			egisfp_platformfree(egis_dev);
+		}
 	}
-	mutex_unlock(&device_list_lock);
+//	filp->private_data = NULL;
 	return 0;
 }
 int egisfp_platformfree(struct egisfp_dev_t *egis_dev)
@@ -894,10 +880,13 @@ int egisfp_platformfree(struct egisfp_dev_t *egis_dev)
 	int status = 0;
 	struct egisfp_ioctl_cmd_t ioctl_data = {0};
 	DEBUG_PRINT(" %s : enter \n", __func__);
-	if (egis_dev->platforminit_done != 1)
-		return status;
+
 	if (egis_dev != NULL)
 	{
+		if (!egis_dev->platforminit_done) {
+			INFO_PRINT(" %s : platform resource is not init or already free \n", __func__);
+			return status;
+		}
 		if (egis_dev->request_irq_done == 1)
 		{
 			egisfp_interrupt_enable(egis_dev, 0);
@@ -907,7 +896,9 @@ int egisfp_platformfree(struct egisfp_dev_t *egis_dev)
 		if (egis_dev->clk_enabled)
 		{
 			spi_clk_enable(egis_dev, 0);
+#ifndef TEE_SPI_LOCKED
 			set_egisfp_spi_pin_active(egis_dev, 0);
+#endif
 		}
 		status = do_egisfp_reset_set(egis_dev, 0);
 
@@ -921,21 +912,22 @@ int egisfp_platformfree(struct egisfp_dev_t *egis_dev)
 
 		if (egis_dev->vcc)
 		{
-			DEBUG_PRINT(" %s : devm_regulator_put \n", __func__);
-			devm_regulator_put(egis_dev->vcc);
+			DEBUG_PRINT(" %s : regulator_put \n", __func__);
+			regulator_put(egis_dev->vcc);
 			egis_dev->vcc = NULL;
 		}
 
 
 		if (egis_dev->pinctrl)
 		{
-			DEBUG_PRINT(" %s : devm_pinctrl_put \n", __func__);
-			devm_pinctrl_put(egis_dev->pinctrl);
+			DEBUG_PRINT(" %s : pinctrl_put \n", __func__);
+			pinctrl_put(egis_dev->pinctrl);
 			egis_dev->pinctrl = NULL;
 		}
-		spi_unregister_driver(&egisfp_spi_driver);
+
+		egis_dev->platforminit_done = 0;
 	}
-	egis_dev->platforminit_done = 0;
+
 	DEBUG_PRINT(" %s : successful status = %d \n", __func__, status);
 	return status;
 }
@@ -948,12 +940,7 @@ int egisfp_platforminit(struct egisfp_dev_t *egis_dev)
 	{
 		if (!egis_dev->platforminit_done)
 		{
-			status = spi_register_driver(&egisfp_spi_driver);
-			if (status)
-			{
-				ERROR_PRINT(" %s : spi_register_driver failed \n", __func__);
-				goto egisfp_spidriver_register_fail;
-			}
+
 			if (egis_dev->ctrl_power)
 			{
 				if (egis_dev->pwr_by_gpio)
@@ -970,7 +957,7 @@ int egisfp_platforminit(struct egisfp_dev_t *egis_dev)
 				}
 				else
 				{
-					egis_dev->vcc = devm_regulator_get(&egis_dev->dd->dev, "vcc_fp");
+					egis_dev->vcc = regulator_get(&egis_dev->dd->dev, "vcc_fp");
 					if (IS_ERR(egis_dev->vcc))
 					{
 						status = PTR_ERR(egis_dev->vcc);
@@ -1019,7 +1006,7 @@ int egisfp_platforminit(struct egisfp_dev_t *egis_dev)
 			if (egis_dev->dd)
 			{
 				INFO_PRINT(" %s : find node enter \n", __func__);
-				egis_dev->pinctrl = devm_pinctrl_get(&egis_dev->dd->dev);
+				egis_dev->pinctrl = pinctrl_get(&egis_dev->dd->dev);
 				if (IS_ERR(egis_dev->pinctrl))
 				{
 					status = PTR_ERR(egis_dev->pinctrl);
@@ -1077,7 +1064,7 @@ int egisfp_platforminit(struct egisfp_dev_t *egis_dev)
 				INFO_PRINT(" %s : find node enter \n", __func__);
 				if (!egis_dev->pinctrl)
 				{
-					egis_dev->pinctrl = devm_pinctrl_get(&egis_dev->dd->dev);
+					egis_dev->pinctrl = pinctrl_get(&egis_dev->dd->dev);
 					if (IS_ERR(egis_dev->pinctrl))
 					{
 						status = PTR_ERR(egis_dev->pinctrl);
@@ -1121,8 +1108,9 @@ int egisfp_platforminit(struct egisfp_dev_t *egis_dev)
 		return -ENODEV;
 	}
 egisfp_pinctrl_fail:
-	ERROR_PRINT(" %s : devm_pinctrl_put \n", __func__);
-	devm_pinctrl_put(egis_dev->pinctrl);
+	ERROR_PRINT(" %s : pinctrl_put \n", __func__);
+	if(egis_dev->pinctrl)
+		pinctrl_put(egis_dev->pinctrl);
 	egis_dev->pinctrl = NULL;
 	gpio_free(egis_dev->irqPin);
 egisfp_irq_request_fail:
@@ -1134,18 +1122,16 @@ egisfp_power_setup_fail:
 		if (egis_dev->pwr_by_gpio)
 			gpio_free(egis_dev->vcc_33v_Pin);
 		else
-			devm_regulator_put(egis_dev->vcc);
+			regulator_put(egis_dev->vcc);
 	}
 egisfp_power_request_fail:
-	spi_unregister_driver(&egisfp_spi_driver);
-egisfp_spidriver_register_fail:
 	return -EIO;
 }
 
 int egisfp_check_ioctl_permission(struct egisfp_dev_t *egis_dev, unsigned int cmd)
 {
 
-	if (cmd == FP_GET_RESOURCE || cmd == FP_FREE_RESOURCE)
+	if (cmd == EGIS_IOC_GET_RESOURCE || cmd == EGIS_IOC_FREE_RESOURCE)
 	{
 		return 0;
 	}
@@ -1281,71 +1267,99 @@ int egisfp_parse_dt(struct egisfp_dev_t *egis_dev)
 const struct file_operations egisfp_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = egisfp_ioctl,
+#ifdef CONFIG_COMPAT
 	.compat_ioctl = egisfp_compat_ioctl,
+#endif
 	.open = egisfp_open,
 	.release = egisfp_release,
-	.llseek = no_llseek,
-	.poll = egisfp_interrupt_poll};
+//	.llseek = no_llseek,
+	.poll = egisfp_interrupt_poll
+	};
 
 /*-------------------------------------------------------------------------*/
-struct class *egisfp_class;
+struct class *egisfp_class = NULL;
 /*-------------------------------------------------------------------------*/
-
+#ifdef EGIS_SPI_DEVICE
+void egisfp_remove(struct spi_device *pdev)
+#else
 int egisfp_remove(struct platform_device *pdev)
+#endif
 {
 	struct device *dev = &pdev->dev;
 	struct egisfp_dev_t *egis_dev = dev_get_drvdata(dev);
 	INFO_PRINT(" %s : driver remove \n", __func__);
+	if(egis_dev == NULL) goto egis_remove_exit;
+
+	mutex_lock(&device_list_lock);
 	if (egis_dev->request_irq_done)
 	{
 		free_irq(egis_dev->gpio_irq, egis_dev);
+		INFO_PRINT(" %s : free_irq \n", __func__);
 	}
+	egis_dev->request_irq_done = 0;
+
 	if (egis_dev->call_back_registered)
 	{
 		fb_unregister_client(&egis_dev->notifier);
+		INFO_PRINT(" %s : fb_unregister_client \n", __func__);
 	}
 	del_timer_sync(&egis_dev->fps_ints.timer);
-
+	INFO_PRINT(" %s : del_timer_sync \n", __func__);
 	device_init_wakeup(&egis_dev->dd->dev, 0);
-
-	egis_dev->request_irq_done = 0;
-
+	INFO_PRINT(" %s : device_init_wakeup \n", __func__);
+#ifdef EGIS_NAVI_SUPPORT
 	if (egis_dev->input_dev)
 	{
 		input_unregister_device(egis_dev->input_dev);
+		egis_dev->input_dev = NULL;
+		INFO_PRINT(" %s : input_unregister_device \n", __func__);
 	}
+#endif
+	cdev_del(&egis_dev->cdev);
 
-	device_destroy(egisfp_class, egis_dev->devt);
-
+	mutex_unlock(&device_list_lock);
+	//free resource again in case userspace may not release it
+	egisfp_platformfree(egis_dev);
+	device_destroy(egisfp_class, egis_dev->devno);
+	INFO_PRINT(" %s : device_destroy \n", __func__);
 	list_del(&egis_dev->device_entry);
-
+	INFO_PRINT(" %s : list_del \n", __func__);
+	unregister_chrdev_region(egis_dev->devno, 1);
+	INFO_PRINT(" %s : unregister_chrdev \n", __func__);
 	class_destroy(egisfp_class);
+	INFO_PRINT(" %s : class_destroy \n", __func__);
+	mutex_destroy(&device_list_lock);
 
-	unregister_chrdev(EGIS_FP_MAJOR, egisfp_driver.driver.name);
-
-	g_data = NULL;
+	kfree(egis_dev);
+egis_remove_exit:
+#ifdef EGIS_SPI_DEVICE
+	return;
+#else
 	return 0;
+#endif
 }
-
-int egisfp_probe(struct platform_device *pdev)
+#ifdef EGIS_SPI_DEVICE
+int 	egisfp_probe(struct spi_device *pdev)
+#else
+int 	egisfp_probe(struct platform_device *pdev)
+#endif
 {
 	struct egisfp_dev_t *egis_dev;
-	int status, i;
-	unsigned long minor;
+	int status;
+#ifdef EGIS_NAVI_SUPPORT
+	int i=0;
+#endif
+	//unsigned long minor = 0;
 
 	INFO_PRINT(" %s : driver init \n", __func__);
-	BUILD_BUG_ON(N_SPI_MINORS > 256);
-	status = register_chrdev(EGIS_FP_MAJOR, EGIS_CHRD_DRIVER_NAME, &egisfp_fops);
-	if (status < 0)
-	{
-		ERROR_PRINT(" %s : register_chrdev error \n", __func__);
-		return status;
-	}
+	//BUILD_BUG_ON(N_SPI_MINORS > 256);
+	//status = register_chrdev(EGIS_FP_MAJOR, EGIS_CHRD_DRIVER_NAME, &egisfp_fops);
+
 	egisfp_class = class_create(THIS_MODULE, EGIS_CLASS_NAME);
 	if (IS_ERR(egisfp_class))
 	{
 		ERROR_PRINT(" %s : class_create error \n", __func__);
-		unregister_chrdev(EGIS_FP_MAJOR, egisfp_driver.driver.name);
+		//unregister_chrdev(EGIS_FP_MAJOR, EGIS_CHRD_DRIVER_NAME);
 		return PTR_ERR(egisfp_class);
 	}
 	/* Allocate driver data */
@@ -1355,11 +1369,17 @@ int egisfp_probe(struct platform_device *pdev)
 		ERROR_PRINT(" %s : Failed to kzalloc \n", __func__);
 		return -ENOMEM;
 	}
-/* Initialize the driver data */
+	/* Initialize the driver data */
 	dev_set_drvdata(&pdev->dev, egis_dev);
 	egis_dev->dd = pdev;
 
-
+	//Allocate device number dynamically
+	status = alloc_chrdev_region(&egis_dev->devno, 0, 1, EGIS_CHRD_DRIVER_NAME);
+	if (status < 0)
+	{
+		ERROR_PRINT(" %s : register_chrdev error \n", __func__);
+		goto egistec_register_chrdev;
+	}
 	spin_lock_init(&egis_dev->irq_lock);
 
 	device_init_wakeup(&egis_dev->dd->dev, 1);
@@ -1378,39 +1398,28 @@ int egisfp_probe(struct platform_device *pdev)
 	egis_dev->screen_onoff = 1;	// dafault set screen on
 	egis_dev->call_back_registered = 0;
 	egis_dev->fps_ints.irq_mode = -1;
-	egis_dev->spi = NULL;
-	/*
-	 * If we can allocate a minor number, hook up this device.
-	 * Reusing minors is fine so long as udev or mdev is working.
-	 */
-	mutex_lock(&device_list_lock);
-	minor = find_first_zero_bit(minors, N_SPI_MINORS);
-	if (minor < N_SPI_MINORS)
+
 	{
 		struct device *fdev;
-		egis_dev->devt = MKDEV(EGIS_FP_MAJOR, minor);
-		fdev = device_create(egisfp_class, &egis_dev->dd->dev, egis_dev->devt,
+		fdev = device_create(egisfp_class, &egis_dev->dd->dev, egis_dev->devno,
 							 egis_dev, EGIS_DEV_NAME);
 		status = IS_ERR(fdev) ? PTR_ERR(fdev) : 0;
 	}
-	else
-	{
-		ERROR_PRINT(" %s : no minor number available \n", __func__);
-		status = -ENODEV;
-	}
 	if (status == 0)
 	{
-		set_bit(minor, minors);
+		//set_bit(minor, minors);
 		list_add(&egis_dev->device_entry, &device_list);
 	}
-
+	/* cdev init and add */
+	cdev_init(&egis_dev->cdev, &egisfp_fops);
+	egis_dev->cdev.owner = THIS_MODULE;
+	status = cdev_add(&egis_dev->cdev, egis_dev->devno, 1);
 	mutex_unlock(&device_list_lock);
-
 	if (status)
 	{
 		goto egistec_probe_failed;
 	}
-
+#ifdef EGIS_NAVI_SUPPORT
 	egis_dev->input_dev = input_allocate_device();
 	if (egis_dev->input_dev == NULL)
 	{
@@ -1428,12 +1437,12 @@ int egisfp_probe(struct platform_device *pdev)
 		ERROR_PRINT(" %s : failed to register input device %d \n", __func__, status);
 		goto egistec_input_failed;
 	}
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
 	timer_setup(&egis_dev->fps_ints.timer, egisfp_interrupt_timer_call, 0);
 #else
 	setup_timer(&egis_dev->fps_ints.timer, egisfp_interrupt_timer_call, (unsigned long)&egis_dev->fps_ints);
 #endif
-
 // Register FB notifier +++
 	egis_dev->notifier = egisfp_noti_block;
 	DEBUG_PRINT(" %s : register fb_register_client \n", __func__);
@@ -1443,18 +1452,20 @@ int egisfp_probe(struct platform_device *pdev)
 	else
 		egis_dev->call_back_registered = 1;
 // Register FB notifier ---
-
 	g_data = egis_dev;
 
 	DEBUG_PRINT(" %s : initialize success %d\n", __func__, status);
 
 	return status;
-
+#ifdef EGIS_NAVI_SUPPORT
 egistec_input_failed:
 	if (egis_dev->input_dev != NULL)
 		input_free_device(egis_dev->input_dev);
+#endif
 egistec_probe_failed:
-	device_destroy(egisfp_class, egis_dev->devt);
+	device_destroy(egisfp_class, egis_dev->devno);
+egistec_register_chrdev:
+
 	class_destroy(egisfp_class);
 	kfree(egis_dev);
 	ERROR_PRINT(" %s : driver probe failed %d \n", __func__, status);
@@ -1465,7 +1476,12 @@ int __init egisfp_init(void)
 {
 	int status;
 	INFO_PRINT(" %s : module init \n", __func__);
+#ifdef EGIS_SPI_DEVICE
+	status = spi_register_driver(&egisfp_driver);
+#else
 	status = platform_driver_register(&egisfp_driver);
+
+#endif
 	if (status)
 	{
 		ERROR_PRINT(" %s : register Egis driver fail \n", __func__);
@@ -1477,7 +1493,11 @@ int __init egisfp_init(void)
 void __exit egisfp_exit(void)
 {
 	INFO_PRINT("module exit \n");
+#ifdef EGIS_SPI_DEVICE
+	spi_unregister_driver(&egisfp_driver);
+#else
 	platform_driver_unregister(&egisfp_driver);
+#endif
 }
 
 late_initcall(egisfp_init);

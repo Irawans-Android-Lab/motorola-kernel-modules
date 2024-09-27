@@ -17,8 +17,9 @@
 #include <linux/miscdevice.h>
 #include <linux/gpio.h>
 #include <linux/spi/spi.h>
-
-#define DRIVER_VERSION "20211102"
+#define EGIS_SPI_DEVICE
+#define POWER_CONTRL
+#define DRIVER_VERSION "20240924_moto_mtk_kernel6.1"
 #define USE_PIN_CTRL
 //#define PLATFORM_SPI
 //#define MTK_PLATFORM
@@ -26,7 +27,7 @@
 #define EGIS_DEBUG
 
 #define DEBUG_PRINT(fmt, arg...) \
-	printk(KERN_DEBUG "[EGISFP]" fmt, ##arg)
+	printk("[EGISFP]" fmt, ##arg)
 
 #define INFO_PRINT(fmt, arg...) \
 	printk("[EGISFP]" fmt, ##arg)
@@ -147,6 +148,9 @@ struct egisfp_ioctl_cmd_t
 	uint32_t int_mode;
 	uint32_t detect_period;
 	uint32_t detect_threshold;
+#ifdef POWER_CONTRL
+	uint32_t power_on;
+#endif
 };
 
 /* ------------------------- Structure ------------------------------*/
@@ -162,11 +166,16 @@ struct egisfp_spi_dev_t
 };
 struct egisfp_dev_t
 {
-	dev_t devt;
+	dev_t  devno;
 	spinlock_t spi_lock;
-	struct spi_device *spi;
+#ifdef EGIS_SPI_DEVICE
+	struct spi_device *dd;
+#else
 	struct platform_device *dd;
+#endif
 	struct list_head device_entry;
+	struct cdev cdev;
+
 	/* buffer is NULL unless this device is open (users > 0) */
 	struct mutex buf_lock;
 	unsigned users;
