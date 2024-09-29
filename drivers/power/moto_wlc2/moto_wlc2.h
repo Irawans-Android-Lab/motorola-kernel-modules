@@ -1,8 +1,8 @@
 #ifndef __MOTO_WLC2_H
 #define __MOTO_WLC2_H
 
-#include "mtk_charger_algorithm_class.h"
-
+#include <mtk_charger_algorithm_class.h>
+#include <linux/mmi_wireless_class.h>
 
 #define WLC_V_CHARGER_MIN 4600000 /* 4.6 V */
 /*wireless input current and charging current*/
@@ -12,6 +12,83 @@
 #define ECABLEOUT	1	/* cable out */
 #define EHAL		2	/* hal operation error */
 
+#define WLS_ICL_INCREASE_STEP_MA 100 /*100mA*/
+#define WLS_ICL_INCREASE_DELAY 100 /*100ms*/
+#define WLS_BPP_ICL_MAX_MA 1000
+#define WLS_BPP_ICL_MIN_MA 300
+#define WLS_BPP_ROD_THRESHOLD_CURRENT_MAX 850 /*mA*/
+#define WLS_BPP_ROD_THRESHOLD_CURRENT_MIN 750 /*mA*/
+#define WLS_BPP_ROD_DETECT_COUNT_MAX 3
+#define WLS_ROD_STOP_BATERY_SOC 90
+#define WLS_ROD_STOP_TIME (60*1000*1000*1000uL) /*60s*/
+
+#define WLS_EPP_ROD_DETECT_COUNT_MAX 3
+#define WLS_EPP_ROD_THRESHOLD_12V 9600 /*mV*/
+#define WLS_EPP_ROD_THRESHOLD_10V 9000 /*mV*/
+#define WLS_EPP_ROD_THRESHOLD_9V 7800 /*mV*/
+
+#define QI_ASK_CMD_ADJUST_FOD (0x06)
+#define QI_ASK_CMD_TXID (0x3F)
+#define QI_ASK_CMD_QFOD (0x48)
+#define QI_ASK_CMD_TXCAP (0x41)
+#define QI_ASK_CMD_TXCAPABILITY (0x49)
+#define QI_ASK_CMD_SN (0x4C)
+
+#define QI_ASK_CMD_SHA1_NUM (0x36)
+#define QI_ASK_CMD_SHA1_RESULT (0x38)
+#define QI_FSK_CMD_TXCAP (0x41)
+
+#define MOTO_15W_TX_ID (353)
+#define MOTO_50W_TX_ID (337)
+
+#define WLS_RX_CAP_15W 15
+#define WLS_RX_CAP_10W 10
+#define WLS_RX_CAP_7W 7
+#define WLS_RX_CAP_5W 5
+
+typedef enum
+{
+	WLC_DISCONNECTED,
+	WLC_CONNECTED,
+	WLC_TX_TYPE_CHANGED,
+	WLC_TX_POWER_CHANGED,
+	WLC_TX_CAPABILITY_CHANGED,
+	WLC_TX_ID_CHANGED,
+	WLC_CHGING,
+	WLC_CHRG_FULL,
+	WLC_ERR_FAN,
+	WLC_ERR_LIGHT,
+	WLC_ERR_LOWER_EFFICIENCY,
+	WLC_ERR_OVERCURR,
+	WLC_ERR_OVERVOLT,
+	WLC_ERR_OVERTEMP,
+	WLC_INVALID
+} WLS_WLC_STATUS;
+
+typedef enum {
+	WLC_NONE,
+	WLC_BPP,
+	WLC_EPP,
+	WLC_MOTO = 4,
+} wlc_type_t;
+
+typedef enum
+{
+	AUTH_HS_UNKONWN = 0,
+	AUTH_HS_FAIL,
+	AUTH_HS_OK,
+} AUTH_HANDSHAKE_T;
+
+typedef enum {
+	MOTOAUTH_EVENT_TX_CAPABILITY = 0x00,
+	MOTOAUTH_EVENT_TX_ID,
+	MOTOAUTH_EVENT_TX_CAP,
+	MOTOAUTH_EVENT_TX_SN,
+	MOTOAUTH_EVENT_DONE,
+	MOTOAUTH_EVENT_MAX
+} MOTOAUTH_EVENT_TYPE;
+
+#define MOTOAUTH_EVENT_START MOTOAUTH_EVENT_TX_CAPABILITY
 
 #define WLC_ERROR_LEVEL	1
 #define WLC_INFO_LEVEL	2
@@ -54,9 +131,124 @@ struct wlc_profile {
 	unsigned int vchr;
 };
 
+struct wireless_ctl
+{
+	bool tx_mode;
+	bool bpp_icl_done;
+	bool epp_icl_done;
+	bool set_icl_done;
+	bool rx_vout_change_done;
+	bool rx_offset;
+	bool mode_select_force;
+	bool enable_rod;
+	bool factory_wls_en;
+
+	int icl_target; //uA
+	int cc_target; //uA
+	int vout_target; //uV
+	int input_current_max; //mA
+	int rx_vout_set; //mV
+	int rx_vout_threshold;
+	int fan_speed;
+	int light_level;
+};
+
+struct wireless_data
+{
+	bool moto_stand;
+	int rx_irect;
+	int rx_vrect;
+	int rx_vout;
+	int rx_neg_power;
+	int rx_fop;
+	int rx_ept;
+	int rx_ce;
+	int rx_dietmp;
+
+	int wls_online;
+	int wlc_status;
+	int wls_fw_version;
+	int wlc_power;
+
+	int mode_type;
+	int qi_mode_type;
+};
+
+struct wireless_config
+{
+	int chip_id;
+	int MaxV;
+	int MaxI;
+	int MaxPower;
+	int cc_max_uA;
+
+	int bpp_icl_min_uA;
+	int bpp_icl_max_uA;
+	int bpp_icl_step_uA;
+	int bpp_step_delay_ms;
+
+	int epp_icl_min_uA;
+	int epp_icl_max_uA;
+	int epp_icl_step_uA;
+	int epp_step_delay_ms;
+
+	int rod_stop_battery_soc;
+	int bootmode;
+	bool secure_hardware;
+	int enable_bat_full_stop_epp;
+	int enable_stop_epp;
+	int enable_rx_offset_detect;
+
+	const char *wls_fw_name;
+	bool wls_tx_support;
+	bool config_otg_support;
+	uint32_t config_otg_vout; //uV
+	uint32_t config_otg_iout; //uA
+
+	int enable_wls_auto_switch;
+	int wls_auto_switch_overtemp;
+
+	int enable_wls_auto_stop;
+	int wls_auto_stop_overtemp;
+	int wls_auto_stop_undertemp;
+};
+
+struct wireless_auth
+{
+	bool enable;
+	bool init_flag;
+	bool vout_boosting;
+	bool hs_ok;
+	bool events_thread_running;
+	bool auth_done;
+	bool auth_error;
+	struct completion recv_done;
+
+	MOTOAUTH_EVENT_TYPE event;
+	MOTOAUTH_EVENT_TYPE next_event;
+
+	int wlc_type;
+	int wlc_tx_id;
+	int wlc_tx_sn;
+	int wlc_tx_capability;
+	int wlc_tx_power;
+
+	long timer_delay;
+	int timeout_retry;
+	struct delayed_work work;
+	int work_delay_ms;
+	bool work_running;
+	/* thread related */
+	wait_queue_head_t wait_que;
+	bool events_thread_timeout;
+	struct wakeup_source *wakelock;
+};
+
+
 struct moto_wlc {
 	struct platform_device *pdev;
 	struct chg_alg_device *alg;
+	struct wireless_device *wls_dev;
 
 	struct mutex access_lock;
 	struct wakeup_source *suspend_lock;
@@ -106,6 +298,13 @@ struct moto_wlc {
 	int num_wlc_thermal_com;
 
 	bool wls_online;
+
+	struct wls_callback_ops callback_ops;
+
+	struct wireless_ctl ctl;
+	struct wireless_config config;
+	struct wireless_data data;
+	struct wireless_auth auth;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
