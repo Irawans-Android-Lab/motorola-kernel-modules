@@ -1,0 +1,28 @@
+load("//build/bazel_mgk_rules:mgk_ko.bzl", "define_mgk_ko")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+define_mgk_ko(
+    name = "focaltech_touch_v3_u_mmi",
+    srcs = glob([
+        "*.c",
+        "*.h",
+        "include/firmware/fw_sample.i",
+        "focaltech_test/*.*",
+        "focaltech_test/supported_ic/*.*",
+        "focaltech_flash/*.*",
+        "Kbuild",
+        "Makefile",
+    ]) + [
+        "//motorola/kernel/modules:public_headers",
+    ],
+    deps = [
+        "//motorola/kernel/modules/drivers/input/touchscreen/touchscreen_u_mmi:touchscreen_u_mmi",
+        "//motorola/kernel/modules/drivers/mmi_info:mmi_info",
+    ],
+    outs = ["focaltech_touch_v3_u_mmi.ko"],
+)
