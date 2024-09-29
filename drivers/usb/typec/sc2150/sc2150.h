@@ -3,7 +3,7 @@
 
 #include "inc/std_tcpci_v10.h"
 #include "inc/pd_dbg_info.h"
-#define ENABLE_SC2150_DBG   1
+#define ENABLE_SC2150_DBG   0
 
 #define SC2150_REG_ANA_CTRL1        0x90
 #define SC2150_REG_VCONN_OCP_CTRL   0x93

@@ -128,14 +128,11 @@ static int sc2150_read_device(void *client, u32 reg, int len, void *dst)
 {
 	struct i2c_client *i2c = client;
 	int ret = 0, count = 5;
-	u64 t1 = 0, t2 = 0;
 
 	while (1) {
-		t1 = local_clock();
 		ret = i2c_smbus_read_i2c_block_data(i2c, reg, len, dst);
-		t2 = local_clock();
-		SC2150_INFO("%s del = %lluus, reg = 0x%02X, len = %d, val = 0x%08X\n",
-			    __func__, (t2 - t1) / NSEC_PER_USEC, reg, len, *(u8 *)dst);
+		SC2150_INFO("%s reg = 0x%02X, len = %d, val = 0x%08X\n",
+			    __func__, reg, len, *(u8 *)dst);
 		if (ret < 0 && count > 1)
 			count--;
 		else
@@ -150,14 +147,12 @@ static int sc2150_write_device(void *client, u32 reg, int len, const void *src)
 {
 	struct i2c_client *i2c = client;
 	int ret = 0, count = 5;
-	u64 t1 = 0, t2 = 0;
 
 	while (1) {
-		t1 = local_clock();
 		ret = i2c_smbus_write_i2c_block_data(i2c, reg, len, src);
-		t2 = local_clock();
-		SC2150_INFO("%s del = %lluus, reg = %02X, len = %d, val = 0x%08X\n",
-			    __func__, (t2 - t1) / NSEC_PER_USEC, reg, len, *(u8 *)src);
+
+		SC2150_INFO("%s reg = %02X, len = %d, val = 0x%08X\n",
+			    __func__, reg, len, *(u8 *)src);
 		if (ret < 0 && count > 1)
 			count--;
 		else
@@ -414,10 +409,10 @@ static int sc2150_init_fault_mask(struct tcpc_device *tcpc)
 			TCPC_V10_REG_FAULT_STATUS_MASK, mask);
 }
 
-static inline int sc2150_init_prv_mask(struct tcpc_device *tcpc)
+/*static inline int sc2150_init_prv_mask(struct tcpc_device *tcpc)
 {
 	return sc2150_i2c_write8(tcpc, SC2150_REG_ANA_MASK, SC2150_REG_MASK_VBUS_80);
-}
+}*/
 
 static irqreturn_t sc2150_intr_handler(int irq, void *data)
 {
@@ -561,7 +556,7 @@ static int sc2150_tcpc_init(struct tcpc_device *tcpc, bool sw_reset)
 	sc2150_init_power_status_mask(tcpc);
 	sc2150_init_alert_mask(tcpc);
 	sc2150_init_fault_mask(tcpc);
-	sc2150_init_prv_mask(tcpc);
+	//sc2150_init_prv_mask(tcpc);
 
 	/* shutdown off */
 	sc2150_i2c_write8(tcpc, SC2150_REG_ANA_CTRL2, SC2150_REG_SHUTDOWN_OFF);
