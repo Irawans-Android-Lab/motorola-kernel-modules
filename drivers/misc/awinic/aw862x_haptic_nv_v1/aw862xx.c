@@ -269,7 +269,7 @@ static void aw862xx_play_mode(struct aw_haptic *aw_haptic, uint8_t play_mode)
 		aw_info("enter ram mode");
 		aw_haptic->play_mode = AW_RAM_MODE;
 		aw862xx_set_pwm(aw_haptic, AW_PWM_12K);
-		aw862xx_auto_brk_config(aw_haptic, false);
+		aw862xx_auto_brk_config(aw_haptic, true);
 		haptic_nv_i2c_write_bits(aw_haptic, AW862XX_REG_PLAYCFG3,
 					 AW862XX_BIT_PLAYCFG3_PLAY_MODE_MASK,
 					 AW862XX_BIT_PLAYCFG3_PLAY_MODE_RAM);
