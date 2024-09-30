@@ -102,7 +102,7 @@
 //#define AW8671X_DRIVER_ENABLE
 //#define AW8672X_DRIVER_ENABLE
 #define AW8692X_DRIVER_ENABLE
-//#define AW8693X_DRIVER_ENABLE
+#define AW8693X_DRIVER_ENABLE
 
 /*********************************************************
  *
