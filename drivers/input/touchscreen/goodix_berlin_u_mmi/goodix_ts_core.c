@@ -1609,6 +1609,12 @@ static int goodix_ts_power_init(struct goodix_ts_core *core_data)
 			core_data->avdd = NULL;
 			return ret;
 		}
+		ret = regulator_set_voltage(core_data->avdd, 3300000, 3300000);
+		if (ret) {
+			ts_err("set avdd voltage fail");
+			return ret;
+		}
+		ret = regulator_enable(core_data->avdd);
 	} else {
 		ts_info("Avdd name is NULL");
 	}
