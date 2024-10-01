@@ -1989,8 +1989,14 @@ static int fts_get_fw_file_via_request_firmware(struct fts_upgrade *upg)
         FTS_ERROR("upg/ts_data/dev is null");
         return -EINVAL;
     }
-
-    snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
+    if (fts_data->panel_supplier) {
+        FTS_INFO("fts_data->panel_supplier=%s\n", fts_data->panel_supplier);
+        snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
+                 FTS_FW_NAME_PREX_WITH_REQUEST, \
+                 fts_data->panel_supplier);
+        }
+    else
+        snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
              FTS_FW_NAME_PREX_WITH_REQUEST, \
              upg->module_info->vendor_name);
 

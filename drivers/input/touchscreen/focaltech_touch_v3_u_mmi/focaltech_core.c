@@ -1972,11 +1972,16 @@ static int fts_get_dt_coords(struct device *dev, char *name,
     return 0;
 }
 
+#define PRIM_PANEL_NAME	"mmi,panel_name"
+
 static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 {
     int ret = 0;
     struct device_node *np = dev->of_node;
     u32 temp_val = 0;
+    struct device_node *chosen;
+    const char *supplier;
+    int num_of_panel_supplier;
 
     FTS_FUNC_ENTER();
 
@@ -2063,31 +2068,73 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
              pdata->max_touch_number, pdata->irq_gpio, pdata->reset_gpio);
 #endif
 
-	pdata->edge_ctrl = of_property_read_bool(np,
-					"focaltech,edge-ctrl");
-	if (pdata->edge_ctrl)
-		FTS_INFO("support focaltech edge mode");
+    pdata->edge_ctrl = of_property_read_bool(np,
+                    "focaltech,edge-ctrl");
+    if (pdata->edge_ctrl)
+        FTS_INFO("support focaltech edge mode");
 
-	pdata->interpolation_ctrl = of_property_read_bool(np,
-					"focaltech,interpolation-ctrl");
-	if (pdata->interpolation_ctrl)
-		FTS_INFO("support focaltech interpolation mode");
+    pdata->interpolation_ctrl = of_property_read_bool(np,
+                    "focaltech,interpolation-ctrl");
+    if (pdata->interpolation_ctrl)
+        FTS_INFO("support focaltech interpolation mode");
 
-	pdata->report_rate_ctrl = of_property_read_bool(np,
-					"focaltech,report_rate-ctrl");
-	if (pdata->report_rate_ctrl)
-		FTS_INFO("support focaltech report rate switch mode");
+    pdata->report_rate_ctrl = of_property_read_bool(np,
+                    "focaltech,report_rate-ctrl");
+    if (pdata->report_rate_ctrl)
+        FTS_INFO("support focaltech report rate switch mode");
 
-	pdata->sample_ctrl = of_property_read_bool(np,
-					"focaltech,sample-ctrl");
-	if (pdata->sample_ctrl)
-		FTS_INFO("support focaltech sample mode");
+    pdata->sample_ctrl = of_property_read_bool(np,
+                    "focaltech,sample-ctrl");
+    if (pdata->sample_ctrl)
+        FTS_INFO("support focaltech sample mode");
 
-	pdata->stowed_mode_ctrl = of_property_read_bool(np,
-					"focaltech,stowed-mode-ctrl");
-	if (pdata->stowed_mode_ctrl)
-		FTS_INFO("Support focaltech touch stowed mode");
+    pdata->stowed_mode_ctrl = of_property_read_bool(np,
+                    "focaltech,stowed-mode-ctrl");
+    if (pdata->stowed_mode_ctrl)
+        FTS_INFO("Support focaltech touch stowed mode");
 
+    chosen = of_find_node_by_name(NULL, "chosen");
+    if (chosen) {
+        ret = of_property_read_string(chosen, PRIM_PANEL_NAME,
+                    (const char **)&supplier);
+        if (ret) {
+            FTS_ERROR("%s: cannot read %s %d\n",
+                    __func__, PRIM_PANEL_NAME, ret);
+        }
+        FTS_INFO("%s: %s %s",
+                    __func__, PRIM_PANEL_NAME, supplier);
+    }
+
+    num_of_panel_supplier = of_property_count_strings(np, "focaltech,panel-supplier");
+    FTS_INFO("get focaltech,panel-supplier count=%d", num_of_panel_supplier);
+    if (num_of_panel_supplier > 1) {
+        int j;
+        for (j = 0; j < num_of_panel_supplier; j++) {
+            ret = of_property_read_string_index(np, "focaltech,panel-supplier", j, &fts_data->panel_supplier);
+            if (ret < 0) {
+                FTS_INFO("cannot parse panel-supplier: %d\n", ret);
+                break;
+            } else if (fts_data->panel_supplier && strstr(supplier, fts_data->panel_supplier)) {
+                FTS_INFO("matched panel_supplier: %s", fts_data->panel_supplier);
+                return 0;
+            }
+        }
+    } else {
+        ret = of_property_read_string(np, "focaltech,panel-supplier",
+            &fts_data->panel_supplier);
+        if (ret < 0) {
+            fts_data->panel_supplier = NULL;
+            FTS_ERROR("Unable to read panel supplier\n");
+        } else if (fts_data->panel_supplier && strstr(supplier, fts_data->panel_supplier)) {
+            FTS_INFO("panel_supplier:%s matched!\n", fts_data->panel_supplier);
+            return 0;
+        } else {
+            if (fts_data->panel_supplier)
+                FTS_INFO(":%s not actived\n", fts_data->panel_supplier);
+            else
+                FTS_INFO("panel_supplier NULL!\n");
+        }
+    }
 
     FTS_FUNC_EXIT();
     return 0;
