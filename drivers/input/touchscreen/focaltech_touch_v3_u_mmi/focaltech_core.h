@@ -141,9 +141,7 @@
 #ifdef CONFIG_FTS_HIRES_EN
 #define FTS_TOUCH_HIRES_EN                  1
 #ifdef CONFIG_FTS_HIRES_X
-//Fixed me
-//#define FTS_TOUCH_HIRES_X                   ((CONFIG_FTS_HIRES_X < FTS_HI_RES_X_MAX) ? CONFIG_FTS_HIRES_X : FTS_HI_RES_X_MAX)
-#define FTS_TOUCH_HIRES_X                   16
+#define FTS_TOUCH_HIRES_X                   ((CONFIG_FTS_HIRES_X < FTS_HI_RES_X_MAX) ? CONFIG_FTS_HIRES_X : FTS_HI_RES_X_MAX)
 #else
 #define FTS_TOUCH_HIRES_X                   10
 #endif

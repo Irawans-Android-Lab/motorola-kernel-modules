@@ -877,7 +877,7 @@ static int fts_input_report_touch_pv2(struct fts_ts_data *ts_data, u8 *touch_buf
         events[i].minor = touch_buf[FTS_TOUCH_OFF_MINOR + base];
         events[i].p = 0x3F;
 #if FTS_REPORT_PRESSURE_EN
-        FTS_ERROR("The pressure property isn't supported");
+        //FTS_ERROR("The pressure property isn't supported");
 #endif
         if (events[i].area <= 0) events[i].area = 0x09;
         if (events[i].minor <= 0) events[i].minor = 0x09;
