@@ -761,7 +761,7 @@ static int fts_mmi_pre_resume(struct device *dev)
 
 	if (ts_data->gesture_support == false) {
 		mutex_lock(&input_dev->mutex);
-		fts_reset_proc(150);
+		fts_reset_proc(50);
 		FTS_INFO("Reset IC in %s for deep sleep", __func__);
 		mutex_unlock(&input_dev->mutex);
 	}
@@ -788,7 +788,7 @@ static int fts_mmi_post_resume(struct device *dev)
 		if(!fts_is_fod_resume(ts_data)) {
 #endif
 			FTS_INFO("Reset IC in post resume");
-			fts_reset_proc(200);
+			fts_reset_proc(50);
 #ifdef FOCALTECH_SENSOR_EN
 		}
 #endif
