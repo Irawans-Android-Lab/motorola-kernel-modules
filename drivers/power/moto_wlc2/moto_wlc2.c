@@ -870,6 +870,8 @@ static int moto_wlc_probe(struct platform_device *pdev)
 
 	wls_chg_register_psy(wlc);
 
+	wls_device_node_create(&(wlc->pdev->dev));
+
 	return 0;
 }
 

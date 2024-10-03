@@ -4,6 +4,9 @@
 #include <mtk_charger_algorithm_class.h>
 #include <linux/mmi_wireless_class.h>
 
+#define NORMAL_FW_UPDATE 1
+#define FORCE_FW_UPDATE 2
+
 #define WLC_V_CHARGER_MIN 4600000 /* 4.6 V */
 /*wireless input current and charging current*/
 #define WIRELESS_CHARGER_MAX_CURRENT			3000000
@@ -352,5 +355,7 @@ extern int wlc_hal_get_batt_cv(struct chg_alg_device *alg);
 
 extern int wls_chg_register_psy(struct moto_wlc *wlc);
 extern int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus);
+
+extern int wls_device_node_create(struct device *dev);
 
 #endif /* __MOTO_WLC2_H */
