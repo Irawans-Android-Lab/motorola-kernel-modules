@@ -851,6 +851,7 @@ static int moto_wlc_probe(struct platform_device *pdev)
 
 	wlc->state = WLC_HW_UNINIT;
 	moto_wlc_parse_dt(wlc, &pdev->dev);
+	wls_config_parse_dts(wlc, &pdev->dev);
 
 	if(gpio_is_valid(wlc->wls_control_en)) {
 		rc  = devm_gpio_request_one(&wlc->pdev->dev, wlc->wls_control_en,

@@ -204,6 +204,7 @@ struct wireless_config
 
 	const char *wls_fw_name;
 	bool wls_tx_support;
+	bool wls_boost_support;
 	bool config_otg_support;
 	uint32_t config_otg_vout; //uV
 	uint32_t config_otg_iout; //uA
@@ -357,5 +358,7 @@ extern int wls_chg_register_psy(struct moto_wlc *wlc);
 extern int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus);
 
 extern int wls_device_node_create(struct device *dev);
+
+extern int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev);
 
 #endif /* __MOTO_WLC2_H */
