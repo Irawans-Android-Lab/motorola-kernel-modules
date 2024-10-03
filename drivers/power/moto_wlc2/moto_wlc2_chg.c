@@ -40,6 +40,56 @@
 #include <linux/mmi_wireless_class.h>
 #include "moto_wlc2.h"
 
+
+int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus)
+{
+	int wls_power = 0;
+
+	if (IS_ERR_OR_NULL(wlc))
+		return -1;
+
+	if (IS_ERR_OR_NULL(wlc->wls_dev))
+		return -1;
+
+	wls_rx_get_op_mode(wlc->wls_dev, &wlc->data.mode_type);
+	wlc_info("%s start icl=%d vbus=%d mode_type:%d\n",
+			__func__, *icl, *vbus, wlc->data.mode_type);
+
+	if (wlc->data.mode_type == Sys_Op_Mode_BPP) {
+		*icl = wlc->config.bpp_icl_max_uA;
+		*vbus = 5000;
+		if (!wlc->ctl.bpp_icl_done) {
+			return -1;
+		}
+	} else if (wlc->data.mode_type == Sys_Op_Mode_EPP) {
+		wls_rx_get_rx_neg_power(wlc->wls_dev, &wls_power);
+		if (wls_power >= WLS_RX_CAP_15W) {
+			*icl = wlc->config.epp_icl_max_uA;
+			*vbus = 12000;
+		} else if (wls_power >= WLS_RX_CAP_10W) {
+			*icl = 1000000;
+			*vbus = 9000;
+		} else if (wls_power >= WLS_RX_CAP_7W) {
+			*icl = 850000;
+			*vbus = 9000;
+		} else if (wls_power >= WLS_RX_CAP_5W) {
+			*icl = 1000000;
+			*vbus = 5000;
+		} else {
+			*icl = 1000000;
+			*vbus = 5000;
+		}
+	}
+
+	if (wlc->ctl.input_current_max != 0 &&
+			wlc->ctl.input_current_max * 1000 < *icl)
+		*icl = wlc->ctl.input_current_max * 1000;
+
+	wlc_info("%s icl=%d vbus=%d epp_icl_max_uA=%d input_current_max=%d\n",
+			__func__, *icl, *vbus, wlc->config.epp_icl_max_uA,wlc->ctl.input_current_max);
+	return 0;
+}
+
 int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg *msg)
 {
 	struct moto_wlc *wlc = NULL;

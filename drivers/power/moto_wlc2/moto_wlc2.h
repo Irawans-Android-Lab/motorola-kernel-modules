@@ -351,5 +351,6 @@ extern int wlc_hal_get_batt_temp(struct chg_alg_device *alg);
 extern int wlc_hal_get_batt_cv(struct chg_alg_device *alg);
 
 extern int wls_chg_register_psy(struct moto_wlc *wlc);
+extern int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus);
 
 #endif /* __MOTO_WLC2_H */

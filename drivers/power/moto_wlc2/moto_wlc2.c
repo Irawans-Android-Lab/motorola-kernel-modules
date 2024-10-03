@@ -313,6 +313,7 @@ static int wlc_sc_set_charger(struct chg_alg_device *alg)
 	vbus = VBUS_DEFAULT_MV;
 	charging_current = wlc->wireless_charger_max_current;
 
+	cable_ready = wls_chg_current_select(wlc, &input_current, &vbus) >= 0 ? true : false;
 	wlc->cable_ready = cable_ready;
 	if (!cable_ready) {
 		mutex_unlock(&wlc->data_lock);
