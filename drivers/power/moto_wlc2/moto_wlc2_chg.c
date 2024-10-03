@@ -40,6 +40,70 @@
 #include <linux/mmi_wireless_class.h>
 #include "moto_wlc2.h"
 
+int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg *msg)
+{
+	struct moto_wlc *wlc = NULL;
+
+	wlc = (struct moto_wlc *)wls_dev->driver_data;
+
+	if (IS_ERR_OR_NULL(wlc))
+		return -1;
+
+	if (msg == NULL)
+		return -1;
+
+	pr_info("%s event:%d len=%d\n", __func__ , msg->event, msg->len);
+	switch(msg->event) {
+		case WLS_EVENT_TX_DETECTED:
+			break;
+		case WLS_EVENT_RX_POWER_ON:
+			break;
+		case WLS_EVENT_RX_NEGO_POWER_READY:
+			break;
+		case WLS_EVENT_RX_LDO_ON:
+			break;
+		case WLS_EVENT_HS_OK:
+			wlc->data.moto_stand = true;
+			break;
+		case WLS_EVENT_HS_FAIL:
+			wlc->data.moto_stand = false;
+			break;
+		case WLS_EVENT_RX_FSK_PKT:
+			break;
+		default:
+			break;
+	}
+	power_supply_changed(wlc->wls_psy);
+
+	return 0;
+}
+
+
+struct wireless_device * wls_get_wireless_device(struct moto_wlc *wlc)
+{
+	//pr_info("%s\n", __func__);
+
+	if (IS_ERR_OR_NULL(wlc))
+		return NULL;
+
+	if (!IS_ERR_OR_NULL(wlc->wls_dev))
+		return wlc->wls_dev;
+	else {
+		wlc->wls_dev = get_wireless_by_name("moto_wlc2");
+		if (!IS_ERR_OR_NULL(wlc->wls_dev)) {
+			wlc->callback_ops.event_handler = wls_chg_event_handler;
+			wireless_dev_set_drvdata(wlc->wls_dev, (void *)wlc);
+			wireless_dev_set_callback(wlc->wls_dev, (void *)&wlc->callback_ops);
+			wls_rx_set_irq_enable(wlc->wls_dev, true);
+			pr_info("%s wlc->wls_dev=%p\n", __func__, wlc->wls_dev);
+			return wlc->wls_dev;
+		} else {
+			pr_info("%s get wls dev failed\n", __func__);
+		}
+	}
+
+	return NULL;
+}
 
 enum power_supply_property wls_chg_props[] = {
 	POWER_SUPPLY_PROP_PRESENT,
@@ -57,11 +121,26 @@ int wls_chg_get_property(struct power_supply *psy,
 {
 	struct moto_wlc *wlc = power_supply_get_drvdata(psy);
 	int ret = 0;
+	int sys_mode = 0;
 
+	if (IS_ERR_OR_NULL(wlc)) {
+		return -EINVAL;
+	}
+	wls_get_wireless_device(wlc);
+	if (IS_ERR_OR_NULL(wlc->wls_dev)) {
+		val->intval = -1;
+		return -EINVAL;
+	}
 	switch(psp){
 		case POWER_SUPPLY_PROP_PRESENT:
 		case POWER_SUPPLY_PROP_ONLINE:
-			val->intval = wlc->wls_online;
+			wls_rx_get_sys_mode(wlc->wls_dev, &sys_mode);
+			pr_info("%s online:%d\n", __func__, sys_mode == SYS_MODE_RX);
+			if (sys_mode == SYS_MODE_RX)
+				val->intval = 1;
+			else {
+				val->intval = 0;
+			}
 			break;
 
 		case POWER_SUPPLY_PROP_TYPE:
@@ -69,18 +148,37 @@ int wls_chg_get_property(struct power_supply *psy,
 			break;
 
 		case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+			val->intval = 12000000;//uV
 			break;
 
 		case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+			wls_rx_get_rx_vout(wlc->wls_dev, &val->intval);
+			if (val->intval > 0) {
+				val->intval = val->intval * 1000;
+				pr_info("%s rx_vout: %d\n", __func__, val->intval);
+			} else
+				val->intval = -1;
 			break;
 
 		case POWER_SUPPLY_PROP_CURRENT_MAX:
+			val->intval = 1250000;//uA
 			break;
 
 		case POWER_SUPPLY_PROP_CURRENT_NOW:
+			wls_rx_get_rx_iout(wlc->wls_dev, &val->intval);
+			if (val->intval > 0) {
+				val->intval = val->intval * 1000;
+				pr_info("%s rx_iout: %d\n", __func__, val->intval);
+			} else
+				val->intval = -1;
 			break;
 
 		case POWER_SUPPLY_PROP_POWER_NOW:
+			wls_rx_get_rx_neg_power(wlc->wls_dev, &val->intval);
+			if (val->intval > 0) {
+				pr_info("%s power_now:%d\n", __func__, val->intval);
+			} else
+				val->intval = -1;
 			break;
 
 		default:
