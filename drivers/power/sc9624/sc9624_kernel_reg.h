@@ -521,6 +521,7 @@ struct sc9624 {
     uint32_t reg_data;
     const char *wls_fw_name;
     int wls_mode_select;
+    SYSMODE sys_mode;
 };
 
 int mtp_program(struct sc9624 *sc);

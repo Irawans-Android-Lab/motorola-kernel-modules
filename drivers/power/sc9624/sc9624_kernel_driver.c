@@ -480,6 +480,21 @@ int sc9624_rx_get_int(struct sc9624 *sc, uint32_t *rxint)
     return ret;
 }
 
+int sc9624_rx_get_sysmode(struct sc9624 *sc, uint32_t *sysmode)
+{
+	int ret = 0;
+	uint16_t offset = 0;
+
+	OFFSET(RXCustType, SYSMode, offset);
+	ret = sc9624_read_block(sc, offset, (uint8_t *)sysmode,
+			(uint8_t)sizeof(((RXCustType *)0)->SYSMode));
+	if (ret) {
+		sc_err("sc9624 read sysmode fail\n");
+	}
+
+	return ret;
+}
+
 int sc9624_rx_send_ept(struct sc9624 *sc, EPT_RESON ept_v)
 {
     int ret;
@@ -1275,27 +1290,31 @@ static void sc9624_irq_work_handler(struct kthread_work *work)
 
     /* make sure I2C bus had resumed */
     down(&sc->suspend_lock);
+    ret = sc9624_rx_get_sysmode(sc, &sc->sys_mode.value);
+    if (ret) {
+        sc_err("Can't get sys mode\n");
+        up(&sc->suspend_lock);
+        return;
+    }
+    sc_info("irq trigger mode RX:%d TX:%d\n", sc->sys_mode.RECEIVER, sc->sys_mode.TRANSMITTER);
 
-    sc_info("irq trigger mode : %s\n", sc->work_mode == RX_MODE ? "RX MODE" : "TX MODE");
-
-    if (sc->work_mode == RX_MODE) {
+    if (sc->sys_mode.RECEIVER) {
         ret = sc9624_rx_get_int(sc, &regval);
         if (ret < 0) {
             sc_err("get rx int flag fail\n");
             up(&sc->suspend_lock);
             return;
         }
-
+        sc_info("get rx int flag:0x%08X\n", regval);
+        //clear intflag
+        ret = sc9624_rx_clr_int(sc, regval);
         for (i = 0; i < ARRAY_SIZE(rx_irq_handlers); i++) {
-                if (rx_irq_handlers[i].bit_mask & regval) {
-                    if (rx_irq_handlers[i].handler != 0)
-                        rx_irq_handlers[i].handler(sc);
+            if (rx_irq_handlers[i].bit_mask & regval) {
+                if (rx_irq_handlers[i].handler != 0)
+                    rx_irq_handlers[i].handler(sc);
             }
-
-            //clear intflag
-            ret = sc9624_rx_clr_int(sc, regval);
         }
-    } else {
+    } else if (sc->sys_mode.TRANSMITTER){
         ret = sc9624_tx_get_int(sc, &regval);
         if (ret < 0) {
             sc_err("get tx int flag fail\n");
