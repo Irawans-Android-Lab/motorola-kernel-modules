@@ -721,6 +721,12 @@ static int rx_fsk_recv_irq_handler(struct sc9624 *sc)
     return ret;
 }
 
+static int rx_ppp_timeout_irq_handler(struct sc9624 *sc)
+{
+    sc_info(":trigger\n");
+    return 0;
+}
+
 static int rx_ppp_success_irq_handler(struct sc9624 *sc)
 {
     sc_info(":trigger\n");
@@ -733,7 +739,7 @@ static int rx_afc_det_irq_handler(struct sc9624 *sc)
     return 0;
 }
 
-static int rx_epp_det_irq_handler(struct sc9624 *sc)
+static int rx_power_profile_irq_handler(struct sc9624 *sc)
 {
     sc_info(":trigger\n");
     return 0;
@@ -801,6 +807,18 @@ static int rx_pldo_irq_handler(struct sc9624 *sc)
 }
 
 static int rx_scp_irq_handler(struct sc9624 *sc)
+{
+    sc_info(":trigger\n");
+    return 0;
+}
+
+static int rx_hs_ok_irq_handler(struct sc9624 *sc)
+{
+    sc_info(":trigger\n");
+    return 0;
+}
+
+static int rx_hs_fail_irq_handler(struct sc9624 *sc)
 {
     sc_info(":trigger\n");
     return 0;
@@ -899,18 +917,22 @@ static const struct interrupt_handler rx_irq_handlers[] = {
     DECL_INTERRUPT_HANDLER(7, sleep_irq_handler),
     DECL_INTERRUPT_HANDLER(8, mode_change_irq_handler),
     DECL_INTERRUPT_HANDLER(9, rx_fsk_recv_irq_handler),
-    DECL_INTERRUPT_HANDLER(10, rx_ppp_success_irq_handler),
-    DECL_INTERRUPT_HANDLER(11, rx_afc_det_irq_handler),
-    DECL_INTERRUPT_HANDLER(12, rx_epp_det_irq_handler),
-    DECL_INTERRUPT_HANDLER(13, rx_poweron_irq_handler),
-    DECL_INTERRUPT_HANDLER(14, rx_ss_pkt_irq_handler),
-    DECL_INTERRUPT_HANDLER(15, rx_id_pkt_irq_handler),
-    DECL_INTERRUPT_HANDLER(16, rx_config_pkt_irq_handler),
-    DECL_INTERRUPT_HANDLER(17, rx_ready_irq_handler),
-    DECL_INTERRUPT_HANDLER(18, rx_ldo_on_irq_handler),
-    DECL_INTERRUPT_HANDLER(19, rx_ldo_off_irq_handler),
-    DECL_INTERRUPT_HANDLER(20, rx_pldo_irq_handler),
-    DECL_INTERRUPT_HANDLER(21, rx_scp_irq_handler),
+    DECL_INTERRUPT_HANDLER(10, rx_ppp_timeout_irq_handler),
+    DECL_INTERRUPT_HANDLER(11, rx_ppp_success_irq_handler),
+    DECL_INTERRUPT_HANDLER(12, rx_afc_det_irq_handler),
+    DECL_INTERRUPT_HANDLER(13, rx_power_profile_irq_handler),
+//    DECL_INTERRUPT_HANDLER(12, rx_epp_det_irq_handler),
+    DECL_INTERRUPT_HANDLER(14, rx_poweron_irq_handler),
+    DECL_INTERRUPT_HANDLER(15, rx_ss_pkt_irq_handler),
+    DECL_INTERRUPT_HANDLER(16, rx_id_pkt_irq_handler),
+    DECL_INTERRUPT_HANDLER(17, rx_config_pkt_irq_handler),
+    DECL_INTERRUPT_HANDLER(18, rx_ready_irq_handler),
+    DECL_INTERRUPT_HANDLER(19, rx_ldo_on_irq_handler),
+    DECL_INTERRUPT_HANDLER(20, rx_ldo_off_irq_handler),
+    DECL_INTERRUPT_HANDLER(21, rx_pldo_irq_handler),
+    DECL_INTERRUPT_HANDLER(22, rx_scp_irq_handler),
+    DECL_INTERRUPT_HANDLER(26, rx_hs_ok_irq_handler),
+    DECL_INTERRUPT_HANDLER(27, rx_hs_fail_irq_handler),
 };
 
 static const struct interrupt_handler tx_irq_handlers[] = {
