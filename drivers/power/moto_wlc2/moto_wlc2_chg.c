@@ -40,6 +40,61 @@
 #include <linux/mmi_wireless_class.h>
 #include "moto_wlc2.h"
 
+int wls_chg_mmi_mux_chan_set(enum mmi_mux_channel channel, bool on)
+{
+	struct mtk_charger *info = NULL;
+	struct power_supply *chg_psy = NULL;
+
+	chg_psy = power_supply_get_by_name("mtk-master-charger");
+	if (IS_ERR_OR_NULL(chg_psy)) {
+		pr_err("%s mmi_mux Couldn't get chg_psy\n", __func__);
+		return -1;
+	}
+
+	info = (struct mtk_charger *)power_supply_get_drvdata(chg_psy);
+	if (IS_ERR_OR_NULL(info)) {
+		pr_err("%s mmi_mux Couldn't get chg_psy\n", __func__);
+		return -1;
+	}
+
+	if (info->algo.do_mux) {
+		pr_info("mmi_mux open wls chg chan = %d on = %d\n", channel, on);
+		info->algo.do_mux(info, channel, on);
+	} else
+		pr_err("mmi_mux get info->algo.do_mux fail\n");
+
+	return 0;
+}
+
+int wls_chg_power_on(struct moto_wlc *wlc)
+{
+	int sys_mode = 0;
+	int rt = -1;
+
+	wls_rx_get_sys_mode(wlc->wls_dev, &sys_mode);
+	if (sys_mode == SYS_MODE_RX) {
+		rt = wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_CHG, true);
+		if (rt == 0) {
+			wlc->wls_online = true;
+			power_supply_changed(wlc->wls_psy);
+		}
+	}
+
+	return rt;
+}
+
+int wls_chg_power_off(struct moto_wlc *wlc)
+{
+	int rt = -1;
+
+	rt = wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_CHG, false);
+	if (rt == 0) {
+		wlc->wls_online = false;
+		power_supply_changed(wlc->wls_psy);
+	}
+
+	return rt;
+}
 
 int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus)
 {
@@ -108,12 +163,14 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 		case WLS_EVENT_TX_DETECTED:
 			if (msg->len == 1) {
 				if (msg->data[0] == 0) {
+					wls_chg_power_off(wlc);
 					wls_auth_disconnect(wlc);
 					wls_chg_notify_st_changed(wlc, WLC_DISCONNECTED);
 				}
 			}
 			break;
 		case WLS_EVENT_RX_POWER_ON:
+			wls_chg_power_on(wlc);
 			break;
 		case WLS_EVENT_RX_NEGO_POWER_READY:
 			if (!IS_ERR_OR_NULL(wlc))
