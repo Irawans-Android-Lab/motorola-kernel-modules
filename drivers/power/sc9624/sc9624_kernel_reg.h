@@ -4,7 +4,7 @@
  */
 #ifndef __SC9624_REG__
 #define __SC9624_REG__
-
+#include <linux/mmi_wireless_class.h>
 /// -----------------------------------------------------------------
 ///                      Work Mode
 /// -----------------------------------------------------------------
@@ -511,6 +511,7 @@ struct sc9624 {
 
     int work_mode;
     bool fw_program;
+    bool fw_update_force;
 
     struct sc9624_config config;
 
@@ -522,6 +523,8 @@ struct sc9624 {
     const char *wls_fw_name;
     int wls_mode_select;
     SYSMODE sys_mode;
+    struct wireless_device *wls_dev;
+    struct wls_rx_ops rx_ops;
 };
 
 int mtp_program(struct sc9624 *sc);

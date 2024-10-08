@@ -312,6 +312,25 @@ int sc9624_get_tdie(struct sc9624 *sc, uint16_t *tdie)
 
     return ret;
 }
+
+static int sc9624_get_nego_power(struct sc9624 *sc, uint32_t *power)
+{
+    int ret;
+    uint16_t offset = 0;
+    ContractType type = {0x00};
+
+    OFFSET(RXCustType, ReqContract, offset);
+    ret = sc9624_read_block(sc, offset, (uint8_t *)&type,
+            (uint8_t)sizeof(((RXCustType *)0)->ReqContract));
+    if (ret) {
+        sc_err(" fail, ret:%d\n", ret);
+    } else {
+        *power = type.guaranteed_power / 2;
+    }
+
+    return ret;
+}
+
 //-------------------sc9624 RX interface-------------------
 static int sc9624_rx_set_cmd(struct sc9624 *sc, RX_CMD cmd)
 {
@@ -1093,6 +1112,243 @@ static void sc9624_create_device_node(struct device *dev)
     device_create_file(dev, &dev_attr_wireless_fw_update);
 }
 
+static const struct wireless_properties sc9624_wls_props = {
+	.alias_name = "SC9624",
+};
+
+int sc9624_get_chip_id(struct wireless_device *wls_dev, int *chip_id)
+{
+	int rt = 0;
+	uint16_t id = 0;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	rt = sc9624_get_chipid(sc, &id);
+	pr_info("%s rt=%d chip_id=0x%04X\n", __func__, rt, id);
+	if (!IS_ERR_OR_NULL(chip_id))
+		*chip_id = id;
+
+	return rt;
+}
+
+int sc9624_rx_get_fw_version(struct wireless_device *wls_dev, int *fw_version)
+{
+	int rt = 0;
+	struct sc9624 *sc = NULL;
+	uint32_t ver = 0;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+
+	rt = sc9624_get_fwver(sc, &ver);
+	if (rt > 0 && !IS_ERR_OR_NULL(fw_version))
+		*fw_version = ver ;
+
+	return rt;
+}
+
+int sc9624_rx_get_rx_nego_power(struct wireless_device *wls_dev, int *power)
+{
+	uint32_t nego_power = 0;
+	int rt = 0;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	rt = sc9624_get_nego_power(sc, &nego_power);
+
+	if (!IS_ERR_OR_NULL(power))
+		*power = nego_power ;
+
+	return rt;
+}
+
+int sc9624_rx_get_op_mode(struct wireless_device *wls_dev, int *op_mode)
+{
+	int rt = 0;
+	struct sc9624 *sc = NULL;
+	SYSMODE sysmode = {0x00};
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	rt = sc9624_rx_get_sysmode(sc, &sysmode.value);
+
+	if (sysmode.BPP_MODE) {
+		rt = Sys_Op_Mode_BPP;
+	} else if (sysmode.EPP_MODE) {
+		rt = Sys_Op_Mode_EPP;
+	}
+	if (!IS_ERR_OR_NULL(op_mode))
+		*op_mode = rt ;
+
+	return rt;
+}
+
+int sc9624_rx_get_sys_mode(struct wireless_device *wls_dev, int *sys_mode)
+{
+	int rt = 0;
+	struct sc9624 *sc = NULL;
+	SYSMODE sysmode = {0x00};
+	sc = dev_get_drvdata(&wls_dev->dev);
+
+	rt = sc9624_rx_get_sysmode(sc, &sysmode.value);
+	if (sysmode.RECEIVER) {
+		rt = SYS_MODE_RX;
+	} else if (sysmode.TRANSMITTER) {
+		rt = SYS_MODE_TX;
+	}
+
+	if (!IS_ERR_OR_NULL(sys_mode))
+		*sys_mode = rt;
+
+	return rt;
+}
+
+int sc9624_get_rx_irect(struct wireless_device *wls_dev, int *cur)
+{
+	int rt = 0;
+	struct sc9624 *sc = NULL;
+	uint16_t curr = 0;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	rt = sc9624_get_current(sc, &curr);
+	if (rt == 0 && !IS_ERR_OR_NULL(cur))
+		*cur = curr ;
+
+	return rt;
+}
+
+int sc9624_get_rx_vrect(struct wireless_device *wls_dev, int *voltage)
+{
+	int rt = 0;
+	uint16_t vrect = 0;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	rt = sc9624_get_vrect(sc, &vrect);
+	if (rt == 0 && !IS_ERR_OR_NULL(voltage))
+		*voltage = vrect;
+
+	return rt;
+}
+
+int sc9624_get_rx_vout(struct wireless_device *wls_dev, int *voltage)
+{
+	int rt = 0;
+	uint16_t vout = 0;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	rt = sc9624_get_voltage(sc, &vout);
+	if (rt == 0 && !IS_ERR_OR_NULL(voltage))
+		*voltage = vout ;
+
+	return rt;
+}
+
+bool sc9624_check_ldo_on(struct wireless_device *wls_dev)
+{
+	uint16_t voltage = 0;
+	int rt = 0;
+	struct sc9624 *sc = NULL;
+	SYSMODE sysmode = {0x00};
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	rt = sc9624_rx_get_sysmode(sc, &sysmode.value);
+	if (rt == 0 && sysmode.RECEIVER) {
+		rt = sc9624_get_voltage(sc, &voltage);
+	}
+
+	return (voltage > 4500);
+}
+
+int sc9624_send_ask_packet(struct wireless_device *wls_dev, uint8_t *data, int data_len)
+{
+	struct sc9624 *sc = NULL;
+	AskType ask = {0x00};
+	int rt = 0;
+	int i = 0;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	if (data_len > MAX_ASK_SIZE) {
+		sc_err("data_len(%d) > MAX_ASK_SIZE\n", data_len);
+		return -1;
+	}
+
+	pr_info("%s data_len=%d:", __func__, data_len);
+	while (i < data_len) {
+		pr_info("%02X ", data[i]);
+		i ++;
+	}
+	pr_info("\n");
+	memcpy(&ask.buf, data, data_len);
+	if (0 == sc9624_rx_send_ask_pkt(sc, &ask)) {
+		rt = data_len; //if send successed, need to return data len.
+	}
+	return rt;
+}
+
+int sc9624_set_mode_select(struct wireless_device *wls_dev, bool on)
+{
+	int rt = -1;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+
+	if (gpio_is_valid(sc->wls_mode_select)) {
+		gpio_set_value(sc->wls_mode_select, on);
+		rt = 0;
+	}
+
+	sc_info("sc9624_wls_mode_select mode:%d rt:%d\n", on, rt);
+
+	return rt;
+}
+
+int sc9624_set_fw_update(struct wireless_device *wls_dev, bool on)
+{
+	int rt = -1;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+
+	sc->fw_update_force = on;
+	rt = mtp_program(sc);
+
+	sc_info(" update:%d rt:%d\n", on, rt);
+
+	return rt;
+}
+
+static int sc9624_wlc2_init(struct sc9624 *sc)
+{
+	int ret = 0;
+
+	sc->rx_ops.get_chip_id = sc9624_get_chip_id;
+	sc->rx_ops.get_fw_version = sc9624_rx_get_fw_version;
+	sc->rx_ops.get_op_mode = sc9624_rx_get_op_mode;
+	sc->rx_ops.get_sys_mode = sc9624_rx_get_sys_mode;
+	sc->rx_ops.get_rx_neg_power = sc9624_rx_get_rx_nego_power;
+	sc->rx_ops.get_rx_irect = sc9624_get_rx_irect;
+	sc->rx_ops.get_rx_iout = sc9624_get_rx_irect;
+	sc->rx_ops.get_rx_vrect = sc9624_get_rx_vrect;
+	sc->rx_ops.get_rx_vout = sc9624_get_rx_vout;
+	sc->rx_ops.check_ldo_on = sc9624_check_ldo_on;
+	sc->rx_ops.send_ask_packet = sc9624_send_ask_packet;
+	sc->rx_ops.set_mode_select = sc9624_set_mode_select;
+	sc->rx_ops.set_fw_update = sc9624_set_fw_update;
+
+	sc->wls_dev = wireless_device_register("moto_wlc2",
+							&sc->client->dev, (void*)sc,
+							&sc->rx_ops,
+							NULL,
+							&sc9624_wls_props);
+	if (IS_ERR_OR_NULL(sc->wls_dev)) {
+		ret = PTR_ERR(sc->wls_dev);
+		sc_err("failed to register battery: %d\n", ret);
+	} else {
+		sc_info("sc->wls_dev=%p\n", sc->wls_dev);
+	}
+
+	return ret;
+}
 
 static enum power_supply_property sc9624_charger_props[] = {
     POWER_SUPPLY_PROP_ONLINE,
@@ -1533,6 +1789,7 @@ static int sc9624_charger_probe(struct i2c_client *client,
 
     device_init_wakeup(sc->dev, 1);
 
+    sc9624_wlc2_init(sc);
     sc_info("sc9624 probe successfully!\n");
 
     return 0;
