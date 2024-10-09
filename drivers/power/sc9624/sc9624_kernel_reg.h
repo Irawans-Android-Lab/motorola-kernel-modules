@@ -525,6 +525,7 @@ struct sc9624 {
     SYSMODE sys_mode;
     struct wireless_device *wls_dev;
     struct wls_rx_ops rx_ops;
+    struct mutex event_lock;
 };
 
 int mtp_program(struct sc9624 *sc);

@@ -36,6 +36,7 @@
 #include "sc9624_kernel_reg.h"
 
 #define SC9624_IRQ_WAKE_TIME    (500) /* ms */
+int sc9624_send_event(struct sc9624 *sc, struct wls_event_msg *msg);
 
 /**********************************IIC API*********************************/
 static const struct regmap_config sc9624_regmap_config = {
@@ -783,8 +784,11 @@ static int rx_poweron_irq_handler(struct sc9624 *sc)
 {
     int ret;
     uint32_t regval;
+    struct wls_event_msg msg = {0x00};
 
     sc_info(":trigger\n");
+    msg.event = WLS_EVENT_RX_POWER_ON;
+    ret = sc9624_send_event(sc, &msg);
 
     ret = sc9624_get_custid(sc, (uint16_t *)&regval);
     sc_info(" cust id : 0x%08x\n", regval);
@@ -824,7 +828,11 @@ static int rx_ready_irq_handler(struct sc9624 *sc)
 
 static int rx_ldo_on_irq_handler(struct sc9624 *sc)
 {
+    struct wls_event_msg msg = {0x00};
+
     sc_info(":trigger\n");
+    msg.event = WLS_EVENT_RX_LDO_ON;
+    sc9624_send_event(sc, &msg);
     return 0;
 }
 
@@ -848,13 +856,21 @@ static int rx_scp_irq_handler(struct sc9624 *sc)
 
 static int rx_hs_ok_irq_handler(struct sc9624 *sc)
 {
+    struct wls_event_msg msg = {0x00};
+
     sc_info(":trigger\n");
+    msg.event = WLS_EVENT_HS_OK;
+    sc9624_send_event(sc, &msg);
     return 0;
 }
 
 static int rx_hs_fail_irq_handler(struct sc9624 *sc)
 {
+    struct wls_event_msg msg = {0x00};
+
     sc_info(":trigger\n");
+    msg.event = WLS_EVENT_HS_FAIL;
+    sc9624_send_event(sc, &msg);
     return 0;
 }
 
@@ -1317,6 +1333,24 @@ int sc9624_set_fw_update(struct wireless_device *wls_dev, bool on)
 	return rt;
 }
 
+int sc9624_send_event(struct sc9624 *sc, struct wls_event_msg *msg)
+{
+	int rt = -1;
+
+	sc_info("event=%d\n", msg->event);
+	if (IS_ERR_OR_NULL(sc->wls_dev) ||
+		IS_ERR_OR_NULL(sc->wls_dev->callback_ops)||
+		IS_ERR_OR_NULL(sc->wls_dev->callback_ops->event_handler)) {
+		return rt;
+	}
+
+	mutex_lock(&sc->event_lock);
+	rt = sc->wls_dev->callback_ops->event_handler(sc->wls_dev, msg);
+	mutex_unlock(&sc->event_lock);
+
+	return rt;
+}
+
 static int sc9624_wlc2_init(struct sc9624 *sc)
 {
 	int ret = 0;
@@ -1660,10 +1694,15 @@ static void sc9624_wls_det_work_handler(struct kthread_work *work)
 {
     struct sc9624 *sc =
             container_of(work, struct sc9624, wls_det_work);
+    struct wls_event_msg msg = {0x00};
 
     /* make sure I2C bus had resumed */
     down(&sc->wls_det_lock);
-
+    msg.event = WLS_EVENT_TX_DETECTED;
+    msg.data[0] = gpio_get_value(sc->wls_det_gpio);
+    msg.len = 1;
+    sc_info("wls_det_gpio:%d\n", msg.data[0]);
+    sc9624_send_event(sc, &msg);
     up(&sc->wls_det_lock);
     power_supply_changed(sc->wl_psy);
 }
@@ -1762,6 +1801,7 @@ static int sc9624_charger_probe(struct i2c_client *client,
 
     mutex_init(&sc->i2c_rw_lock);
     mutex_init(&sc->data_lock);
+    mutex_init(&sc->event_lock);
     sema_init(&sc->suspend_lock, 1);
 
     i2c_set_clientdata(client, sc);
