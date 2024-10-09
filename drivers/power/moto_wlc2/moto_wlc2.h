@@ -309,6 +309,7 @@ struct moto_wlc {
 	struct wireless_config config;
 	struct wireless_data data;
 	struct wireless_auth auth;
+	int pre_status;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
@@ -356,9 +357,16 @@ extern int wlc_hal_get_batt_cv(struct chg_alg_device *alg);
 
 extern int wls_chg_register_psy(struct moto_wlc *wlc);
 extern int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus);
+extern int wls_chg_notify_st_changed(struct moto_wlc *wlc, int st);
 
 extern int wls_device_node_create(struct device *dev);
 
 extern int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev);
+
+extern int wls_auth_init(struct moto_wlc *wlc);
+extern int wls_auth_disconnect(struct moto_wlc *wlc);
+extern int wls_auth_hs_ok_handler(struct moto_wlc *wlc, int op_mode);
+extern int wls_auth_decode_fsk_packet(struct moto_wlc *wlc, uint8_t *data, int data_len);
+
 
 #endif /* __MOTO_WLC2_H */

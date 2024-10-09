@@ -93,6 +93,7 @@ int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus)
 int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg *msg)
 {
 	struct moto_wlc *wlc = NULL;
+	int op_mode = 0;
 
 	wlc = (struct moto_wlc *)wls_dev->driver_data;
 
@@ -105,20 +106,32 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 	pr_info("%s event:%d len=%d\n", __func__ , msg->event, msg->len);
 	switch(msg->event) {
 		case WLS_EVENT_TX_DETECTED:
+			if (msg->len == 1) {
+				if (msg->data[0] == 0) {
+					wls_auth_disconnect(wlc);
+					wls_chg_notify_st_changed(wlc, WLC_DISCONNECTED);
+				}
+			}
 			break;
 		case WLS_EVENT_RX_POWER_ON:
 			break;
 		case WLS_EVENT_RX_NEGO_POWER_READY:
+			if (!IS_ERR_OR_NULL(wlc))
+				wls_chg_notify_st_changed(wlc, WLC_TX_POWER_CHANGED);
 			break;
 		case WLS_EVENT_RX_LDO_ON:
+			wls_chg_notify_st_changed(wlc, WLC_CONNECTED);
 			break;
 		case WLS_EVENT_HS_OK:
 			wlc->data.moto_stand = true;
+			wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+			wls_auth_hs_ok_handler(wlc, op_mode);
 			break;
 		case WLS_EVENT_HS_FAIL:
 			wlc->data.moto_stand = false;
 			break;
 		case WLS_EVENT_RX_FSK_PKT:
+			wls_auth_decode_fsk_packet(wlc, msg->data, msg->len);
 			break;
 		default:
 			break;
@@ -247,6 +260,18 @@ static char *wls_psy_supplied_to[] = {
 	"battery",
 	"mtk-master-charger",
 };
+
+int wls_chg_notify_st_changed(struct moto_wlc *wlc, int st)
+{
+	if (wlc->pre_status != st) {
+		wlc_info("%s st change	%d -> %d\n",
+				__func__, wlc->pre_status, st);
+		wlc->pre_status = st;
+		sysfs_notify(&wlc->wls_psy->dev.parent->kobj, NULL, "wlc_st_changed");
+	}
+
+	return 0;
+}
 
 int wls_chg_register_psy(struct moto_wlc *wlc)
 {
