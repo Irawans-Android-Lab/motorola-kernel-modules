@@ -553,7 +553,25 @@ static int cw_get_temp(struct gauge_device *gauge_dev, int *temp_out)
 	union power_supply_propval val;
 	bool wlc_is_online = false;
 
-	if (cw_bat->has_ext_ntc) {
+	if (cw_bat->has_ext_ntc &&
+		(IS_ERR_OR_NULL(cw_bat->Batt_NTC_channel) ||
+		IS_ERR_OR_NULL(cw_bat->vref_channel))) {
+		cw_bat->Batt_NTC_channel = devm_iio_channel_get(cw_bat->dev, "bat_temp");
+		if (IS_ERR(cw_bat->Batt_NTC_channel)) {
+			cw_err(cw_bat, "failed to get batt_therm IIO channel\n");
+			ret = PTR_ERR(cw_bat->Batt_NTC_channel);
+		}
+		cw_bat->vref_channel = devm_iio_channel_get(cw_bat->dev, "vref");
+		if (IS_ERR(cw_bat->vref_channel)) {
+			cw_err(cw_bat, "failed to get vref_channel IIO channel\n");
+			ret = PTR_ERR(cw_bat->vref_channel);
+		}
+	}
+
+	if (cw_bat->has_ext_ntc &&
+		!IS_ERR_OR_NULL(cw_bat->Batt_NTC_channel) &&
+		!IS_ERR_OR_NULL(cw_bat->vref_channel)) {
+
 		iio_read_channel_processed(cw_bat->Batt_NTC_channel, &batt_ntc_v);
 		iio_read_channel_processed(cw_bat->vref_channel, &bif_v);
 
