@@ -248,7 +248,7 @@ int wls_chg_get_property(struct power_supply *psy,
 	}
 	wls_get_wireless_device(wlc);
 	if (IS_ERR_OR_NULL(wlc->wls_dev)) {
-		val->intval = -1;
+		wlc_err("%s wlc->wls_dev is err or null\n", __func__);
 		return -EINVAL;
 	}
 	switch(psp){
