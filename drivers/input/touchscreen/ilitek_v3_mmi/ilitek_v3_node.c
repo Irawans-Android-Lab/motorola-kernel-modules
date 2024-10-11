@@ -3176,12 +3176,15 @@ static long ilitek_node_ioctl(struct file *filp, unsigned int cmd, unsigned long
 		}
 		break;
 	case ILITEK_IOCTL_TP_CHIP_ID:
-		ILI_DBG("ioctl: get chip id\n");
-		id_to_user[0] = ilits->chip->pid;
-		id_to_user[1] = ilits->chip->otp_id;
-		id_to_user[2] = ilits->chip->ana_id;
+		ILI_DBG("ioctl: get chip id (with second chip id)\n");
+		id_to_user[0] = 0x78787878;
+		id_to_user[1] = ilits->chip->pid;
+		id_to_user[2] = ilits->chip->second_pid;
+		id_to_user[3] = ilits->chip->otp_id;
+		id_to_user[4] = ilits->chip->ana_id;
+		length = 5;
 
-		if (copy_to_user((u32 *) arg, id_to_user, sizeof(u32) * 3)) {
+		if (copy_to_user((u32 *) arg, id_to_user, sizeof(u32) * length)) {
 			ILI_ERR("Failed to copy driver ver to user space\n");
 			ret = -ENOTTY;
 		}
