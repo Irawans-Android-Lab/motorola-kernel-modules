@@ -55,6 +55,7 @@ enum bq_work_mode {
 
 #define BQ_MODE_COUNT 3
 #define SC8541_PART_NO 0x41
+#define SGM41606S_PART_NO 0x11
 #define VAC1_STAT_MASK  0x10
 #define VAC1_STAT_SHIFT  4
 
@@ -238,6 +239,47 @@ static struct reg_default sc8541_reg_init_val[] = {
 
 	{BQ25980_ADC_CONTROL1,	0x00},
 	{BQ25980_ADC_CONTROL2,	0x06}, //0x26: enable vac1 vac2 adc and vout adc
+
+};
+
+static struct reg_default sgm41606s_reg_init_val[] = {
+	{BQ25980_BATOVP,	0x6c},//0x69:4550mV 0x6c:4580mv
+	{BQ25980_BATOVP_ALM,	0x64},//0x61:4470mV 0x64:4500mv
+	{BQ25980_BATOCP,	0xEE},//0xEE:disable for dual //0x46:7000mA for standalone
+	{BQ25980_BATOCP_ALM,	0x7F},//0x7F:12700mA
+	{BQ25980_CHRGR_CFG_1,	0x80},
+	{BQ25980_CHRGR_CTRL_1,	0x49},
+#ifdef CONFIG_MOTO_CHANNEL_SWITCH
+	{BQ25980_BUSOVP,	0x7F},//0X6B:12350mV 0x7F:13350mv
+	{BQ25980_BUSOVP_ALM,	0x6B},//0X6B:12350mV 0X7F:13350mV
+#else
+	{BQ25980_BUSOVP,	0x64},//0X50:11000mV 0x64:12000mv
+	{BQ25980_BUSOVP_ALM,	0x50},//0X46:10500mV 0X50:11000mV
+#endif
+	{BQ25980_BUSOCP,	0x0C},
+	{BQ25980_REG_09,	0x8C},
+#ifdef CONFIG_MOTO_CHANNEL_SWITCH
+	{BQ25980_TEMP_CONTROL,	0x4C},
+#else
+	{BQ25980_TEMP_CONTROL,	0x2C},
+#endif
+	{BQ25980_TDIE_ALM,	0x78},//0x78:85C
+	{BQ25980_TSBUS_FLT,	0x15},
+	{BQ25980_TSBAT_FLG,	0x15},
+	{BQ25980_VAC_CONTROL,	0x6c},//0xb4:14v*2 for vacovp
+	{BQ25980_CHRGR_CTRL_2,	0x00},
+	{BQ25980_CHRGR_CTRL_3,	0x94},//0x94:watchdog disable 5s,500kHz
+	{BQ25980_CHRGR_CTRL_4,	0xf1},//5m oum battery sense resister & ss_timeout is 10s
+	{BQ25980_CHRGR_CTRL_5,	0x60},
+
+	{BQ25980_MASK1,		0x00},
+	{BQ25980_MASK2,		0x00},
+	{BQ25980_MASK3,		0x00},
+	{BQ25980_MASK4,		0x00},
+	{BQ25980_MASK5,		0x80},
+
+	{BQ25980_ADC_CONTROL1,	0x00},
+	{BQ25980_ADC_CONTROL2,	0x06},
 
 };
 
@@ -500,6 +542,59 @@ static struct reg_default sc8541_reg_defs[] = {
 	{BQ25980_TDIE_ADC_LSB, 0x0},
 	{BQ25980_DEGLITCH_TIME, 0x0},
 	{BQ25980_CHRGR_CTRL_6, 0x0},
+};
+
+static struct reg_default sgm41606s_reg_defs[] = {
+	{BQ25980_BATOVP, 0x5A},
+	{BQ25980_BATOVP_ALM, 0x46},
+	{BQ25980_BATOCP, 0x51},
+	{BQ25980_BATOCP_ALM, 0x50},
+	{BQ25980_CHRGR_CFG_1, 0x28},
+	{BQ25980_CHRGR_CTRL_1, 0x0},
+	{BQ25980_BUSOVP, 0x26},
+	{BQ25980_BUSOVP_ALM, 0x22},
+	{BQ25980_BUSOCP, 0xD},
+	{BQ25980_REG_09, 0xC},
+	{BQ25980_TEMP_CONTROL, 0x6C},
+	{BQ25980_TDIE_ALM, 0xC8},
+	{BQ25980_TSBUS_FLT, 0x15},
+	{BQ25980_TSBAT_FLG, 0x15},
+	{BQ25980_VAC_CONTROL, 0x0},
+	{BQ25980_CHRGR_CTRL_2, 0x0},
+	{BQ25980_CHRGR_CTRL_3, 0x80},
+	{BQ25980_CHRGR_CTRL_4, 0x71},
+	{BQ25980_CHRGR_CTRL_5, 0x60},
+	{BQ25980_STAT1, 0x0},
+	{BQ25980_STAT2, 0x0},
+	{BQ25980_STAT3, 0x0},
+	{BQ25980_STAT4, 0x0},
+	{BQ25980_STAT5, 0x0},
+	{BQ25980_FLAG1, 0x0},
+	{BQ25980_FLAG2, 0x0},
+	{BQ25980_FLAG3, 0x0},
+	{BQ25980_FLAG4, 0x0},
+	{BQ25980_FLAG5, 0x0},
+	{BQ25980_MASK1, 0x0},
+	{BQ25980_MASK2, 0x0},
+	{BQ25980_MASK3, 0x0},
+	{BQ25980_MASK4, 0x0},
+	{BQ25980_MASK5, 0x0},
+	{BQ25980_DEVICE_INFO, 0x11},
+	{BQ25980_ADC_CONTROL1, 0x0},
+	{BQ25980_ADC_CONTROL2, 0x0},
+	{BQ25980_IBUS_ADC_LSB, 0x0},
+	{BQ25980_IBUS_ADC_MSB, 0x0},
+	{BQ25980_VBUS_ADC_LSB, 0x0},
+	{BQ25980_VBUS_ADC_MSB, 0x0},
+	{BQ25980_VAC1_ADC_LSB, 0x0},
+	{BQ25980_VAC2_ADC_LSB, 0x0},
+	{BQ25980_VOUT_ADC_LSB, 0x0},
+	{BQ25980_VBAT_ADC_LSB, 0x0},
+	{BQ25980_IBAT_ADC_MSB, 0x0},
+	{BQ25980_IBAT_ADC_LSB, 0x0},
+	{BQ25980_TSBUS_ADC_LSB, 0x0},
+	{BQ25980_TSBAT_ADC_LSB, 0x0},
+	{BQ25980_TDIE_ADC_LSB, 0x0},
 };
 
 static void dump_all_reg(struct bq25980_device *bq)
@@ -1120,6 +1215,17 @@ static const struct regmap_config sc8541_regmap_config = {
 	.volatile_reg = bq25980_is_volatile_reg,
 };
 
+static const struct regmap_config sgm41606s_regmap_config = {
+	.reg_bits = 8,
+	.val_bits = 8,
+
+	.max_register = BQ25980_TDIE_ADC_LSB,
+	.reg_defaults	= sgm41606s_reg_defs,
+	.num_reg_defaults = ARRAY_SIZE(sgm41606s_reg_defs),
+	.cache_type = REGCACHE_NONE,
+	.volatile_reg = bq25980_is_volatile_reg,
+};
+
 static const struct bq25980_chip_info sc8541_chip_info_tbl[] = {
 	[BQ25960] = {
 		.model_id = BQ25960,
@@ -1160,6 +1266,50 @@ static const struct bq25980_chip_info sc8541_chip_info_tbl[] = {
 		.adc_vbus_volt_step = SC8541_ADC_VOLT_STEP_VBUS_deciuV,
 		.adc_vbus_volt_offset = 0,
 		.adc_vout_volt_step = SC8541_ADC_VOLT_STEP_VOUT_deciuV,
+		.adc_vout_volt_offset = 0,
+	},
+};
+
+static const struct bq25980_chip_info sgm41606s_chip_info_tbl[] = {
+	[BQ25960] = {
+		.model_id = BQ25960,
+		.regmap_config = &sgm41606s_regmap_config,
+		.reg_init_values = sgm41606s_reg_init_val,
+
+		.busocp_sc_def = BQ25975_BUSOCP_DFLT_uA,
+		.busocp_byp_def = BQ25975_BUSOCP_DFLT_uA,
+		.busocp_sc_min = BQ25960_BUSOCP_MIN_uA,
+		.busocp_sc_max = BQ25960_BUSOCP_SC_MAX_uA,
+		.busocp_byp_min = BQ25960_BUSOCP_MIN_uA,
+		.busocp_byp_max = BQ25960_BUSOCP_BYP_MAX_uA,
+		.busocp_step = BQ25960_BUSOCP_STEP_uA,
+		.busocp_offset = BQ25960_BUSOCP_OFFSET_uA,
+
+		.busovp_sc_def = BQ25975_BUSOVP_DFLT_uV,
+		.busovp_byp_def = BQ25975_BUSOVP_BYPASS_DFLT_uV,
+		.busovp_sc_step = BQ25960_BUSOVP_SC_STEP_uV,
+		.busovp_sc_offset = BQ25960_BUSOVP_SC_OFFSET_uV,
+		.busovp_byp_step = BQ25960_BUSOVP_BYP_STEP_uV,
+		.busovp_byp_offset = BQ25960_BUSOVP_BYP_OFFSET_uV,
+		.busovp_sc_min = BQ25960_BUSOVP_SC_MIN_uV,
+		.busovp_sc_max = BQ25960_BUSOVP_SC_MAX_uV,
+		.busovp_byp_min = BQ25960_BUSOVP_BYP_MIN_uV,
+		.busovp_byp_max = BQ25960_BUSOVP_BYP_MAX_uV,
+
+		.batovp_def = SC8545_BATOVP_DFLT_uV,
+		.batovp_max = SC8545_BATOVP_MAX_uV,
+		.batovp_min = SC8545_BATOVP_MIN_uV,
+		.batovp_step = SC8545_BATOVP_STEP_uV,
+		.batovp_offset = SC8545_BATOVP_OFFSET_uV,
+
+		.batocp_def = SC8545_BATOCP_DFLT_uA,
+		.batocp_max = SC8545_BATOCP_MAX_uA,
+
+		.adc_curr_step = BQ25960_ADC_CURR_STEP_uA,
+		.adc_vbat_volt_step = BQ25960_ADC_VOLT_STEP_deciuV,
+		.adc_vbus_volt_step = BQ25960_ADC_VOLT_STEP_deciuV,
+		.adc_vbus_volt_offset = 0,
+		.adc_vout_volt_step = BQ25960_ADC_VOLT_STEP_deciuV,
 		.adc_vout_volt_offset = 0,
 	},
 };
@@ -1758,6 +1908,12 @@ static int bq25980_is_vbuslowerr(struct charger_device *chg_dev, bool *err)
 			return tmp;
 
 		*err = !!(val & SC8541_VBUS_ERRPRLO_STAT);
+	} else if (bq->part_no == SGM41606S_PART_NO) {
+		tmp = regmap_read(bq->regmap, BQ25980_STAT5, &val);
+		if (tmp)
+			return tmp;
+
+		*err = !!(val & SGM41606S_VBUS_ERRPRLO_STAT);
 	} else {
 		*err = 0;
 	}
@@ -1777,6 +1933,12 @@ static int bq25980_is_vbushigherr(struct charger_device *chg_dev, bool *err)
 			return tmp;
 
 		*err = !!(val & SC8541_VBUS_ERRPRHI_STAT);
+	} else if (bq->part_no == SGM41606S_PART_NO) {
+		tmp = regmap_read(bq->regmap, BQ25980_STAT5, &val);
+		if (tmp)
+			return tmp;
+
+		*err = !!(val & SGM41606S_VBUS_ERRPRHI_STAT);
 	} else {
 		*err = 0;
 	}
@@ -2232,6 +2394,7 @@ static int bq25980_probe(struct i2c_client *client,
 	struct device *dev = &client->dev;
 	struct bq25980_device *bq;
 	const char *sc8541_name;
+	const char *sgm41606s_name;
 	int len;
 	int ret;//, irq_gpio, irqn;
 
@@ -2270,6 +2433,18 @@ static int bq25980_probe(struct i2c_client *client,
 			strncpy(bq->model_name, sc8541_name, min(I2C_NAME_SIZE,len) );
 		} else
 			strncpy(bq->model_name, "sc8541-standalone", I2C_NAME_SIZE);
+
+		pr_err("[%s] model_name=%s\n", __func__ , bq->model_name);
+	} else if (bq->part_no == SGM41606S_PART_NO) {
+		bq->client->addr =  bq->sc8541_addr;
+		bq->chip_info = &sgm41606s_chip_info_tbl[bq->device_id];
+
+		memset((void*)bq->model_name, 0x00, sizeof(bq->model_name));
+		if(!device_property_read_string(bq->dev, "sgm41606s-name", &sgm41606s_name)) {
+			len = strlen(sgm41606s_name);
+			strncpy(bq->model_name, sgm41606s_name, min(I2C_NAME_SIZE,len) );
+		} else
+			strncpy(bq->model_name, "sgm41606s-standalone", I2C_NAME_SIZE);
 
 		pr_err("[%s] model_name=%s\n", __func__ , bq->model_name);
 	} else {
