@@ -1,11 +1,12 @@
 #ifndef __MOTO_WLC2_H
 #define __MOTO_WLC2_H
-
+#include <mtk_charger.h>
 #include <mtk_charger_algorithm_class.h>
 #include <linux/mmi_wireless_class.h>
 
 #define NORMAL_FW_UPDATE 1
 #define FORCE_FW_UPDATE 2
+#define VBUS_VALID_MV 4600 //If vbus >= 4.6V,the vbus is valid.
 
 #define WLC_V_CHARGER_MIN 4600000 /* 4.6 V */
 /*wireless input current and charging current*/
@@ -145,6 +146,8 @@ struct wireless_ctl
 	bool mode_select_force;
 	bool enable_rod;
 	bool factory_wls_en;
+	bool fw_update_force;
+	bool fw_uploading;
 
 	int icl_target; //uA
 	int cc_target; //uA
@@ -202,7 +205,7 @@ struct wireless_config
 	int enable_stop_epp;
 	int enable_rx_offset_detect;
 
-	const char *wls_fw_name;
+	int fw_update_soc_limit;
 	bool wls_tx_support;
 	bool wls_boost_support;
 	bool config_otg_support;
@@ -256,6 +259,7 @@ struct moto_wlc {
 
 	struct mutex access_lock;
 	struct wakeup_source *suspend_lock;
+	struct wakeup_source *fw_update_wake_lock;
 	struct mutex cable_out_lock;
 	struct mutex data_lock;
 	bool is_cable_out_occur; /* Plug out happened while detect PE+20 */
@@ -310,6 +314,9 @@ struct moto_wlc {
 	struct wireless_data data;
 	struct wireless_auth auth;
 	int pre_status;
+
+	struct workqueue_struct *wls_wq;
+	struct delayed_work fw_update_work;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
@@ -327,6 +334,9 @@ extern int wlc_hal_reset_ta(struct chg_alg_device *alg, enum chg_idx chgidx);
 extern int wlc_hal_get_vbus(struct chg_alg_device *alg);
 extern int wlc_hal_get_vbat(struct chg_alg_device *alg);
 extern int wlc_hal_get_ibat(struct chg_alg_device *alg);
+extern int wlc_hal_get_bat_property(struct chg_alg_device *alg,
+			enum power_supply_property property,
+			union power_supply_propval *prop);
 
 extern int wlc_hal_set_charging_current(struct chg_alg_device *alg,
 	enum chg_idx chgidx, u32 ua);
@@ -358,8 +368,10 @@ extern int wlc_hal_get_batt_cv(struct chg_alg_device *alg);
 extern int wls_chg_register_psy(struct moto_wlc *wlc);
 extern int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus);
 extern int wls_chg_notify_st_changed(struct moto_wlc *wlc, int st);
+extern int wls_chg_mmi_mux_chan_set(enum mmi_mux_channel channel, bool on);
 
 extern int wls_device_node_create(struct device *dev);
+extern void wls_device_fw_update_work(struct work_struct *work);
 
 extern int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev);
 

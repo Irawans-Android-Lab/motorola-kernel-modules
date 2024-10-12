@@ -844,6 +844,8 @@ static int moto_wlc_probe(struct platform_device *pdev)
 
 	wlc->suspend_lock =
 		wakeup_source_register(NULL, "WLC suspend wakelock");
+	wlc->fw_update_wake_lock =
+		wakeup_source_register(NULL, "WLC FW update wakelock");
 
 	mutex_init(&wlc->access_lock);
 	mutex_init(&wlc->cable_out_lock);
@@ -872,6 +874,9 @@ static int moto_wlc_probe(struct platform_device *pdev)
 	wls_chg_register_psy(wlc);
 
 	wls_device_node_create(&(wlc->pdev->dev));
+
+	wlc->wls_wq = create_singlethread_workqueue("wls_workqueue");
+	INIT_DELAYED_WORK(&wlc->fw_update_work, wls_device_fw_update_work);
 
 	return 0;
 }

@@ -216,6 +216,25 @@ int wlc_hal_get_batt_cv(struct chg_alg_device *alg)
 	return info->data.battery_cv;
 }
 
+int wlc_hal_get_bat_property(struct chg_alg_device *alg,
+		enum power_supply_property property,
+		union power_supply_propval *prop)
+{
+	struct power_supply *batt_psy = NULL;
+	int ret = -1;
+
+	batt_psy = power_supply_get_by_name("battery");
+	if (IS_ERR_OR_NULL(batt_psy)) {
+		wlc_err("%s Couldn't get chip->batt_psy\n", __func__);
+	} else {
+		ret = power_supply_get_property(batt_psy, property, prop);
+		wlc_info("%s battery prop:%d value:%d ret:%d\n",
+				__func__, property, prop->intval, ret);
+	}
+
+	return ret;
+}
+
 int wlc_hal_set_mivr(struct chg_alg_device *alg, enum chg_idx chgidx, int uV)
 {
 	int ret = 0;

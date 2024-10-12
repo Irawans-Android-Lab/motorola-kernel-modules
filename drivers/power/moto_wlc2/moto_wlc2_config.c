@@ -97,9 +97,6 @@ int wls_get_sys_config(struct moto_wlc *wlc, struct device *dev)
 {
 	struct device_node *node = dev->of_node;
 
-	of_property_read_string(node, "wireless-fw-name", &wlc->config.wls_fw_name);
-	pr_info("[%s] wls_fw_name: %s\n", __func__, wlc->config.wls_fw_name);
-
 	wlc->config.enable_stop_epp = 0x00;
 	of_property_read_u32(node, "enable-stop-epp", &wlc->config.enable_stop_epp);
 	pr_info("[%s] enable-stop-epp %d\n", __func__, wlc->config.enable_stop_epp);
@@ -107,6 +104,10 @@ int wls_get_sys_config(struct moto_wlc *wlc, struct device *dev)
 	wlc->config.enable_bat_full_stop_epp = 0x00;
 	of_property_read_u32(node, "enable-bat-full-stop-epp", &wlc->config.enable_bat_full_stop_epp);
 	pr_info("[%s] enable-bat-full-stop-epp %d\n", __func__, wlc->config.enable_bat_full_stop_epp);
+
+	wlc->config.fw_update_soc_limit = 10;
+	of_property_read_u32(node, "fw-update-soc-limit", &wlc->config.fw_update_soc_limit);
+	pr_info("[%s] fw-update-soc-limit %d\n", __func__, wlc->config.fw_update_soc_limit);
 
 	return 0;
 }

@@ -40,6 +40,123 @@
 #include <linux/mmi_wireless_class.h>
 #include "moto_wlc2.h"
 
+void wls_device_pm_set_awake(struct moto_wlc *wlc, bool awake)
+{
+	if (IS_ERR_OR_NULL(wlc->fw_update_wake_lock))
+		return;
+
+	pr_info("%s %d\n", __func__, awake);
+	if (!wlc->fw_update_wake_lock->active && awake) {
+		__pm_stay_awake(wlc->fw_update_wake_lock);
+	} else if(wlc->fw_update_wake_lock->active && !awake) {
+		__pm_relax(wlc->fw_update_wake_lock);
+	}
+}
+
+bool wls_device_fw_set_boost(struct moto_wlc *wlc, bool en)
+{
+	int ret = 0;
+	int vbus = 0;
+	struct charger_device *chg_psy = NULL;
+
+	wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_FW_UPDATE, en);
+
+	if (!wlc->config.wls_boost_support) {
+		chg_psy = get_charger_by_name("primary_chg");
+		if (IS_ERR_OR_NULL(chg_psy)) {
+			wlc_err("%s Couldn't get chg_psy\n", __func__);
+			return false;
+		}
+		ret = charger_dev_enable_otg(chg_psy, en);
+		if(ret < 0){
+			wlc_err("%s set otg fail\n", __func__);
+			return false;
+		}
+		msleep(100);
+		vbus = wlc_hal_get_vbus(wlc->alg) / 1000;
+		wlc_info("%s vbus:%dmV\n", __func__, vbus);
+		if (en && vbus < VBUS_VALID_MV) {
+			wlc_err("%s enable otg fail\n", __func__);
+			return false;
+		} else if(!en && vbus >= VBUS_VALID_MV) {
+			wlc_err("%s disable otg fail\n", __func__);
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void wls_device_fw_update_work(struct work_struct *work)
+{
+	struct moto_wlc *wlc =
+		container_of((struct delayed_work*)work, struct moto_wlc, fw_update_work);
+	union power_supply_propval prop = {0x00};
+	int chip_id = 0x00;
+	int rt = 0;
+	int vbus = 0;
+	int soc = 0;
+	bool boost_flag = false;
+
+	if (IS_ERR_OR_NULL(wlc)) {
+		wlc_err("can't get wlc\n");
+		return;
+	}
+
+	if (IS_ERR_OR_NULL(wlc->wls_dev)) {
+		wlc_err("can't get wls_dev\n");
+		return;
+	}
+
+	if (wlc_hal_get_bat_property(wlc->alg, POWER_SUPPLY_PROP_CAPACITY, &prop)) {
+		wlc_err("can't get battery capacity\n");
+		return;
+	}
+
+	soc = prop.intval;
+	vbus = wlc_hal_get_vbus(wlc->alg) / 1000;
+
+	if ((vbus > VBUS_VALID_MV/2) && wlc->config.secure_hardware) {
+		wlc_info("%s Skip FW update when secure phone has charger plug-in\n", __func__);
+		return;
+	} else if ((vbus < VBUS_VALID_MV/2) &&
+			soc < wlc->config.fw_update_soc_limit &&
+			!wlc->ctl.fw_update_force) {
+		wlc_info("%s Wireless fw update failed. Battery SOC should be at least %d%%\n",
+				__func__, wlc->config.fw_update_soc_limit);
+		return;
+	}
+
+	//read chip
+	rt = wls_rx_get_chip_id(wlc->wls_dev, &chip_id);
+	wlc_info("%s chip_id=%d, rt=%d\n", __func__, chip_id, rt);
+
+	if (rt) //if iic err, need boost
+		boost_flag = true;
+
+	wlc->ctl.fw_uploading = true;
+	wls_device_pm_set_awake(wlc, true);
+	if (boost_flag) {
+		wls_device_fw_set_boost(wlc, true);
+	}
+
+	rt = wls_rx_get_chip_id(wlc->wls_dev, &chip_id);// recheck iic
+	wlc_info("%s chip_id=%d rt=%d\n", __func__, chip_id, rt);
+	if (rt) {
+		wlc_err("%s Error: boost failed or usb plug-out, rt=%d\n", __func__, rt);
+		goto fw_update_exit;
+	}
+	wls_rx_set_fw_update(wlc->wls_dev, wlc->ctl.fw_update_force);
+
+fw_update_exit:
+	if (boost_flag) {
+		wls_device_fw_set_boost(wlc, false);
+	}
+
+	wlc->ctl.fw_uploading = false;
+	wls_device_pm_set_awake(wlc, false);
+}
+
 static ssize_t wireless_fw_version_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int fw_version = 0x00;
@@ -82,9 +199,11 @@ static ssize_t wireless_fw_update_store(struct device *dev,
 	wls_rx_get_sys_mode(pWlc->wls_dev, &sys_mode);
 	if (sys_mode == SYS_MODE_RX) {
 		wlc_info("wireless_fw_update wls online,forbid fw update\n");
-	} else {
-		//queue_delayed_work(pWlc->wls_wq,
-		//		&pWlc->fw_update_work, msecs_to_jiffies(2000));
+	} else if (!pWlc->ctl.fw_uploading) {
+		pWlc->ctl.fw_update_force = (update == FORCE_FW_UPDATE ? true : false);
+		wlc_info("%s pWlc->ctl.fw_update_force=%d\n", __func__, pWlc->ctl.fw_update_force);
+		queue_delayed_work(pWlc->wls_wq,
+				&pWlc->fw_update_work, msecs_to_jiffies(2000));
 	}
 
 	return count;
