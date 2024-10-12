@@ -145,6 +145,67 @@ int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus)
 	return 0;
 }
 
+void wlc_chg_bpp_mode_icl_work(struct work_struct *work)
+{
+	struct moto_wlc *wlc =
+		container_of((struct delayed_work*)work, struct moto_wlc, bpp_icl_work);
+	int wls_icl = 0;
+	int wls_icl_max = 0;
+	int wls_current_now = 0;
+	int wls_voltage_now = 0;
+	int retry = 2;
+	int i = 0;
+	int op_mode = 0;
+	int rt = 0;
+
+	if (IS_ERR_OR_NULL(wlc)) {
+		wlc_err("%s wlc is err or null\n", __func__);
+		return;
+	}
+
+	wlc_hal_set_input_current(wlc->alg, CHG1, wlc->config.bpp_icl_min_uA);
+	wlc_hal_set_charging_current(wlc->alg, CHG1, wlc->wireless_charger_max_current);
+
+	wls_icl_max = wlc->config.bpp_icl_max_uA / 1000;
+
+	if (wlc->ctl.input_current_max > 0 &&
+		wls_icl_max > wlc->ctl.input_current_max) {
+		wls_icl_max = wlc->ctl.input_current_max;
+	}
+	wlc_info("%s wls_icl_max=%dmA step=%dmA delay_ms=%dms\n",
+		__func__, wls_icl_max, wlc->config.bpp_icl_step_uA / 1000, wlc->config.bpp_step_delay_ms);
+
+	for (i = 0; i < retry; i++) {
+		if (wls_icl < wlc->config.bpp_icl_min_uA / 1000) {
+			wls_icl = wlc->config.bpp_icl_min_uA / 1000;
+		}
+
+		while (wls_icl <= wls_icl_max) {
+			rt = wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+			wlc_info("%s wls_icl=%dmA op_mode=%d rt=%d\n", __func__, wls_icl, op_mode, rt);
+			if (rt < 0 || op_mode != Sys_Op_Mode_BPP)
+				break;
+			wlc_hal_set_input_current(wlc->alg, CHG1, wls_icl * 1000);
+			msleep(wlc->config.bpp_step_delay_ms + i * 100);
+
+			wls_rx_get_rx_iout(wlc->wls_dev, &wls_current_now);
+			wls_rx_get_rx_vout(wlc->wls_dev, &wls_voltage_now);
+			wlc_info("%s set icl=%dmA I=%dmA V=%dmV\n",
+					__func__, wls_icl, wls_current_now, wls_voltage_now);
+			wls_icl = wls_icl + (wlc->config.bpp_icl_step_uA / 1000);
+		}
+
+		if (wls_current_now < WLS_BPP_ROD_THRESHOLD_CURRENT_MAX) {
+			wls_icl = wls_current_now / WLS_ICL_INCREASE_STEP_MA * WLS_ICL_INCREASE_STEP_MA;
+		} else {
+			break;
+		}
+	}
+
+	wlc->ctl.bpp_icl_done = true;
+}
+
+
 int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg *msg)
 {
 	struct moto_wlc *wlc = NULL;
@@ -163,6 +224,7 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 		case WLS_EVENT_TX_DETECTED:
 			if (msg->len == 1) {
 				if (msg->data[0] == 0) {
+					wlc->ctl.bpp_icl_done = false;
 					wls_chg_power_off(wlc);
 					wls_auth_disconnect(wlc);
 					wls_chg_notify_st_changed(wlc, WLC_DISCONNECTED);
@@ -177,6 +239,14 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 				wls_chg_notify_st_changed(wlc, WLC_TX_POWER_CHANGED);
 			break;
 		case WLS_EVENT_RX_LDO_ON:
+			wlc->ctl.bpp_icl_done = false;
+			wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+			wls_rx_get_rx_neg_power(wlc->wls_dev, &wlc->data.wlc_power);
+			pr_info("%s op_mode=%d, wlc->data.wlc_power=%d\n", __func__, op_mode, wlc->data.wlc_power);
+			if (op_mode == Sys_Op_Mode_BPP) {
+				wlc->data.mode_type = op_mode;
+				queue_delayed_work(wlc->wls_wq, &wlc->bpp_icl_work, msecs_to_jiffies(0));
+			}
 			wls_chg_notify_st_changed(wlc, WLC_CONNECTED);
 			break;
 		case WLS_EVENT_HS_OK:

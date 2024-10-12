@@ -186,7 +186,6 @@ struct wireless_config
 	int MaxV;
 	int MaxI;
 	int MaxPower;
-	int cc_max_uA;
 
 	int bpp_icl_min_uA;
 	int bpp_icl_max_uA;
@@ -317,6 +316,7 @@ struct moto_wlc {
 
 	struct workqueue_struct *wls_wq;
 	struct delayed_work fw_update_work;
+	struct delayed_work bpp_icl_work;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
@@ -369,6 +369,7 @@ extern int wls_chg_register_psy(struct moto_wlc *wlc);
 extern int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus);
 extern int wls_chg_notify_st_changed(struct moto_wlc *wlc, int st);
 extern int wls_chg_mmi_mux_chan_set(enum mmi_mux_channel channel, bool on);
+extern void wlc_chg_bpp_mode_icl_work(struct work_struct *work);
 
 extern int wls_device_node_create(struct device *dev);
 extern void wls_device_fw_update_work(struct work_struct *work);

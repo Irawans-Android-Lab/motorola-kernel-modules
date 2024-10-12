@@ -877,6 +877,7 @@ static int moto_wlc_probe(struct platform_device *pdev)
 
 	wlc->wls_wq = create_singlethread_workqueue("wls_workqueue");
 	INIT_DELAYED_WORK(&wlc->fw_update_work, wls_device_fw_update_work);
+	INIT_DELAYED_WORK(&wlc->bpp_icl_work, wlc_chg_bpp_mode_icl_work);
 
 	return 0;
 }
