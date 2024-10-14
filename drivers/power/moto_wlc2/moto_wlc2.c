@@ -41,11 +41,6 @@
 
 static int wlc_dbg_level = WLC_DEBUG_LEVEL;
 
-#define CHARGER_STATE_NUM 8
-static int wlc_state_to_current_limit[CHARGER_STATE_NUM] = {
-	-1, 2500000, 2000000, 1500000, 1200000, 1000000, 700000, 500000
-};
-
 int wlc_get_debug_level(void)
 {
 	return wlc_dbg_level;
@@ -618,86 +613,6 @@ static int _wlc_notifier_call(struct chg_alg_device *alg,
 	return ret_value;
 }
 
-static void moto_wlc_parse_dt(struct moto_wlc *wlc, struct device *dev)
-{
-	struct device_node *np = dev->of_node;
-	u32 val;
-	int i;
-	int byte_len;
-	int rc;
-	wlc_dbg("%s \n", __func__);
-	wlc->wls_control_en = of_get_named_gpio(np, "mmi,wls_control_en", 0);
-	if (!gpio_is_valid(wlc->wls_control_en))
-		pr_err("wls_control_en is %d invalid\n", wlc->wls_control_en);
-
-	if (of_property_read_u32(np, "min_charger_voltage", &val) >= 0)
-		wlc->min_charger_voltage = val;
-	else {
-		pr_notice("use default V_CHARGER_MIN:%d\n", WLC_V_CHARGER_MIN);
-		wlc->min_charger_voltage = WLC_V_CHARGER_MIN;
-	}
-	if (of_property_read_u32(np, "wlc_max_charger_current", &val) >= 0) {
-		wlc->wireless_charger_max_current = val;
-	} else {
-		pr_err("use default WIRELESS_CHARGER_MAX_CURRENT:%d\n",
-			WIRELESS_CHARGER_MAX_CURRENT);
-		wlc->wireless_charger_max_current =
-			WIRELESS_CHARGER_MAX_CURRENT;
-	}
-
-	if (of_property_read_u32(np, "wlc_max_input_current", &val) >= 0) {
-		wlc->wireless_charger_max_input_current = val;
-	} else {
-		pr_err("use default WIRELESS_CHARGER_MAX_INPUT_CURRENT:%d\n",
-			WIRELESS_CHARGER_MAX_INPUT_CURRENT);
-		wlc->wireless_charger_max_input_current = WIRELESS_CHARGER_MAX_INPUT_CURRENT;
-	}
-
-	if (of_property_read_u32_array(np, "mmi,wlc-rx-mitigation",
-			wlc_state_to_current_limit, CHARGER_STATE_NUM))
-		pr_info("Not define wlc rx thermal table, use defaut table\n");
-
-	for (i = 0; i < CHARGER_STATE_NUM; i++) {
-		pr_info("mmi wlc rx table: table %d, current %d mA\n",
-			i, wlc_state_to_current_limit[i]);
-	}
-
-	if (of_find_property(np, "mmi,wlc-thermal-config-com", &byte_len)) {
-		if ((byte_len / sizeof(u32)) % 2) {
-			pr_err("DT error wrong mmi wlc thermal config com\n");
-			wlc->wlc_thermal_com = NULL;
-			return;
-		}
-
-		wlc->wlc_thermal_com = (struct mmi_thermal_config *)
-			devm_kzalloc(dev, byte_len, GFP_KERNEL);
-
-		wlc->num_wlc_thermal_com =
-			byte_len / sizeof(struct mmi_thermal_config);
-
-		if (wlc->wlc_thermal_com == NULL)
-			return;
-
-		rc = of_property_read_u32_array(np,
-				"mmi,wlc-thermal-config-com",
-				(u32 *)wlc->wlc_thermal_com,
-				byte_len / sizeof(u32));
-		if (rc < 0) {
-			pr_err("Couldn't read mmi wlc thermal config com rc = %d\n", rc);
-			wlc->wlc_thermal_com = NULL;
-			return;
-		}
-
-		for (i = 0; i < wlc->num_wlc_thermal_com; i++) {
-			pr_err("wlc thermal config com:Step %d,Temp %d,level %d\n", i,
-				 wlc->wlc_thermal_com[i].temp_c,
-				 wlc->wlc_thermal_com[i].level);
-		}
-	} else
-		wlc->wlc_thermal_com = NULL;
-
-}
-
 int _wlc_get_prop(struct chg_alg_device *alg,
 		enum chg_alg_props s, int *value)
 {
@@ -852,7 +767,6 @@ static int moto_wlc_probe(struct platform_device *pdev)
 	mutex_init(&wlc->data_lock);
 
 	wlc->state = WLC_HW_UNINIT;
-	moto_wlc_parse_dt(wlc, &pdev->dev);
 	wls_config_parse_dts(wlc, &pdev->dev);
 
 	if(gpio_is_valid(wlc->wls_control_en)) {
