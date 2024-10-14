@@ -48,6 +48,7 @@ struct wt6670f {
 
 	struct adapter_device *qc_dev;
 	const char *qc_dev_name;
+	bool not_register_qc_dev;
 };
 
 enum {

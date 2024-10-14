@@ -1232,6 +1232,9 @@ static int wt6670f_parse_dt(struct device *dev)
 	ret = request_irq(gpio_to_irq(wt6670f_int_pin), wt6670f_intr_handler,
 		IRQF_TRIGGER_FALLING | IRQF_ONESHOT, "wt6670f int", dev);
 	enable_irq_wake(gpio_to_irq(wt6670f_int_pin));
+
+	_wt->not_register_qc_dev = of_property_read_bool(np, "not-register-qc-dev");
+
 	return 0;
 }
 
@@ -1456,18 +1459,20 @@ static int wt6670f_i2c_probe(struct i2c_client *client,
 		}
 	}
 
-	wt->qc_dev_name = "qc_protocol_ic";
+	if (!wt->not_register_qc_dev) {
+		wt->qc_dev_name = "qc_protocol_ic";
 
-	wt->qc_dev = adapter_device_register(wt->qc_dev_name,
-	                    &client->dev, wt,
-	                    &wt6670f_qc_ops,
-	                    &wt6670f_qc_props);
-	if (IS_ERR_OR_NULL(wt->qc_dev)) {
-	    ret = PTR_ERR(wt->qc_dev);
-	    dev_err(wt->dev,"Fail to register wt6670f dev!\n");
+		wt->qc_dev = adapter_device_register(wt->qc_dev_name,
+		                    &client->dev, wt,
+		                    &wt6670f_qc_ops,
+		                    &wt6670f_qc_props);
+		if (IS_ERR_OR_NULL(wt->qc_dev)) {
+		    ret = PTR_ERR(wt->qc_dev);
+		    dev_err(wt->dev,"Fail to register wt6670f dev!\n");
+		}
+
+		adapter_dev_set_drvdata(wt->qc_dev, wt);
 	}
-
-	adapter_dev_set_drvdata(wt->qc_dev, wt);
 
 	pr_info("[%s] wt6670f prob successfully\n", __func__);
 	return 0;
