@@ -1743,6 +1743,8 @@ static irqreturn_t sgm4154x_irq_handler_thread(int irq, void *private)
 		sgm->force_detect_count = 0;
 		allow_set_dp_dm_vol = true;
 		dev_info(sgm->dev, "%s: adapter/usb inserted\n", __func__);
+		sgm4154x_set_ichrg_curr(sgm->chg_dev,1000000);
+		dev_info(sgm->dev, "%s: set icc 1000ma\n", __func__);
 #if IS_ENABLED(CONFIG_FACTORY_BUILD)
 		sgm4154x_enable_charger(sgm);
 #endif
