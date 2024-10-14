@@ -1204,7 +1204,7 @@ static int sgm4154x_charger_set_property(struct power_supply *psy,
 			sgm->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 			sgm->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
 			cancel_delayed_work(&sgm->charge_detect_delayed_work);
-			power_supply_changed(sgm->charger);
+			schedule_delayed_work(&sgm->power_supply_changed_delayed_work, msecs_to_jiffies(0));
 		}
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
@@ -1545,6 +1545,28 @@ static void retry_charger_detect_work_func(struct work_struct *work)
 	sgm->force_detect_count++;
 	schedule_delayed_work(&sgm->charge_detect_delayed_work, msecs_to_jiffies(300));
 
+	return;
+}
+
+static void power_supply_changed_delayed_work_func(struct work_struct *work)
+{
+	struct sgm4154x_device *sgm = NULL;
+	int i = 0;
+	sgm = container_of(work, struct sgm4154x_device, power_supply_changed_delayed_work.work);
+	if (sgm == NULL) {
+		pr_err("%s: Cann't get sgm4154x_device\n", __func__);
+		return;
+	}
+
+	for (i = 0; i < 10; i++) {
+		if (!sgm->state.online) {
+			power_supply_changed(sgm->charger);
+			pr_err("%s: trigger power_supply_changed, count = %d\n", __func__, i);
+			return;
+		}
+		mdelay(100);
+	}
+	power_supply_changed(sgm->charger);
 	return;
 }
 
@@ -2445,6 +2467,7 @@ static int sgm4154x_driver_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&sgm->charge_detect_delayed_work, charger_detect_work_func);
 	//INIT_DELAYED_WORK(&sgm->charge_monitor_work, charger_monitor_work_func);
 	INIT_DELAYED_WORK(&sgm->retry_charger_detect_work, retry_charger_detect_work_func);
+	INIT_DELAYED_WORK(&sgm->power_supply_changed_delayed_work, power_supply_changed_delayed_work_func);
 	if (client->irq) {
 		ret = devm_request_threaded_irq(dev, client->irq, NULL,
 				sgm4154x_irq_handler_thread,

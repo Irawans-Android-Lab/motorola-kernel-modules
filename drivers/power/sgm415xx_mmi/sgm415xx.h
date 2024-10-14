@@ -270,6 +270,7 @@ struct sgm4154x_device {
 	struct delayed_work charge_detect_delayed_work;
 	struct delayed_work charge_monitor_work;
 	struct delayed_work retry_charger_detect_work;
+	struct delayed_work power_supply_changed_delayed_work;
 	struct notifier_block pm_nb;
 	bool sgm4154x_suspend_flag;
 
