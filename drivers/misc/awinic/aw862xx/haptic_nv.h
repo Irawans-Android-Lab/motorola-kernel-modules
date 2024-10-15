@@ -9,7 +9,7 @@
 #define AW_CHECK_RAM_DATA
 #define AW_READ_BIN_FLEXBALLY
 /* #define AW_INPUT_FRAMEWORK */
-/* #define AW_TIKTAP */
+#define AW_TIKTAP
 /* #define AW_DOUBLE */
 #define AW_DURATION_DECIDE_WAVEFORM
 /* #define AW_ENABLE_RTP_PRINT_LOG */
@@ -62,6 +62,9 @@
 #define AW_VBAT_REFER				(4200)
 #define AW_CONT_F0_VBAT_REFER			(4000)
 #define AW_DEFAULT_GAIN				(0x80)
+#define AW_STRONG_GAIN				(0x80)
+#define AW_MEDIUM_GAIN				(0x60)
+#define AW_LIGHT_GAIN				(0x40)
 #define AW_SEQUENCER_SIZE			(8)
 #define AW_PM_QOS_VALUE_VB			(400)
 #define AW_GUN_TYPE_DEF_VAL			(0xFF)

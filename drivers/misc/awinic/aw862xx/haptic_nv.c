@@ -48,11 +48,57 @@ static char aw_ram_name[][AW_NAME_MAX] = {
 };
 
 static char aw_rtp_name[][AW_NAME_MAX] = {
-	{"haptic_nv_rtp_osc_24K_5s.bin"},
-	{"haptic_nv_rtp.bin"},
-	{"haptic_nv_rtp_lighthouse.bin"},
-	{"haptic_nv_rtp_silk.bin"},
-	{"haptic_nv_rtp_autosin.bin"},
+	{"aw862xx_rtp.bin"},
+	{"aw862xx_rtp_Argo_Navis.bin"},
+	{"aw862xx_rtp_Attentive.bin"},
+	{"aw862xx_rtp_Awake.bin"},
+	{"aw862xx_rtp_Bird_Loop.bin"},
+	{"aw862xx_rtp_Brilliant_Times.bin"},
+	{"aw862xx_rtp_Chimey_Phone.bin"},
+	{"aw862xx_rtp_Complex.bin"},
+	{"aw862xx_rtp_Crazy_Dream.bin"},
+	{"aw862xx_rtp_Curve_Ball_Blend.bin"},
+	{"aw862xx_rtp_Digital_Phone.bin"},
+	{"aw862xx_rtp_Electrovision.bin"},
+	{"aw862xx_rtp_Ether_Shake.bin"},
+	{"aw862xx_rtp_Fateful_Words.bin"},
+	{"aw862xx_rtp_Flutey_Phone.bin"},
+	{"aw862xx_rtp_Future_Funk.bin"},
+	{"aw862xx_rtp_Future_Hi_Tech.bin"},
+	{"aw862xx_rtp_Girtab.bin"},
+	{"aw862xx_rtp_Hello.bin"},
+	{"aw862xx_rtp_Hexagon.bin"},
+	{"aw862xx_rtp_Hydra.bin"},
+	{"aw862xx_rtp_Insert_Coin.bin"},
+	{"aw862xx_rtp_Jumping_Dots.bin"},
+	{"aw862xx_rtp_Keys.bin"},
+	{"aw862xx_rtp_Loopy.bin"},
+	{"aw862xx_rtp_Loopy_Lounge.bin"},
+	{"aw862xx_rtp_Modular.bin"},
+	{"aw862xx_rtp_Momentum.bin"},
+	{"aw862xx_rtp_Morning.bin"},
+	{"aw862xx_rtp_Moto.bin"},
+	{"aw862xx_rtp_Natural.bin"},
+	{"aw862xx_rtp_New_Player.bin"},
+	{"aw862xx_rtp_Onward.bin"},
+	{"aw862xx_rtp_Organ_Dub.bin"},
+	{"aw862xx_rtp_Overclocked.bin"},
+	{"aw862xx_rtp_Pegasus.bin"},
+	{"aw862xx_rtp_Pyxis.bin"},
+	{"aw862xx_rtp_Regrade.bin"},
+	{"aw862xx_rtp_Scarabaeus.bin"},
+	{"aw862xx_rtp_Sceptrum.bin"},
+	{"aw862xx_rtp_Simple.bin"},
+	{"aw862xx_rtp_Solarium.bin"},
+	{"aw862xx_rtp_Sparse.bin"},
+	{"aw862xx_rtp_Terrabytes.bin"},
+	{"aw862xx_rtp_Zero_Hour.bin"},
+	{"aw862xx_rtp_Play.bin"},
+	{"aw862xx_rtp_TJINGLE.bin"},
+	{"aw862xx_rtp_Verizon_Airwaves.bin"},
+	{"aw862xx_rtp_City_Lights.bin"},
+	{"aw862xx_rtp_Firefly.bin"},
+	{"aw862xx_rtp_Now_or_Never.bin"},
 };
 
 #ifdef AW_TIKTAP
@@ -633,7 +679,7 @@ static irqreturn_t irq_handle(int irq, void *data)
 	int irq_state = 0;
 	struct aw_haptic *aw_haptic = data;
 
-	aw_info("enter");
+	aw_dbg("enter");
 
 	do {
 		irq_state = aw_haptic->func->get_irq_state(aw_haptic);
@@ -652,7 +698,7 @@ static irqreturn_t irq_handle(int irq, void *data)
 			aw_haptic->func->set_rtp_aei(aw_haptic, false);
 	} while (irq_state);
 
-	aw_info("exit");
+	aw_dbg("exit");
 
 	return IRQ_HANDLED;
 }
@@ -1541,6 +1587,8 @@ static ssize_t activate_store(struct device *dev, struct device_attribute *attr,
 	hrtimer_cancel(&aw_haptic->timer);
 	aw_haptic->state = val;
 	aw_haptic->activate_mode = aw_haptic->info.mode;
+	if (0 == val)
+		aw_haptic->gain = AW_DEFAULT_GAIN;
 	mutex_unlock(&aw_haptic->lock);
 	queue_work(aw_haptic->work_queue, &aw_haptic->vibrator_work);
 
@@ -1647,6 +1695,56 @@ static ssize_t gain_store(struct device *dev, struct device_attribute *attr, con
 	return count;
 }
 
+static ssize_t strength_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	cdev_t *cdev = dev_get_drvdata(dev);
+	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic, vib_dev);
+	uint8_t gain = 0;
+
+	mutex_lock(&aw_haptic->lock);
+	aw_haptic->func->get_gain(aw_haptic, &gain);
+	mutex_unlock(&aw_haptic->lock);
+
+	return snprintf(buf, PAGE_SIZE, "gain = 0x%02X\n", gain);
+}
+
+static ssize_t strength_store(struct device *dev, struct device_attribute *attr, const char *buf,
+			  size_t count)
+{
+	cdev_t *cdev = dev_get_drvdata(dev);
+	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic, vib_dev);
+	uint32_t val = 0;
+	int rc = 0;
+
+	rc = kstrtouint(buf, 0, &val);
+	if (rc < 0)
+		return rc;
+
+	aw_info("value=0x%02X", val);
+
+	mutex_lock(&aw_haptic->lock);
+
+	switch (val) {
+	case 0:
+		aw_haptic->gain = AW_LIGHT_GAIN;
+		break;
+	case 1:
+		aw_haptic->gain = AW_MEDIUM_GAIN;
+		break;
+	case 2:
+		aw_haptic->gain = AW_STRONG_GAIN;
+		break;
+	default:
+		aw_err("Unsupported strength: %d", val);
+		break;
+	}
+
+	aw_haptic->func->set_gain(aw_haptic, aw_haptic->gain);
+	mutex_unlock(&aw_haptic->lock);
+
+	return count;
+}
+
 static ssize_t seq_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	uint8_t i = 0;
@@ -1669,8 +1767,9 @@ static ssize_t seq_store(struct device *dev, struct device_attribute *attr, cons
 {
 	cdev_t *cdev = dev_get_drvdata(dev);
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic, vib_dev);
-	uint32_t databuf[2] = { 0, 0 };
-
+	unsigned int val = 0;
+	int rc = 0;
+#if 0
 	if (sscanf(buf, "%X %X", &databuf[0], &databuf[1]) == 2) {
 		if (databuf[0] >= AW_SEQUENCER_SIZE || databuf[1] > aw_haptic->ram.ram_num) {
 			aw_err("input value out of range!");
@@ -1684,7 +1783,42 @@ static ssize_t seq_store(struct device *dev, struct device_attribute *attr, cons
 					     aw_haptic->seq[databuf[0]]);
 		mutex_unlock(&aw_haptic->lock);
 	}
+#endif
+	rc = kstrtouint(buf, 0, &val);
+	if (rc < 0)
+		return rc;
 
+	val = (val >> 24) & 0xFF;
+	aw_info("%s: seq=%d\n", __func__,val);
+
+	mutex_lock(&aw_haptic->lock);
+	aw_haptic->duration = 0;
+	if (val == 3) {
+		aw_haptic->seq[0] = 1;
+	} else if (val == 4) {
+		aw_haptic->seq[0] = 3;
+	} else if (val == 5) {
+		aw_haptic->seq[0] = 1;
+	} else if (val == 6) {
+		aw_haptic->seq[0] = 2;
+	} else {
+		aw_haptic->seq[0] = 1;
+	}
+	aw_haptic->func->set_wav_seq(aw_haptic, 0, aw_haptic->seq[0]);
+	mutex_unlock(&aw_haptic->lock);
+
+	return count;
+}
+
+static ssize_t rtp_interface_show(struct device *dev,
+        struct device_attribute *attr, char *buf)
+{
+	return 0;
+}
+
+static ssize_t rtp_interface_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
 	return count;
 }
 
@@ -2494,7 +2628,9 @@ static DEVICE_ATTR_RW(activate);
 static DEVICE_ATTR_RW(activate_mode);
 static DEVICE_ATTR_RW(index);
 static DEVICE_ATTR_RW(gain);
+static DEVICE_ATTR_RW(strength);
 static DEVICE_ATTR_RW(seq);
+static DEVICE_ATTR_RW(rtp_interface);
 static DEVICE_ATTR_RW(loop);
 static DEVICE_ATTR_RW(ram_update);
 static DEVICE_ATTR_RW(f0);
@@ -2526,7 +2662,9 @@ static struct attribute *vibrator_attributes[] = {
 	&dev_attr_activate_mode.attr,
 	&dev_attr_index.attr,
 	&dev_attr_gain.attr,
+	&dev_attr_strength.attr,
 	&dev_attr_seq.attr,
+	&dev_attr_rtp_interface.attr,
 	&dev_attr_loop.attr,
 	&dev_attr_reg.attr,
 	&dev_attr_ram_update.attr,
