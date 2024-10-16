@@ -136,6 +136,9 @@ int wls_get_sys_config(struct moto_wlc *wlc, struct device *dev)
 		wlc->wireless_charger_max_input_current = WIRELESS_CHARGER_MAX_INPUT_CURRENT;
 	}
 
+	of_property_read_u32(node, "chip-id", &wlc->config.chip_id);
+	pr_info("[%s] chip-id %d\n", __func__, wlc->config.chip_id);
+
 	return 0;
 }
 

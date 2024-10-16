@@ -40,6 +40,8 @@
 #include <linux/mmi_wireless_class.h>
 #include "moto_wlc2.h"
 
+static int factory_test_wls_en(void *input, bool en);
+
 void wls_device_pm_set_awake(struct moto_wlc *wlc, bool awake)
 {
 	if (IS_ERR_OR_NULL(wlc->fw_update_wake_lock))
@@ -501,7 +503,8 @@ static ssize_t factory_wireless_en_store(struct device *dev,
 		wlc_err("Invalid factory_wls_en = %lu\n", en);
 		return -EINVAL;
 	}
-	pWlc->ctl.factory_wls_en = en;
+
+	factory_test_wls_en(pWlc, en);
 
 	return r ? r : count;
 }
@@ -520,6 +523,51 @@ static ssize_t factory_wireless_en_show(struct device *dev,
 }
 static DEVICE_ATTR(factory_wireless_en, S_IRUGO|S_IWUSR, factory_wireless_en_show, factory_wireless_en_store);
 
+static ssize_t inhibit_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	unsigned long r;
+	unsigned long en;
+	struct moto_wlc *pWlc = dev->driver_data;
+
+	if (IS_ERR_OR_NULL(pWlc)) {
+		wlc_err("%s: chip not valid\n", __func__);
+		return -ENODEV;
+	}
+
+	r = kstrtoul(buf, 0, &en);
+	if (r) {
+		wlc_err("Invalid inhibit = %lu\n", en);
+		return -EINVAL;
+	}
+
+	if (gpio_is_valid(pWlc->wls_control_en)) {
+		gpio_set_value(pWlc->wls_control_en, en);
+		r = gpio_get_value(pWlc->wls_control_en);
+	}
+
+	return r ? r : count;
+}
+
+static ssize_t inhibit_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct moto_wlc *pWlc = dev->driver_data;
+	int rt = -EINVAL;
+
+	if (IS_ERR_OR_NULL(pWlc)) {
+		wlc_err("%s: chip not valid\n", __func__);
+		return -ENODEV;
+	}
+	if (gpio_is_valid(pWlc->wls_control_en)) {
+		rt = gpio_get_value(pWlc->wls_control_en);
+	}
+
+	return sprintf(buf, "%d\n", rt);
+}
+static DEVICE_ATTR(inhibit, S_IRUGO|S_IWUSR, inhibit_show, inhibit_store);
 
 int wls_device_node_create(struct device *dev)
 {
@@ -535,6 +583,7 @@ int wls_device_node_create(struct device *dev)
 
 //-----------------------factory wireless test-------
 	device_create_file(dev, &dev_attr_factory_wireless_en);
+	device_create_file(dev, &dev_attr_inhibit);
 
 //-----------------------RX--------------------------
 	device_create_file(dev, &dev_attr_get_rx_irect);
@@ -555,4 +604,103 @@ int wls_device_node_create(struct device *dev)
 	device_create_file(dev, &dev_attr_wlc_tx_sn);
 
 	return 0;
+}
+
+static int wireless_get_chip_id(void *input)
+{
+	struct moto_wlc *wlc = NULL;
+	int rt = 0;
+	int retry = 0;
+
+	wlc_info("%s input=%p\n", __func__, input);
+	wlc = (struct moto_wlc *) input;
+	if (IS_ERR_OR_NULL(wlc)) {
+		wlc_err("%s wlc is err or null\n", __func__);
+		return -1;
+	}
+
+	if (wlc->data.chip_id == wlc->config.chip_id) {
+		return wlc->config.chip_id;
+	}
+
+	rt = wls_rx_get_chip_id(wlc->wls_dev, &wlc->data.chip_id);
+	wlc_info("%s chip_id=%d rt=%d\n", __func__, wlc->data.chip_id, rt);
+	if (!rt) { //IIC ok
+		return wlc->data.chip_id;
+	}
+
+	if ((wlc_hal_get_vbus(wlc->alg) / 1000) < (VBUS_VALID_MV / 2)) {
+		wls_device_fw_set_boost(wlc, true);
+		while (retry < 3 && (wlc->data.chip_id != wlc->config.chip_id)) {
+			msleep(50);
+			rt = wls_rx_get_chip_id(wlc->wls_dev, &wlc->data.chip_id);
+			retry ++;
+		}
+		wls_device_fw_set_boost(wlc, false);
+	}
+
+	wlc_info("%s chip_id=0x%X, retry=%d\n", __func__, wlc->data.chip_id, retry);
+
+	return wlc->data.chip_id;
+}
+
+static int factory_test_wls_en(void *input, bool en)
+{
+	struct moto_wlc *wlc = NULL;
+	int ret = 0;
+	int wait = 0;
+
+	wlc = (struct moto_wlc *) input;
+	if (IS_ERR_OR_NULL(wlc)) {
+		wlc_err("%s wlc is err or null\n", __func__);
+		return -1;
+	}
+
+	if (en) {
+		if (wlc->ctl.factory_wls_en == false) {
+			wlc->ctl.factory_wls_en = true;
+			ret = wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_FACTORY_TEST, true);
+		}
+	} else {
+		if (wlc->ctl.factory_wls_en == true) {
+			if (gpio_is_valid(wlc->wls_control_en)) { //inhibit gpio can disable wireless charging
+				ret = wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_FACTORY_TEST, false);
+			} else {
+				wait = 50;
+				while (wait > 0 && wlc->auth.hs_st == AUTH_HS_UNKONWN) {
+					msleep(100);
+					wait --;
+				}
+				ret |= wls_rx_set_mode_select(wlc->wls_dev, false);
+				wait = 50;
+				while (wait > 0 && (wlc_hal_get_vbus(wlc->alg) > 5500000)) {
+					msleep(10);
+					wait --;
+				}
+				ret |= wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_FACTORY_TEST, false);
+				ret |= wls_rx_set_mode_select(wlc->wls_dev, true);
+				wlc->ctl.factory_wls_en = false;
+			}
+		}
+	}
+
+	wlc_info("wls: factory wls_en %d, ret=%d\n", en, ret);
+	return ret;
+}
+
+
+int wls_device_tcmd_register(struct moto_wlc *wlc)
+{
+	int ret = 0;
+
+	pr_info("%s\n", __func__);
+	wlc->wls_tcmd_client.data = wlc;
+	wlc->wls_tcmd_client.client_id = MOTO_CHG_TCMD_CLIENT_WLS;
+
+	wlc->wls_tcmd_client.get_chip_id = wireless_get_chip_id;
+	wlc->wls_tcmd_client.wls_en = factory_test_wls_en;
+
+	ret = moto_chg_tcmd_register(&wlc->wls_tcmd_client);
+
+	return ret;
 }

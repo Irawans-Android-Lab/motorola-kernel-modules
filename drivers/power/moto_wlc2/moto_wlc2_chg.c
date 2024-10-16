@@ -71,6 +71,9 @@ int wls_chg_power_on(struct moto_wlc *wlc)
 	int sys_mode = 0;
 	int rt = -1;
 
+	if (wlc->ctl.factory_wls_en)
+		return 0;
+
 	wls_rx_get_sys_mode(wlc->wls_dev, &sys_mode);
 	if (sys_mode == SYS_MODE_RX) {
 		rt = wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_CHG, true);
@@ -86,6 +89,14 @@ int wls_chg_power_on(struct moto_wlc *wlc)
 int wls_chg_power_off(struct moto_wlc *wlc)
 {
 	int rt = -1;
+
+	if (wlc->ctl.factory_wls_en) {
+		if (gpio_is_valid(wlc->wls_control_en)) {
+			wlc->ctl.factory_wls_en = false;
+		}
+		pr_info("%s Exit factory wireless charging test\n", __func__);
+		return 0;
+	}
 
 	rt = wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_CHG, false);
 	if (rt == 0) {
@@ -251,11 +262,13 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 			break;
 		case WLS_EVENT_HS_OK:
 			wlc->data.moto_stand = true;
+			wlc->auth.hs_st = AUTH_HS_OK;
 			wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
 			wls_auth_hs_ok_handler(wlc, op_mode);
 			break;
 		case WLS_EVENT_HS_FAIL:
 			wlc->data.moto_stand = false;
+			wlc->auth.hs_st = AUTH_HS_FAIL;
 			break;
 		case WLS_EVENT_RX_FSK_PKT:
 			wls_auth_decode_fsk_packet(wlc, msg->data, msg->len);
@@ -324,12 +337,18 @@ int wls_chg_get_property(struct power_supply *psy,
 	switch(psp){
 		case POWER_SUPPLY_PROP_PRESENT:
 		case POWER_SUPPLY_PROP_ONLINE:
-			wls_rx_get_sys_mode(wlc->wls_dev, &sys_mode);
-			pr_info("%s online:%d\n", __func__, sys_mode == SYS_MODE_RX);
-			if (sys_mode == SYS_MODE_RX)
-				val->intval = 1;
-			else {
-				val->intval = 0;
+			if (gpio_is_valid(wlc->wls_control_en) &&
+				gpio_get_value(wlc->wls_control_en)) {
+				val->intval = 0; //if inhibit is high, set online false
+				pr_info("%s inhibit:1, online:0\n", __func__);
+			} else {
+				ret = wls_rx_get_sys_mode(wlc->wls_dev, &sys_mode);
+				pr_info("%s online:%d ret:%d\n", __func__, sys_mode == SYS_MODE_RX, ret);
+				if (sys_mode == SYS_MODE_RX)
+					val->intval = 1;
+				else {
+					val->intval = 0;
+				}
 			}
 			break;
 

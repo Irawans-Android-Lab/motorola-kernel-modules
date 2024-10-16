@@ -51,8 +51,11 @@ void moto_wlc_control_gpio(struct chg_alg_device *alg, bool enable)
 	struct moto_wlc *wlc;
 
 	wlc = dev_get_drvdata(&alg->dev);
-	if (gpio_is_valid(wlc->wls_control_en))
+	if (gpio_is_valid(wlc->wls_control_en)) {
 		gpio_set_value(wlc->wls_control_en, enable);
+		pr_info("%s inhibit:%d wireless %s\n", __func__,
+			gpio_get_value(wlc->wls_control_en), enable ? "disable" : "enable");
+	}
 }
 
 static int wlc_plugout_reset(struct chg_alg_device *alg)
@@ -787,6 +790,7 @@ static int moto_wlc_probe(struct platform_device *pdev)
 
 	wls_chg_register_psy(wlc);
 
+	wls_device_tcmd_register(wlc);
 	wls_device_node_create(&(wlc->pdev->dev));
 
 	wlc->wls_wq = create_singlethread_workqueue("wls_workqueue");

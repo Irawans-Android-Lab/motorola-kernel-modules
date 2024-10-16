@@ -447,6 +447,7 @@ int wls_auth_disconnect(struct moto_wlc* wlc)
 		return rt;
 	}
 
+	wlc->auth.hs_st = AUTH_HS_UNKONWN;
 	wlc_dbg("%s\n", __func__);
 	if (wlc->auth.enable) {
 		wls_auth_clear(wlc);

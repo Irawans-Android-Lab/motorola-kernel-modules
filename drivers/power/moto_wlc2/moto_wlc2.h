@@ -167,6 +167,7 @@ struct wireless_ctl
 struct wireless_data
 {
 	bool moto_stand;
+	int chip_id;
 	int rx_irect;
 	int rx_vrect;
 	int rx_vout;
@@ -237,6 +238,7 @@ struct wireless_auth
 
 	MOTOAUTH_EVENT_TYPE event;
 	MOTOAUTH_EVENT_TYPE next_event;
+	AUTH_HANDSHAKE_T hs_st;
 
 	int wlc_type;
 	int wlc_tx_id;
@@ -317,6 +319,7 @@ struct moto_wlc {
 	struct wireless_config config;
 	struct wireless_data data;
 	struct wireless_auth auth;
+	struct moto_chg_tcmd_client wls_tcmd_client;
 	int pre_status;
 
 	struct workqueue_struct *wls_wq;
@@ -378,6 +381,7 @@ extern void wlc_chg_bpp_mode_icl_work(struct work_struct *work);
 
 extern int wls_device_node_create(struct device *dev);
 extern void wls_device_fw_update_work(struct work_struct *work);
+extern int wls_device_tcmd_register(struct moto_wlc *wlc);
 
 extern int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev);
 
