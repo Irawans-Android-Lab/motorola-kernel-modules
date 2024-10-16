@@ -697,7 +697,7 @@ enum
 /*****************************************************************************
  * stk501xx register, end
  *****************************************************************************/
-#define STK501XX_NAME    "sar"
+#define STK501XX_NAME    "stk501xx"
 static const uint16_t STK_ID[1] = { STK501XX_ID };
 
 typedef struct stk_data stk_data;

@@ -294,6 +294,77 @@ static ssize_t stk_int_state_show(struct class *class,
     return scnprintf(buf, PAGE_SIZE, "%d\n", !global_stk->first_init);
 }
 
+static ssize_t reg_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+    uint32_t *val = (u32*)buf;
+    stk501xx_wrapper *stk_wrapper = container_of(global_stk, stk501xx_wrapper, stk);
+    stk_data *stk = &stk_wrapper->stk;
+
+    STK_LOG("reg_show");
+    if(stk_wrapper->read_flag)
+    {
+        stk_wrapper->read_flag = 0;
+        if (STK_REG_READ(stk, stk_wrapper->read_reg, (uint8_t*)val) < 0)
+        {
+            return -1;
+        }
+        STK_LOG("read_reg=0x%x, val=0x%x", stk_wrapper->read_reg, *val);
+        scnprintf(buf, PAGE_SIZE, "read_reg=0x%x, val=0x%x", stk_wrapper->read_reg, *val);
+
+        return 4;
+    }
+
+	return -1;
+}
+
+/*
+	reg attr is for TCMD on MTK only,
+	buf[6]-read_flag:
+	0-real write,
+	1-just transfer the reg value want to be readed
+*/
+static ssize_t reg_store(struct class *class,
+		struct class_attribute *attr, const char *buf, size_t count)
+{
+    stk501xx_wrapper *stk_wrapper = container_of(global_stk, stk501xx_wrapper, stk);
+    stk_data *stk = &stk_wrapper->stk;
+    int read_bit;
+    u16 regaddr = 0;
+    u32 val = 0;
+    int i = 0;
+
+    if (count != 7)
+    {
+        STK_ERR("%s : params error[ count == %lu ]",__func__, count);
+        return -1;
+    }
+
+    for (i = 0; i < count; i++)
+    {
+        STK_LOG("%s : buf[%d] = 0x%x", __func__, i, buf[i]);
+    }
+
+    regaddr = ((uint32_t)buf[0] << 8) | (uint32_t)buf[1];
+    val = ((uint32_t)buf[2] << 24) | ((uint32_t)buf[3] << 16) | ((uint32_t)buf[4] << 8) | ((uint32_t)buf[5]);
+    read_bit = buf[6];
+    stk_wrapper->read_flag = read_bit;
+    STK_ERR("write reg[0x%x]=0x%x, read_bit=%d", regaddr, val, read_bit);
+
+    if (read_bit == 0)
+    {
+        if (STK_REG_WRITE(stk, (uint16_t)regaddr, (uint8_t*)&val) < 0)
+        {
+            return -1;
+        }
+    }
+    else if (read_bit == 1)
+    {
+        stk_wrapper->read_reg = regaddr;
+    }
+	return count;
+}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
 static struct class_attribute class_attr_enable =
     __ATTR(enable, 0664, class_stk_enable_show, class_stk_enable_store);
@@ -313,6 +384,8 @@ static struct class_attribute class_attr_reset =
     __ATTR(reset, 0664, class_stk_phase_cali, class_stk_phase_cali_store);
 static struct class_attribute class_attr_int_state =
     __ATTR(int_state, 0444, stk_int_state_show, NULL);
+static struct class_attribute class_attr_reg =
+	__ATTR(reg, 0660, reg_show, reg_store);
 
 static struct attribute *capsense_class_attrs[] =
 {
@@ -325,6 +398,7 @@ static struct attribute *capsense_class_attrs[] =
     &class_attr_channel_en.attr,
     &class_attr_reset.attr,
     &class_attr_int_state.attr,
+    &class_attr_reg.attr,
     NULL,
 };
 
@@ -341,11 +415,10 @@ static struct class_attribute capsense_class_attributes[] =
     __ATTR(channel_en, 0664, stk_channel_en_show, stk_channel_en_store),
     __ATTR(reset, 0664, class_stk_phase_cali, class_stk_phase_cali_store),
     __ATTR(int_state, 0444, stk_int_state_show, NULL),
+    __ATTR(reg, 0660, reg_show, reg_store),
     __ATTR_NULL,
 };
 #endif
-
-
 
 struct class capsense_class =
     {

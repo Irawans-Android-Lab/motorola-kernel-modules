@@ -148,6 +148,8 @@ typedef struct stk501xx_wrapper
     struct stk501xx_register_table *flip_closed_regs;
 #endif
 #endif
+    int read_flag; /* used for dump specified register*/
+    u16 read_reg; /* record reg address which want to read*/
 } stk501xx_wrapper;
 
 #endif //__STK501XX_MTK_I2C_H__
