@@ -2050,6 +2050,12 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
 		return 0;
 
 	 if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN) {
+	    //disable reverse mode
+	    sc858x_field_read(bq, MODE, &ret);
+	    if(ret == 6) {
+            	sc858x_field_write(bq, MODE, 0);
+		dev_err(bq->dev, "%s:mmi_mux dis cp otg reverse mode", __func__);
+	    }
 #if 0
             ret = regmap_update_bits(bq->regmap, BQ25980_CHRGR_CTRL_2,
                     BQ25980_EN_OTG, 0);
@@ -2105,6 +2111,8 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
                 return ret;
             }
 #endif
+	    //reverse mode
+	    sc858x_field_write(bq, MODE, 6);
             ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_ACDRV_MANUAL, SC8565_ACDRV_MANUAL);
             if (ret) {
@@ -2129,6 +2137,8 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
                 return ret;
             }
 #endif
+	    //reverse mode
+	    sc858x_field_write(bq, MODE, 6);
             ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_ACDRV_MANUAL, SC8565_ACDRV_MANUAL);
             if (ret) {
