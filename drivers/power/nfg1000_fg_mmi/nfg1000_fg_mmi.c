@@ -2518,15 +2518,24 @@ int fg_set_shutdown_threshold(struct gauge_device *gauge_dev, int shutd_vol)
 		int shutd_vol;
 		u8 hex[4];
 	} data;
+	int ret = 0;
 
 	if (!mmi->fake_battery) {
-		data.shutd_vol = MAX(shutd_vol, 3200);
-		data.shutd_vol = MIN(shutd_vol, 3400);
-		nfg1000_i2c_BLOCK_command_write_with_CHECKSUM(mmi,FG_MAC_CMD_POWEROFF_THRESHOLD, data.hex, 2);
-		mmi_info("set shutdown_threshold=%d mv to fg cell\n", data.shutd_vol);
+		ret = nfg1000_i2c_BLOCK_command_read_with_CHECKSUM(mmi, FG_MAC_CMD_POWEROFF_THRESHOLD, data.hex, 2);
+		if (ret < 0)
+			mmi_err("Read poweroff threshold error!!\n");
+		if (data.shutd_vol != shutd_vol) {
+			data.shutd_vol = MAX(shutd_vol, 3200);
+			data.shutd_vol = MIN(shutd_vol, 3400);
+			ret = nfg1000_i2c_BLOCK_command_write_with_CHECKSUM(mmi, FG_MAC_CMD_POWEROFF_THRESHOLD, data.hex, 2);
+			if (ret <0)
+				mmi_err("Write poweroff threshold error!!\n");
+			else
+				mmi_info("set shutdown_threshold=%d mv to fg cell\n", data.shutd_vol);
+		}
 	}
 
-	return 0;
+	return ret;
 }
 
 static const u8 fg_dump_regs[] = {
