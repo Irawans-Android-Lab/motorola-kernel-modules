@@ -1653,7 +1653,7 @@ int32_t stk_i2c_probe(struct i2c_client *client, struct common_function *common_
         if (err)
             STK_ERR("Unable to register ps_notifier: %d\n", err);
 
-        psy = power_supply_get_by_name("usb");
+        psy = power_supply_get_by_name(USB_POWER_SUPPLY_NAME);
         if (psy) {
             err = ps_get_state(psy, &stk_wrapper->ps_is_present);
             if (err) {

@@ -32,6 +32,7 @@
 #include <linux/timer.h>
 #include <linux/vmalloc.h>
 #include <linux/version.h>
+#include <linux/power_supply.h>
 
 #include "stk501xx.h"
 #include "common_define.h"
