@@ -792,6 +792,7 @@ static int moto_wlc_probe(struct platform_device *pdev)
 
 	wls_device_tcmd_register(wlc);
 	wls_device_node_create(&(wlc->pdev->dev));
+	wls_auth_init(wlc);
 
 	wlc->wls_wq = create_singlethread_workqueue("wls_workqueue");
 	INIT_DELAYED_WORK(&wlc->fw_update_work, wls_device_fw_update_work);

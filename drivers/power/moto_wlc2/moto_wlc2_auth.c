@@ -101,6 +101,7 @@ int wls_auth_set_next_event(struct wireless_auth *auth, int event)
 	if (IS_ERR_OR_NULL(auth))
 		return MOTOAUTH_EVENT_MAX;
 
+	pr_info("%s %d\n", __func__, auth->next_event);
 	auth->next_event = (event < MOTOAUTH_EVENT_MAX) ? event : MOTOAUTH_EVENT_MAX;
 	complete(&auth->recv_done);
 	return auth->next_event;
@@ -287,11 +288,9 @@ int wls_auth_hs_ok_handler(struct moto_wlc *wlc, int op_mode)
 		return MOTO_WLS_AUTH_FAIL;
 
 	wls_auth_clear(wlc);
-	if (op_mode == Sys_Op_Mode_BPP ||
-		op_mode == Sys_Op_Mode_MOTO_WLC) {
-		wlc_dbg("%s next to TX_CAPABILITY", __func__);
-		wls_auth_set_next_event(&(wlc->auth), MOTOAUTH_EVENT_START);
-	}
+	wlc_info("%s next to TX_CAPABILITY", __func__);
+	wls_auth_set_next_event(&(wlc->auth), MOTOAUTH_EVENT_START);
+
 	wlc->auth.hs_ok = true;
 	wls_auth_wake_up_events_thread(&wlc->auth);
 
