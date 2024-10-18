@@ -86,6 +86,23 @@ WLS_RX_SET(fw_update, bool a);
 
 WLS_RX_CHECK(ldo_on);
 
+int wls_get_message_size(int header)
+{
+	int size = 0;
+
+	if (header < 0x20) {
+		size = 1;
+	} else if (header < 0x80) {
+		size = header / 16;
+	} else if (header < 0xE0) {
+		size = header / 8 - 8;
+	} else {
+		size = header / 4 - 36;
+	}
+
+	return size;
+}
+EXPORT_SYMBOL(wls_get_message_size);
 
 int wls_rx_send_ask_packet(struct wireless_device *wls_dev, uint8_t *data, int data_len)
 {

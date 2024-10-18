@@ -748,10 +748,18 @@ static int rx_fsk_recv_irq_handler(struct sc9624 *sc)
 {
     int ret;
     FskType fsk_pkt;
+    struct wls_event_msg msg = {0x00};
 
     sc_info(":trigger\n");
 
     ret = sc9624_rx_recv_fsk_pkt(sc, &fsk_pkt);
+    sc_info("ret:%d header:%d\n", ret , fsk_pkt.header);
+    if (ret == 0) {
+        msg.event = WLS_EVENT_RX_FSK_PKT;
+        msg.len = wls_get_message_size((int)fsk_pkt.header);
+        memcpy(&msg.data, fsk_pkt.msg, msg.len);
+        ret = sc9624_send_event(sc, &msg);
+    }
 
     return ret;
 }

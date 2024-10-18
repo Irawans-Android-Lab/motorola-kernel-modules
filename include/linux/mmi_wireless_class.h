@@ -154,5 +154,6 @@ extern int wls_rx_set_fw_update(struct wireless_device *wls_dev, bool force);
 extern bool wls_rx_check_ldo_on(struct wireless_device *wls_dev);
 
 extern int wls_rx_send_ask_packet(struct wireless_device *wls_dev, uint8_t *data, int data_len);
+extern int wls_get_message_size(int header);
 
 #endif /*_MMI_WIRELESS_CLASS_H*/
