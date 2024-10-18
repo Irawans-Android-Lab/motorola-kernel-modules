@@ -3004,11 +3004,133 @@ static ssize_t fg_attr_store_FW_update(struct device *dev,
 	return count;
 }
 
+static ssize_t fg_attr_show_cycle_count(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct mmi_fg_chip *di = i2c_get_clientdata(client);
+	int ret = 0;
+	u16 cc;
+
+	ret = fg_read_word(di, di->regs[BQ_FG_REG_CC], &cc);
+	if (ret < 0) {
+		mmi_err("could not read Cycle Count, ret=%d\n", ret);
+	} else {
+		ret = sprintf(buf, "%d\n", cc);
+	}
+
+	return ret;
+}
+
+static ssize_t fg_attr_store_cycle_count(struct device *dev,
+				struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct mmi_fg_chip *di = i2c_get_clientdata(client);
+	u8 datablock[32] = {0};
+	u16 cycle_count = 0;
+	int ret = 0;
+
+	ret = kstrtou16(buf, 0, &cycle_count);
+	if (ret) {
+		mmi_err("kstrtou16 Failed\n");
+		return ret;
+	}
+
+	if(nfg1000_ota_unseal(di))
+		return PROGRAM_ERROR_UNSEAL;
+	if (nfg1000_i2c_BLOCK_command_read_with_CHECKSUM(di,0x4440 ,datablock,32) < 0)
+		return ERROR_CODE_I2C_READ;
+	mmi_info("read cycle_count datablock[14]=%d, datablock[15]=%d\n", datablock[14], datablock[15]);
+
+	datablock[14] = cycle_count & 0xff;
+	datablock[15] =  (cycle_count >>8) & 0xff;
+	if (nfg1000_i2c_BLOCK_command_write_with_CHECKSUM(di,0x4440 ,datablock,32) < 0)
+		return ERROR_CODE_I2C_WRITE;
+	memset(datablock,0,32);
+	if (nfg1000_i2c_BLOCK_command_read_with_CHECKSUM(di,0x4440 ,datablock,32) < 0)
+		return ERROR_CODE_I2C_READ;
+	if (datablock[14] != (cycle_count & 0xff) ||
+		datablock[15] !=  ((cycle_count >>8) & 0xff)) {
+		mmi_err("Set Cycle Count Failed\n");
+	} else {
+		mmi_info("Set Cycle Count successfully!\n");
+	}
+	nfg1000_ota_seal(di);
+
+	return count;
+}
+
+static ssize_t fg_attr_show_DesignCapacity(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct mmi_fg_chip *di = i2c_get_clientdata(client);
+	int ret = 0;
+	int dc = 0;
+
+	dc = fg_read_dc(di);
+	if (dc < 0) {
+		mmi_err("could not read Cycle Count, ret=%d\n", ret);
+	} else {
+		ret = sprintf(buf, "%d\n", dc);
+	}
+
+	return ret;
+}
+
+static ssize_t fg_attr_store_DesignCapacity(struct device *dev,
+				struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct mmi_fg_chip *di = i2c_get_clientdata(client);
+	u8 datablock[32] = {0};
+	u16 dc = 0;
+	int ret = 0;
+
+	ret = kstrtou16(buf, 0, &dc);
+	if (ret) {
+		mmi_err("kstrtou16 Failed\n");
+		return ret;
+	}
+	if(nfg1000_ota_unseal(di))
+		return PROGRAM_ERROR_UNSEAL;
+	if (nfg1000_i2c_BLOCK_command_read_with_CHECKSUM(di,0x4403 ,datablock,32) < 0)
+		return ERROR_CODE_I2C_READ;
+	mmi_info("read DesignCapacity datablock[14]=%d, datablock[15]=%d\n", datablock[18], datablock[19]);
+
+	datablock[18] = dc & 0xff;
+	datablock[19] =  (dc >>8) & 0xff;
+	if (nfg1000_i2c_BLOCK_command_write_with_CHECKSUM(di,0x4403 ,datablock,32) < 0)
+		return ERROR_CODE_I2C_WRITE;
+	memset(datablock,0,32);
+	if (nfg1000_i2c_BLOCK_command_read_with_CHECKSUM(di,0x4403 ,datablock,32) < 0)
+		return ERROR_CODE_I2C_READ;
+	if (datablock[18] != (dc & 0xff) ||
+		datablock[19] !=  ((dc >>8) & 0xff)) {
+		mmi_err("Set DesignCapacity Failed\n");
+	} else {
+		mmi_info("Set DesignCapacity successfully!\n");
+	}
+	nfg1000_ota_seal(di);
+
+	//reset fg then the new DesignCapacity works.
+	ret = fg_write_word(di, di->regs[BQ_FG_REG_ALT_MAC], 0x0012);
+	if (ret < 0) {
+		mmi_err("fail to reset fg, ret=%d\n", ret);
+		return ret;
+	}
+
+	return count;
+}
+
 static DEVICE_ATTR(RaTable, S_IRUGO, fg_attr_show_Ra_table, NULL);
 static DEVICE_ATTR(Qmax, S_IRUGO, fg_attr_show_Qmax, NULL);
 static DEVICE_ATTR(Params_Ver, S_IRUGO, fg_attr_show_batt_params_ver, NULL);
 static DEVICE_ATTR(FW_Ver, S_IRUGO, fg_attr_show_FW_ver, NULL);
 static DEVICE_ATTR(FW_update, S_IWUSR|S_IWGRP, NULL, fg_attr_store_FW_update);
+static DEVICE_ATTR(CycleCount, S_IWUSR | S_IRUGO, fg_attr_show_cycle_count, fg_attr_store_cycle_count);
+static DEVICE_ATTR(DesignCapacity, S_IWUSR | S_IRUGO, fg_attr_show_DesignCapacity, fg_attr_store_DesignCapacity);
 
 static struct attribute *fg_attributes[] = {
 	&dev_attr_RaTable.attr,
@@ -3016,6 +3138,8 @@ static struct attribute *fg_attributes[] = {
 	&dev_attr_Params_Ver.attr,
 	&dev_attr_FW_Ver.attr,
 	&dev_attr_FW_update.attr,
+	&dev_attr_CycleCount.attr,
+	&dev_attr_DesignCapacity.attr,
 	NULL,
 };
 
