@@ -1317,11 +1317,7 @@ static int sgm4154x_charger_get_property(struct power_supply *psy,
 
 	case POWER_SUPPLY_PROP_ONLINE:
 		tcpc_attach = atomic_read(&sgm->attach);
-#if IS_ENABLED(CONFIG_MMI_SGM41543D_CHARGER)
 		if (state.online || tcpc_attach != ATTACH_TYPE_NONE)
-#else
-		if (state.online || tcpc_attach == ATTACH_TYPE_TYPEC)
-#endif
 			val->intval = 1;
 		else
 			val->intval = 0;
@@ -1745,9 +1741,11 @@ static irqreturn_t sgm4154x_irq_handler_thread(int irq, void *private)
 	struct sgm4154x_state state;
 	bool prev_vbus_gd;
 	int ret = 0;
+	int tcpc_attach = 0;
 
+	tcpc_attach = atomic_read(&sgm->attach);
 	//lock wakelock
-	pr_info("[%s] entry\n", __func__);
+	pr_info("[%s] entry, tcpc_attach = %d\n", __func__, tcpc_attach);
 
 	ret = sgm4154x_get_state(sgm, &state);
 	if (ret) {
