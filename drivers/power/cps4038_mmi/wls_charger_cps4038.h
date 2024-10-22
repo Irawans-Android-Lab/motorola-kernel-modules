@@ -301,6 +301,10 @@ struct cps_wls_chrg_chip {
     cps_hs_st_e hs_st;
     bool android_auto_connected;
     bool android_auto_over_temp;
+    int wls_hal_int1;
+    int wls_hal_irq1;
+    int wls_hal_int2;
+    int wls_hal_irq2;
 };
 
 typedef enum ept_reason

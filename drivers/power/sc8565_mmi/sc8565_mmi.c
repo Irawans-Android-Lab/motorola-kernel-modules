@@ -2163,6 +2163,15 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
                 dev_err(bq->dev, "%s:mmi_mux  open wls mux fail ret=%d", __func__, ret);
                 return ret;
             }
+        }else if (wls_mos == MMI_DVCHG_MUX_OTG_WLC_OPEN) {
+		//reverse mode
+		sc858x_field_write(bq, MODE, 6);
+            ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
+                    SC8565_WPCGATE_EN, SC8565_WPCGATE_EN);
+            if (ret) {
+                dev_err(bq->dev, "%s:mmi_mux  open wls mux fail ret=%d", __func__, ret);
+                return ret;
+            }
         } else if (wls_mos == MMI_DVCHG_MUX_MANUAL_OPEN) {
             ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_ACDRV_MANUAL, SC8565_ACDRV_MANUAL);
@@ -2186,7 +2195,6 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
             }
         }
 
-
 	if (typec_mos == MMI_DVCHG_MUX_DISABLE) {
 		ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_ACDRV_MANUAL, SC8565_ACDRV_MANUAL);
@@ -2202,6 +2210,7 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
             }
 	     udelay(1000);
 	}
+
 	if (wls_mos == MMI_DVCHG_MUX_DISABLE) {
 		ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_ACDRV_MANUAL, SC8565_ACDRV_MANUAL);
@@ -2226,7 +2235,7 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
         if (!ret)
                 dev_err(bq->dev, "%s:mmi_mux Reg SC8565_CHRGR_CTRL_1] = 0x%02X\n", __func__, val);
 
-//	sc858x_dump_reg(bq);
+	sc858x_dump_reg(bq);
 	return 0;
 }
 
