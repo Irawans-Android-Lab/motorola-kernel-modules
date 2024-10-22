@@ -882,6 +882,16 @@ static int rx_hs_fail_irq_handler(struct sc9624 *sc)
     return 0;
 }
 
+static int rx_nego_power_irq_handler(struct sc9624 *sc)
+{
+    struct wls_event_msg msg = {0x00};
+
+    sc_info(":trigger\n");
+    msg.event = WLS_EVENT_RX_NEGO_POWER_READY;
+    sc9624_send_event(sc, &msg);
+    return 0;
+}
+
 //tx
 static int tx_ask_recv_irq_handler(struct sc9624 *sc)
 {
@@ -991,6 +1001,7 @@ static const struct interrupt_handler rx_irq_handlers[] = {
     DECL_INTERRUPT_HANDLER(22, rx_scp_irq_handler),
     DECL_INTERRUPT_HANDLER(26, rx_hs_ok_irq_handler),
     DECL_INTERRUPT_HANDLER(27, rx_hs_fail_irq_handler),
+    DECL_INTERRUPT_HANDLER(28, rx_nego_power_irq_handler),
 };
 
 static const struct interrupt_handler tx_irq_handlers[] = {
