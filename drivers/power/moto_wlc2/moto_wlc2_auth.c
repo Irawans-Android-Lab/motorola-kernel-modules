@@ -268,7 +268,6 @@ static int wls_auth_events_thread(void *arg)
 int wls_auth_wls_set_status(struct moto_wlc *wlc, int st)
 {
 	if (!IS_ERR_OR_NULL(wlc)) {
-		wlc->data.wlc_status = st;
 		return wls_chg_notify_st_changed(wlc, st);
 	}
 

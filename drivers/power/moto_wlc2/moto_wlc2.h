@@ -320,7 +320,6 @@ struct moto_wlc {
 	struct wireless_data data;
 	struct wireless_auth auth;
 	struct moto_chg_tcmd_client wls_tcmd_client;
-	int pre_status;
 
 	struct workqueue_struct *wls_wq;
 	struct delayed_work fw_update_work;

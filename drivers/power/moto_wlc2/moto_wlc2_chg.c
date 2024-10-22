@@ -409,10 +409,10 @@ static char *wls_psy_supplied_to[] = {
 
 int wls_chg_notify_st_changed(struct moto_wlc *wlc, int st)
 {
-	if (wlc->pre_status != st) {
+	if (wlc->data.wlc_status != st) {
 		wlc_info("%s st change	%d -> %d\n",
-				__func__, wlc->pre_status, st);
-		wlc->pre_status = st;
+				__func__, wlc->data.wlc_status, st);
+		wlc->data.wlc_status = st;
 		sysfs_notify(&wlc->wls_psy->dev.parent->kobj, NULL, "wlc_st_changed");
 	}
 
