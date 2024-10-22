@@ -1761,7 +1761,7 @@ static int sc8989x_get_charger_type(struct sc8989x_chip *sc)
 		sc->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
 		sc->psy_desc.type = POWER_SUPPLY_TYPE_USB;
 		dev_info(sc->dev, "%s: charger type: UNKNOWN\n", __func__);
-		if (sc->force_detect_count < 10) {
+		if (sc->force_detect_count < 3) {
 			dev_info(sc->dev, "[%s] SC8989x charger type: UNKNOWN, retry bc12 count:%d\n", __func__, sc->force_detect_count);
 			schedule_delayed_work(&sc->force_detect_dwork, msecs_to_jiffies(100));
 		}
