@@ -4155,13 +4155,19 @@ static int cps_wls_parse_dt(struct cps_wls_chrg_chip *chip)
 	of_property_read_u32(node, "rod_stop_battery_soc", &chip->rod_stop_battery_soc);
 	cps_wls_log(CPS_LOG_DEBG,"[%s] rod_stop_battery_soc %d\n", __func__, chip->rod_stop_battery_soc);
 
-	chip->wls_hal_int1 = of_get_named_gpio(node, "wls_hal_int1", 0);
-	if(!gpio_is_valid(chip->wls_hal_int1))
-		return -EINVAL;
+	chip->enable_wlc_hall = 0x00;
+	of_property_read_u32(node, "enable_wlc_hall", &chip->enable_wlc_hall);
+	cps_wls_log(CPS_LOG_ERR,"[%s] enable_wlc_hall %d\n", __func__, chip->enable_wlc_hall);
 
-	chip->wls_hal_int2 = of_get_named_gpio(node, "wls_hal_int2", 0);
-	if(!gpio_is_valid(chip->wls_hal_int2))
-		return -EINVAL;
+	if(chip->enable_wlc_hall  != 0) {
+		chip->wls_hal_int1 = of_get_named_gpio(node, "wls_hal_int1", 0);
+		if(!gpio_is_valid(chip->wls_hal_int1))
+			return -EINVAL;
+
+		chip->wls_hal_int2 = of_get_named_gpio(node, "wls_hal_int2", 0);
+		if(!gpio_is_valid(chip->wls_hal_int2))
+			return -EINVAL;
+	}
 
     return 0;
 }
@@ -4201,29 +4207,32 @@ static int cps_wls_gpio_request(struct cps_wls_chrg_chip *chip)
 			cps_wls_log(CPS_LOG_ERR," [%s] Failed to request wls_mode_select gpio, ret:%d", __func__, ret);
 	}
 
-	ret = devm_gpio_request_one(chip->dev, chip->wls_hal_int1,
-				  GPIOF_IN, "cps4038_wls_hal_int1");
-	if (ret < 0) {
-		cps_wls_log(CPS_LOG_ERR,"Failed to request hal_int1 gpio, ret:%d", ret);
-		return ret;
-	}
-	chip->wls_hal_irq1 = gpio_to_irq(chip->wls_hal_int1);
-	if (chip->wls_hal_irq1 < 0) {
-		cps_wls_log(CPS_LOG_ERR,"failed get det irq1 num %d", chip->wls_hal_irq1);
-		return -EINVAL;
+	if(chip->enable_wlc_hall  != 0) {
+		ret = devm_gpio_request_one(chip->dev, chip->wls_hal_int1,
+					  GPIOF_IN, "cps4038_wls_hal_int1");
+		if (ret < 0) {
+			cps_wls_log(CPS_LOG_ERR,"Failed to request hal_int1 gpio, ret:%d", ret);
+			return ret;
+		}
+		chip->wls_hal_irq1 = gpio_to_irq(chip->wls_hal_int1);
+		if (chip->wls_hal_irq1 < 0) {
+			cps_wls_log(CPS_LOG_ERR,"failed get det irq1 num %d", chip->wls_hal_irq1);
+			return -EINVAL;
+		}
+
+		ret = devm_gpio_request_one(chip->dev, chip->wls_hal_int2,
+					  GPIOF_IN, "cps4038_wls_hal_int2");
+		if (ret < 0) {
+			cps_wls_log(CPS_LOG_ERR,"Failed to request hal_int2 gpio, ret:%d", ret);
+			return ret;
+		}
+		chip->wls_hal_irq2 = gpio_to_irq(chip->wls_hal_int2);
+		if (chip->wls_hal_irq2 < 0) {
+			cps_wls_log(CPS_LOG_ERR,"failed get hal irq2 num %d", chip->wls_hal_irq2);
+			return -EINVAL;
+		}
 	}
 
-	ret = devm_gpio_request_one(chip->dev, chip->wls_hal_int2,
-				  GPIOF_IN, "cps4038_wls_hal_int2");
-	if (ret < 0) {
-		cps_wls_log(CPS_LOG_ERR,"Failed to request hal_int2 gpio, ret:%d", ret);
-		return ret;
-	}
-	chip->wls_hal_irq2 = gpio_to_irq(chip->wls_hal_int2);
-	if (chip->wls_hal_irq2 < 0) {
-		cps_wls_log(CPS_LOG_ERR,"failed get hal irq2 num %d", chip->wls_hal_irq2);
-		return -EINVAL;
-	}
     return ret;
 }
 
@@ -5178,25 +5187,27 @@ static int cps_wls_chrg_probe(struct i2c_client *client,
         enable_irq_wake(chip->wls_det_irq);
     }
 
-   if(chip->wls_hal_irq1){
-        ret = devm_request_threaded_irq(&client->dev, chip->wls_hal_irq1, NULL,
-           wls_hal_irq1_handler, IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT, "wls_hal_irq1", chip);
-        if(ret){
-            cps_wls_log(CPS_LOG_ERR, "[%s] request wls_hal_irq1 irq failed ret = %d\n", __func__, ret);
-            goto free_source;
+   if(chip->enable_wlc_hall  != 0) {
+       if(chip->wls_hal_irq1){
+            ret = devm_request_threaded_irq(&client->dev, chip->wls_hal_irq1, NULL,
+               wls_hal_irq1_handler, IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT, "wls_hal_irq1", chip);
+            if(ret){
+                cps_wls_log(CPS_LOG_ERR, "[%s] request wls_hal_irq1 irq failed ret = %d\n", __func__, ret);
+                goto free_source;
+            }
+            enable_irq_wake(chip->wls_hal_irq1);
         }
-        enable_irq_wake(chip->wls_hal_irq1);
-    }
 
-   if(chip->wls_hal_irq2){
-        ret = devm_request_threaded_irq(&client->dev, chip->wls_hal_irq2, NULL,
-           wls_hal_irq2_handler, IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT, "wls_hal_irq2", chip);
-        if(ret){
-            cps_wls_log(CPS_LOG_ERR, "[%s] request wls_hal_irq2 irq failed ret = %d\n", __func__, ret);
-            goto free_source;
+       if(chip->wls_hal_irq2){
+            ret = devm_request_threaded_irq(&client->dev, chip->wls_hal_irq2, NULL,
+               wls_hal_irq2_handler, IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT, "wls_hal_irq2", chip);
+            if(ret){
+                cps_wls_log(CPS_LOG_ERR, "[%s] request wls_hal_irq2 irq failed ret = %d\n", __func__, ret);
+                goto free_source;
+            }
+            enable_irq_wake(chip->wls_hal_irq2);
         }
-        enable_irq_wake(chip->wls_hal_irq2);
-    }
+   }
 
     //Enable IC EPP mode as default
     cps_wls_mode_select("cps_wls_chrg_probe", true);
