@@ -204,7 +204,7 @@ static inline u32 pehv_vout2vbus(struct pehv_algo_info *info, u32 vout)
 	struct pehv_algo_data *data = info->data;
 	u32 ratio = data->is_dvchg_en[PEHV_DVCHG_MASTER] ?
 		PEHV_DVCHG_CHARGING_CONVERT_RATIO :
-		PEHV_DVCHG_STARTUP_CONVERT_RATIO;
+		data->startup_convert_ratio;
 
 	return percent(vout, ratio);
 }
@@ -2531,6 +2531,14 @@ static int pehv_parse_dt(struct pehv_algo_info *info)
 		pr_notice("mmi_max_ibat using default:%d\n",
 			MMI_MAX_IBAT);
 		data->mmi_max_ibat = MMI_MAX_IBAT;
+	}
+
+	if (of_property_read_u32(np, "startup-convert-ratio", &val) >= 0)
+		data->startup_convert_ratio = val;
+	else {
+		pr_notice("startup_convert_ratio using default:%d\n",
+			PEHV_DVCHG_STARTUP_CONVERT_RATIO);
+		data->startup_convert_ratio = PEHV_DVCHG_STARTUP_CONVERT_RATIO;
 	}
 
 	return 0;

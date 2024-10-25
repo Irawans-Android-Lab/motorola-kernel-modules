@@ -159,6 +159,7 @@ struct pehv_algo_data {
 	int mmi_therm_vol_thres;
 	int mmi_therm_step;
 	int mmi_max_ibat;
+	int startup_convert_ratio;
 };
 
 /* Setting from dtsi */
