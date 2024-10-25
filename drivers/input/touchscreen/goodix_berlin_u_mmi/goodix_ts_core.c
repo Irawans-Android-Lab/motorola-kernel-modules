@@ -1600,6 +1600,25 @@ static int goodix_ts_power_init(struct goodix_ts_core *core_data)
 	int ret = 0;
 
 	ts_info("Power init");
+
+#ifdef CONFIG_TOUCHSCREEN_GOODIX_TIMING
+	if (strlen(ts_bdata->iovdd_name)) {
+		core_data->iovdd = devm_regulator_get(dev,
+				 ts_bdata->iovdd_name);
+		if (IS_ERR_OR_NULL(core_data->iovdd)) {
+			ret = PTR_ERR(core_data->iovdd);
+			ts_err("Failed to get regulator iovdd:%d", ret);
+			core_data->iovdd = NULL;
+		}
+		ret = regulator_set_voltage(core_data->iovdd, 1800000, 1800000);
+		if (ret) {
+			ts_err("set iovdd voltage fail");
+			return ret;
+		}
+		ret = regulator_enable(core_data->iovdd);
+	} else {
+		ts_info("iovdd name is NULL");
+	}
 	if (strlen(ts_bdata->avdd_name)) {
 		core_data->avdd = devm_regulator_get(dev,
 				 ts_bdata->avdd_name);
@@ -1618,7 +1637,24 @@ static int goodix_ts_power_init(struct goodix_ts_core *core_data)
 	} else {
 		ts_info("Avdd name is NULL");
 	}
-
+#else
+	if (strlen(ts_bdata->avdd_name)) {
+		core_data->avdd = devm_regulator_get(dev,
+				 ts_bdata->avdd_name);
+		if (IS_ERR_OR_NULL(core_data->avdd)) {
+			ret = PTR_ERR(core_data->avdd);
+			ts_err("Failed to get regulator avdd:%d", ret);
+			core_data->avdd = NULL;
+			return ret;
+		}
+		ret = regulator_set_voltage(core_data->avdd, 3300000, 3300000);
+		if (ret) {
+			ts_err("set avdd voltage fail");
+			return ret;
+		}
+	} else {
+		ts_info("Avdd name is NULL");
+	}
 	if (strlen(ts_bdata->iovdd_name)) {
 		core_data->iovdd = devm_regulator_get(dev,
 				 ts_bdata->iovdd_name);
@@ -1637,6 +1673,7 @@ static int goodix_ts_power_init(struct goodix_ts_core *core_data)
 	} else {
 		ts_info("iovdd name is NULL");
 	}
+#endif
 
 	if (strlen(ts_bdata->svdd_name)) {
 		core_data->svdd = devm_regulator_get(dev,
