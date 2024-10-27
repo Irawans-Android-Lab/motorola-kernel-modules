@@ -283,7 +283,7 @@ static int32_t stk_register_queue(struct stk_data *stk)
 {
 #ifdef STK_INTERRUPT_MODE
     int8_t err = 0;
-    STK_ERR("gpio_request int32_t=%d", stk->gpio_info.int_pin);
+    STK_LOG("gpio_request int32_t=%d", stk->gpio_info.int_pin);
     strcpy(stk->gpio_info.wq_name, "stk_sar_int");
     strcpy(stk->gpio_info.device_name, "stk_sar_irq");
     stk->gpio_info.gpio_cb = stk_work_queue;
@@ -876,7 +876,7 @@ void stk_clr_intr(struct stk_data* stk, uint32_t* flag)
         return;
     }
 
-    STK_ERR("stk_clr_intr:: state = 0x%x", *flag);
+    STK_LOG("stk_clr_intr:: state = 0x%x", *flag);
 }
 
 int32_t stk_read_prox_flag(struct stk_data* stk, uint32_t* prox_flag)
@@ -890,7 +890,7 @@ int32_t stk_read_prox_flag(struct stk_data* stk, uint32_t* prox_flag)
         return ret;
     }
 
-    STK_ERR("stk_read_prox_flag:: state = 0x%x", *prox_flag);
+    STK_LOG("stk_read_prox_flag:: state = 0x%x", *prox_flag);
     *prox_flag &= STK_DETECT_STATUS_1_PROX_STATE_MASK;
     return ret;
 }
@@ -906,7 +906,7 @@ int32_t stk_read_detect_dist_flag(struct stk_data *stk, uint32_t *dist1_flag)
         return ret;
     }
 
-    STK_ERR("stk_read_detect_dist_flag:: state = 0x%x", *dist1_flag);
+    STK_LOG("stk_read_detect_dist_flag:: state = 0x%x", *dist1_flag);
     return ret;
 }
 
@@ -915,7 +915,7 @@ void stk501xx_set_enable(struct stk_data* stk, char enable, bool pause_mode)
     uint8_t i, num = (sizeof(stk->state_change) / sizeof(uint8_t));
     uint16_t reg = 0;
     uint32_t val = 0, flag = 0;
-    STK_ERR(" en=%d, p_mode =%d\n", enable, pause_mode);
+    STK_LOG(" en=%d, p_mode =%d\n", enable, pause_mode);
 
     if (enable)
     {
@@ -947,7 +947,7 @@ void stk501xx_set_enable(struct stk_data* stk, char enable, bool pause_mode)
             reg = 0x800;
             STK_REG_READ(stk, reg, (uint8_t*)&val);
             val &= ~((~val) | 0x30000000);
-            STK_ERR("stk501xx_set_enable after 0x800 = 0x%x\n", val);
+            STK_LOG("stk501xx_set_enable after 0x800 = 0x%x\n", val);
             STK_REG_WRITE(stk, reg, (uint8_t*)&val);
             reg = STK_ADDR_INHOUSE_CMD;
             val = 0x0;
@@ -987,7 +987,7 @@ void stk501xx_set_enable(struct stk_data* stk, char enable, bool pause_mode)
             reg = 0x800;
             STK_REG_READ(stk, reg, (uint8_t*)&val);
             val |= 0x30000000;
-            STK_ERR("stk501xx_set_enable after 0x800 = 0x%x\n", val);
+            STK_LOG("stk501xx_set_enable after 0x800 = 0x%x\n", val);
             STK_REG_WRITE(stk, reg, (uint8_t*)&val);
             reg = STK_ADDR_INHOUSE_CMD;
             val = 0x0;
@@ -1023,13 +1023,13 @@ void stk501xx_set_enable(struct stk_data* stk, char enable, bool pause_mode)
 
     stk->enabled = enable;
     stk_clr_intr(stk, &flag);
-    STK_ERR(" DONE");
+    STK_LOG(" DONE");
 }
 
 void stk501xx_phase_reset(struct stk_data* stk, uint32_t phase_reset_reg)
 {
     uint16_t reg = 0;
-    STK_ERR("stk501xx_phase_reset");
+    STK_LOG("stk501xx_phase_reset");
     reg = STK_ADDR_TRIGGER_REG;
     STK_REG_WRITE(stk, reg, (uint8_t*)&phase_reset_reg);
 
@@ -1061,7 +1061,7 @@ void stk501xx_read_temp_data(struct stk_data* stk, uint16_t reg, int32_t *temper
     }
 
     *temperature = output_data;
-    STK_ERR("stk501xx_read_temp_data:: temp = %d(0x%X)", output_data, val);
+    STK_LOG("stk501xx_read_temp_data:: temp = %d(0x%X)", output_data, val);
 }
 void stk501xx_read_sar_data(struct stk_data* stk, uint32_t prox_flag)
 {
@@ -1095,7 +1095,7 @@ void stk501xx_read_sar_data(struct stk_data* stk, uint32_t prox_flag)
 
     // dist_flag
     stk_read_detect_dist_flag(stk, &dist_flag);
-    STK_ERR("stk501xx_read_sar_data:: 0x018C = 0x%x\n", dist_flag);
+    STK_LOG("stk501xx_read_sar_data:: 0x018C = 0x%x\n", dist_flag);
 
     for (i = 0; i < 8; i++)
     {
@@ -1112,7 +1112,7 @@ void stk501xx_read_sar_data(struct stk_data* stk, uint32_t prox_flag)
             return;
         }
 
-        STK_ERR("stk501xx_read_sar_data:: raw[%d] = %d", i, (int32_t)(raw_val[i]));
+        STK_LOG("stk501xx_read_sar_data:: raw[%d] = %d", i, (int32_t)(raw_val[i]));
         //read delta data
         reg = (uint16_t)(STK_ADDR_REG_DELTA_PH0_REG + (i * 0x04));
         err = STK_REG_READ(stk, reg, (uint8_t*)&delta_val[i]);
@@ -1135,7 +1135,7 @@ void stk501xx_read_sar_data(struct stk_data* stk, uint32_t prox_flag)
         }
 
         stk->last_data[i] = delta_conv_data[i];
-        STK_ERR("stk501xx_read_sar_data:: delta[%d] = %d", i, delta_conv_data[i]);
+        STK_LOG("stk501xx_read_sar_data:: delta[%d] = %d", i, delta_conv_data[i]);
         //read CADC data
         reg = (uint16_t)(STK_ADDR_REG_CADC_PH0_REG + (i * 0x04));
         err = STK_REG_READ(stk, reg, (uint8_t*)&cadc_val[i]);
@@ -1148,7 +1148,7 @@ void stk501xx_read_sar_data(struct stk_data* stk, uint32_t prox_flag)
 
         stk->last_cadc[i] = cadc_val[i];
 
-        STK_ERR("stk501xx_read_sar_data:: CADC[%d] = %d", i, cadc_val[i]);
+        STK_LOG("stk501xx_read_sar_data:: CADC[%d] = %d", i, cadc_val[i]);
 
         //dist_flag[3:0]
         dist_state = 0;
@@ -1339,7 +1339,7 @@ int32_t stk501xx_show_all_reg(struct stk_data* stk)
             return -1;
         }
 
-        STK_ERR("stk501xx_show_all_reg:: reg[0x%04x] = 0x%x", reg_array[reg_count], val);
+        STK_LOG("stk501xx_show_all_reg:: reg[0x%04x] = 0x%x", reg_array[reg_count], val);
     }
 
     return 0;
@@ -1571,9 +1571,9 @@ void  stk_work_queue(void *stkdata)
     struct stk_data *stk = (struct stk_data*)stkdata;
     uint32_t flag = 0, prox_flag = 0;
 #ifdef STK_INTERRUPT_MODE
-    STK_ERR("stk_work_queue:: Interrupt mode");
+    STK_LOG("stk_work_queue:: Interrupt mode");
 #elif defined STK_POLLING_MODE
-    STK_ERR("stk_work_queue:: Polling mode");
+    STK_LOG("stk_work_queue:: Polling mode");
 #endif // STK_INTERRUPT_MODE
     stk_clr_intr(stk, &flag);
     //read prox flag
@@ -1581,7 +1581,7 @@ void  stk_work_queue(void *stkdata)
 
     if ( flag & STK_IRQ_SOURCE_SENSING_WDT_IRQ_MASK)
     {
-        STK_ERR("sensing wdt trigger");
+        STK_LOG("sensing wdt trigger");
         if(stk->enabled)
         {
             stk501xx_sw_reset(stk);
@@ -1674,6 +1674,7 @@ int32_t stk501xx_init_client(struct stk_data * stk)
     STK_tws_init();
 #endif
     stk_register_queue(stk);
+#if 0
     err = stk501xx_show_all_reg(stk);
 
     if (err < 0)
@@ -1681,6 +1682,7 @@ int32_t stk501xx_init_client(struct stk_data * stk)
         STK_ERR("stk501xx_show_all_reg error, err=%d", err);
         return err;
     }
+#endif
 
     return 0;
 }

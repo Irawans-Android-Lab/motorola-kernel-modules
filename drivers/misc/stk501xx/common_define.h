@@ -89,9 +89,9 @@ static inline int STK_LOG_CAL(uint32_t val, uint32_t base) {
 #define STK_TAG                 "[STK_SAR] "
 #define STK_FUN()               printk(KERN_INFO STK_TAG" %s\n", __FUNCTION__)
 #if 1
-#define STK_ERR(fmt, ...)        printk(KERN_ERR STK_TAG" %s %d: "fmt"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define STK_LOG(fmt, ...)        printk(KERN_INFO STK_TAG" %s %d: "fmt"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define STK_DBG(fmt, ...)        printk(KERN_DEBUG STK_TAG" %s %d: "fmt"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define STK_LOG(fmt, args...)    pr_info(STK_TAG "[INFO]" "<%s><%d>"fmt, __FUNCTION__, __LINE__, ##args)
+#define STK_DBG(fmt, args...)    pr_debug(STK_TAG "[DBG]" "<%s><%d>"fmt, __FUNCTION__, __LINE__, ##args)
+#define STK_ERR(fmt, args...)    pr_err(STK_TAG "[ERR]" "<%s><%d>"fmt, __FUNCTION__, __LINE__, ##args)
 #else
 #define STK_ERR(...)            \
     do {                        \

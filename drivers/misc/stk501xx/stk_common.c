@@ -50,6 +50,9 @@
 #ifdef STK_BUS_I2C
 #define MAX_I2C_MANAGER_NUM     5
 
+#define NUM_RETRY_ON_I2C_ERR    5
+#define SLEEP_BETWEEN_RETRY     10
+
 struct i2c_manager *pi2c_mgr[MAX_I2C_MANAGER_NUM] = {NULL};
 
 int i2c_init(void* st)
@@ -172,10 +175,11 @@ int i2c_reg_write_block(int i2c_idx, unsigned int reg, void *val, int length)
 
         do
         {
+            if (i > 0)
+                msleep(SLEEP_BETWEEN_RETRY);
             error = i2c_transfer(_pi2c->client->adapter, &msgs, 1);
         }
-        while (error != 1 && ++i < 3);
-
+        while (error != 1 && ++i < NUM_RETRY_ON_I2C_ERR);
 #else
         error = i2c_transfer(_pi2c->client->adapter, &msgs, 1);
 #endif //  STK_RETRY_I2C
@@ -308,10 +312,11 @@ int i2c_reg_read_block(int i2c_idx, unsigned int reg, int count, void *buf)
 
         do
         {
+            if (i > 0)
+                msleep(SLEEP_BETWEEN_RETRY);
             ret = i2c_transfer(_pi2c->client->adapter, msgs, 2);
         }
-        while (ret != 2 && ++i < 3);
-
+        while (ret != 2 && ++i < NUM_RETRY_ON_I2C_ERR);
 #else
         ret = i2c_transfer(_pi2c->client->adapter, msgs, 2);
 #endif //  STK_RETRY_I2C

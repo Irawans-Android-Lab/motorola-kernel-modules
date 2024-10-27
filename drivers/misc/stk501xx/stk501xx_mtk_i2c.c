@@ -42,7 +42,7 @@ static void stk_report_sar_always_far_data(struct stk_data* stk, int8_t nf_flag)
     {
         input_report_abs(stk_wrapper->channels[i].input_dev, ABS_DISTANCE, nf_flag);
         input_sync(stk_wrapper->channels[i].input_dev);
-        STK_ERR("Always report FAR (%d)", nf_flag);
+        STK_LOG("Always report FAR (%d)", nf_flag);
     }
 }
 
@@ -68,7 +68,7 @@ static ssize_t class_stk_enable_store(struct class *class,
         return error;
     }
 
-    STK_ERR("stk_enable_store, data=%d", data);
+    STK_LOG("stk_enable_store, data=%d", data);
 
     if ((1 == data) || (0 == data))
     {
@@ -137,14 +137,14 @@ static ssize_t class_stk_flag_show(struct class *class,
 {
     int i = 0;
     uint32_t prox_flag = 0;
-    STK_ERR("stk_flag_show");
+    STK_LOG("stk_flag_show");
     //read prox flag
     stk_read_prox_flag(global_stk, &prox_flag);
     stk501xx_read_sar_data(global_stk, prox_flag);
 
     for ( i = 0; i < 8; i++)
     {
-        STK_ERR("ph[%d] near/far flag=%d\n", i, global_stk->last_nearby[i]);
+        STK_LOG("ph[%d] near/far flag=%d\n", i, global_stk->last_nearby[i]);
     }
 
     return scnprintf(buf, PAGE_SIZE, "prox flag=0x%d\n", prox_flag);
@@ -154,7 +154,7 @@ static ssize_t class_stk_phase_cali(struct class *class,
 {
     int result = 0;
     uint32_t val = STK_TRIGGER_REG_INIT_ALL(global_stk->phase_en);
-    STK_ERR("class_stk_phase_cali , reset all phase\n");
+    STK_LOG("class_stk_phase_cali , reset all phase\n");
     stk501xx_phase_reset(global_stk, val);
     return (ssize_t)result;
 }
@@ -163,7 +163,7 @@ static ssize_t class_stk_phase_cali_store(struct class *class,
         struct class_attribute *attr, const char *buf, size_t count)
 {
     uint32_t val = STK_TRIGGER_REG_INIT_ALL(global_stk->phase_en);
-    STK_ERR("class_stk_phase_cali_store , reset all phase\n");
+    STK_LOG("class_stk_phase_cali_store , reset all phase\n");
     stk501xx_phase_reset(global_stk, val);
 
     return count;
@@ -180,7 +180,7 @@ static ssize_t class_stk_set_thd(struct class *class,
         return -EINVAL;
     }
 
-    STK_ERR("set ph[%x] = %d\n", ph_idx, thd);
+    STK_LOG("set ph[%x] = %d\n", ph_idx, thd);
     stk501xx_set_each_thd(global_stk, ph_idx, thd);
     return count;
 }
@@ -191,11 +191,11 @@ static ssize_t stk_channel_en_show(struct class *class,
     int8_t i = 0;
     char *p = buf;
     stk501xx_wrapper *stk_wrapper = container_of(global_stk, stk501xx_wrapper, stk);
-    STK_ERR("ch_num=%d", global_stk->pdata->ch_num);
+    STK_LOG("ch_num=%d", global_stk->pdata->ch_num);
 
     for (i = 0; i < global_stk->pdata->ch_num; i++)
     {
-        STK_ERR("ch[%i]: enabled = %d", i, stk_wrapper->channels[i].enabled);
+        STK_LOG("ch[%i]: enabled = %d", i, stk_wrapper->channels[i].enabled);
         p += snprintf(p, PAGE_SIZE, "ch[%i]: enabled = %d\n", i, stk_wrapper->channels[i].enabled);
     }
 
@@ -227,7 +227,7 @@ static ssize_t stk_channel_en_store(struct class *class,
         return count;
     }
 
-    STK_ERR("set ch[%x] = %d\n", ch_idx, en);
+    STK_LOG("set ch[%x] = %d\n", ch_idx, en);
     prev_states = stk_wrapper->channels[ch_idx].enabled ;
     stk_wrapper->channels[ch_idx].enabled = en ? 1 : 0;
 
@@ -278,7 +278,7 @@ static ssize_t stk_channel_en_store(struct class *class,
             STK_REG_WRITE(global_stk, STK_ADDR_TRIGGER_CMD, (uint8_t*)&val);
             //force read again
             STK_REG_READ(global_stk, STK_ADDR_TRIGGER_CMD, (uint8_t*)&val);
-            STK_ERR("stk_enable_store, phase enable/disable\n");
+            STK_LOG("stk_enable_store, phase enable/disable\n");
         }
     }
 
@@ -289,8 +289,8 @@ static ssize_t stk_channel_en_store(struct class *class,
 static ssize_t stk_int_state_show(struct class *class,
                                   struct class_attribute *attr, char *buf)
 {
-    STK_ERR("stk_int_state_show");
-    STK_ERR("into_int_before=%d", !global_stk->first_init);
+    STK_LOG("stk_int_state_show");
+    STK_LOG("into_int_before=%d", !global_stk->first_init);
     return scnprintf(buf, PAGE_SIZE, "%d\n", !global_stk->first_init);
 }
 
@@ -349,7 +349,7 @@ static ssize_t reg_store(struct class *class,
     val = ((uint32_t)buf[2] << 24) | ((uint32_t)buf[3] << 16) | ((uint32_t)buf[4] << 8) | ((uint32_t)buf[5]);
     read_bit = buf[6];
     stk_wrapper->read_flag = read_bit;
-    STK_ERR("write reg[0x%x]=0x%x, read_bit=%d", regaddr, val, read_bit);
+    STK_LOG("write reg[0x%x]=0x%x, read_bit=%d", regaddr, val, read_bit);
 
     if (read_bit == 0)
     {
@@ -475,7 +475,7 @@ static int stk_cdev_sensors_enable(struct sensors_classdev *sensors_cdev,
 //    struct stk_data *stk = &stk_wrapper->stk;
 
     struct stk_data *stk = global_stk;
-    STK_ERR("stk_cdev_sensors_enable , en=%d\n", enabled);
+    STK_LOG("stk_cdev_sensors_enable , en=%d\n", enabled);
 
     if (0 == enabled)
     {
@@ -589,7 +589,7 @@ static ssize_t stk_enable_store(struct device *dev,
         return error;
     }
 
-    STK_ERR("stk_enable_store, data=%d", data);
+    STK_LOG("stk_enable_store, data=%d", data);
 
     if ((1 == data) || (0 == data))
     {
@@ -623,7 +623,7 @@ static ssize_t stk_value_show(struct device* dev,
     uint8_t i = 0;
     uint32_t prox_flag = 0;
     stk_data *stk = &stk_wrapper->stk;
-    STK_ERR("stk_value_show");
+    STK_LOG("stk_value_show");
     //read prox flag
     stk_read_prox_flag(stk, &prox_flag);
     stk501xx_read_sar_data(stk, prox_flag);
@@ -631,7 +631,7 @@ static ssize_t stk_value_show(struct device* dev,
     for (i = 0; i < 8; i++)
     {
         scnprintf(buf, PAGE_SIZE, "ph[%d] value=%d\n", i, stk->last_data[i]);
-        STK_ERR("ph[%d] value=%d\n", i, stk->last_data[i]);
+        STK_LOG("ph[%d] value=%d\n", i, stk->last_data[i]);
     }
 
     return 0;
@@ -644,14 +644,14 @@ static ssize_t stk_flag_show(struct device *dev,
     uint8_t i = 0;
     uint32_t prox_flag = 0;
     stk_data *stk = &stk_wrapper->stk;
-    STK_ERR("stk_flag_show");
+    STK_LOG("stk_flag_show");
     //read prox flag
     stk_read_prox_flag(stk, &prox_flag);
     stk501xx_read_sar_data(stk, prox_flag);
 
     for ( i = 0; i < 8; i++)
     {
-        STK_ERR("ph[%d] prox flag=%d", i, stk->last_nearby[i]);
+        STK_LOG("ph[%d] prox flag=%d", i, stk->last_nearby[i]);
     }
 
     return scnprintf(buf, PAGE_SIZE, "flag=%d\n", prox_flag);
@@ -697,7 +697,7 @@ static ssize_t stk_send_store(struct device *dev,
         return err;
     }
 
-    STK_ERR("write reg[0x%X]=0x%X", addr, cmd);
+    STK_LOG("write reg[0x%X]=0x%X", addr, cmd);
 
     if (!stk->enabled)
         stk501xx_set_enable(stk, 1, true);
@@ -726,7 +726,7 @@ static ssize_t stk_temp_show(struct device *dev,
 {
     stk501xx_wrapper *stk_wrapper = dev_get_drvdata(dev);
     stk_data *stk = &stk_wrapper->stk;
-    STK_ERR("stk_temp_show");
+    STK_LOG("stk_temp_show");
     stk501xx_read_temp_data(stk, STK_ADDR_REG_RAW_PH0_REG, &stk->prev_temperature_ref_a);
     return scnprintf(buf, PAGE_SIZE, "temperature=%d\n", stk->prev_temperature_ref_a);
 }
@@ -772,7 +772,7 @@ static ssize_t stk_chipinfo_show(struct device *dev,
 {
     stk501xx_wrapper *stk_wrapper = dev_get_drvdata(dev);
     stk_data *stk = &stk_wrapper->stk;
-    STK_ERR("chip id=0x%x, index=0x%x", stk->chip_id, stk->chip_index);
+    STK_LOG("chip id=0x%x, index=0x%x", stk->chip_id, stk->chip_index);
     return scnprintf(buf, PAGE_SIZE, "pid=0x%x,index=0x%x\n", stk->chip_id, stk->chip_index);
 }
 
@@ -812,7 +812,7 @@ static ssize_t stk_conv_chk_store(struct device *dev,
         return error;
     }
 
-    STK_ERR("stk_conv_chk_store, data=%d", data);
+    STK_LOG("stk_conv_chk_store, data=%d", data);
 
     if ((1 == data) || (0 == data))
     {
@@ -880,7 +880,7 @@ static int stk_input_setup(stk501xx_wrapper *stk_wrapper)
 
     for (i = 0; i < global_stk->pdata->ch_num; i++)
     {
-        STK_ERR("register ch[%d]", i);
+        STK_LOG("register ch[%d]", i);
         /* input device: setup for sar */
         stk_wrapper->channels[i].input_dev = input_allocate_device();
 
@@ -908,7 +908,7 @@ static int stk_input_setup(stk501xx_wrapper *stk_wrapper)
         input_report_abs(stk_wrapper->channels[i].input_dev, ABS_DISTANCE, -1);
         input_sync(stk_wrapper->channels[i].input_dev);
 
-        STK_ERR("[%d] name =%s, type =%d\n", i, stk_sensord_dev[i].name, stk_sensord_dev[i].type);
+        STK_LOG("[%d] name =%s, type =%d\n", i, stk_sensord_dev[i].name, stk_sensord_dev[i].type);
 #ifdef STK_SENSORS_DEV
 //        stk_wrapper->channels[i].sar_cdev = stk_cdev;
         memcpy(&stk_wrapper->channels[i].sar_cdev, &stk_cdev, sizeof(struct sensors_classdev));
@@ -921,7 +921,7 @@ static int stk_input_setup(stk501xx_wrapper *stk_wrapper)
         if (err < 0)
             STK_ERR("create %d cap sensor_class file failed (%d)\n", i, err);
 #endif
-        STK_ERR("register ch[%d] Done", i);
+        STK_LOG("register ch[%d] Done", i);
     }
 
     return 0;
@@ -1014,7 +1014,7 @@ void stk_report_sar_data(struct stk_data* stk)
     for (i = 0; i < stk->pdata->ch_num; i ++)
     {
         nf_flag = is_change = stk->state_change[mapping_phase[i]];
-        STK_ERR("stk_report_sar_data:: change ph[%d] =%d,(%d)", i, stk->state_change[mapping_phase[i]], is_change);
+        STK_LOG("stk_report_sar_data:: change ph[%d] =%d,(%d)", i, stk->state_change[mapping_phase[i]], is_change);
 
         //near to far dist
         if(stk->last_nearby[mapping_phase[i]] & (1 << 3))
@@ -1057,10 +1057,10 @@ void stk501xx_parse_dt(struct stk_data* stk, struct device *dev)
     ret = of_property_read_u32_array(dev->of_node, "interrupts", &stk->pdata->interrupt_int1_pin, 1);
     if(ret == 0)
     {
-        STK_ERR("interrupts = %d", stk->pdata->interrupt_int1_pin);
+        STK_LOG("interrupts = %d", stk->pdata->interrupt_int1_pin);
         stk->gpio_info.int_pin = stk->pdata->interrupt_int1_pin;
         stk->gpio_info.irq = irq_of_parse_and_map(dev->of_node, 0);
-        STK_ERR("irq #=%d, interrupt pin=%d", stk->gpio_info.irq, stk->gpio_info.int_pin);
+        STK_LOG("irq #=%d, interrupt pin=%d", stk->gpio_info.irq, stk->gpio_info.int_pin);
     }
     else
     {
@@ -1145,7 +1145,6 @@ void stk501xx_parse_dt(struct stk_data* stk, struct device *dev)
         // Success
         for (i = 0; i < 8; i++)
         {
-            STK_LOG("major_phase_arr[%d]=%d", i, stk->pdata->major_phase_arr[i]);
             if(stk->pdata->major_phase_arr[i] == 1)
                 stk->major_phase |= (1<<i);
         }
@@ -1287,13 +1286,13 @@ void stk501xx_parse_dt(struct stk_data* stk, struct device *dev)
         }
     }
 
+    stk->dist1_en = 0;
     ret = of_property_read_u32_array(dev->of_node, "dist1_en", &stk->pdata->dist1_en_arr[0], 8);
     if (ret == 0)
     {
         // Success
         for (i = 0; i < 8; i++)
         {
-            STK_LOG("dist1_en[%d]=%d", i, stk->pdata->dist1_en_arr[i]);
             if(stk->pdata->dist1_en_arr[i] == 1)
                 stk->dist1_en |= (1<<i);
         }
@@ -1402,10 +1401,12 @@ void stk501xx_parse_dt(struct stk_data* stk, struct device *dev)
         ret = of_property_read_u32_array(dev->of_node, "replace_reg_val", (u32*)&(stk->pdata->replace_reg_val[0]), sizeof(struct stk501xx_register_table)*stk->pdata->replace_reg_num/sizeof(u32));
         if(ret == 0)
         {
+#if 0
             for (i = 0; i < stk->pdata->replace_reg_num; i++)
             {
                 STK_LOG("[%d]replace reg[0x%x] = 0x%x", i, stk->pdata->replace_reg_val[i].address, stk->pdata->replace_reg_val[i].value);
             }
+#endif
         }
     }
 #endif // STK_VALUE_BY_DTS
@@ -1416,7 +1417,7 @@ void stk501xx_parse_dt(struct stk_data* stk, struct device *dev)
 static void ps_notify_callback_work(struct work_struct *work)
 {
     uint32_t val = STK_TRIGGER_REG_INIT_ALL(global_stk->phase_en);
-    STK_ERR("class_stk_phase_USB_cali , reset all phase\n");
+    STK_LOG("class_stk_phase_USB_cali , reset all phase\n");
     stk501xx_phase_reset(global_stk, val);
 }
 
