@@ -1227,13 +1227,16 @@ static int wt6670f_parse_dt(struct device *dev)
 	}
 	else
 	pr_info("%s: wt6670f-int-gpio = %d\n", __func__,wt6670f_int_pin);
-	gpio_request(wt6670f_int_pin,"wt6670f_int");
-
-	ret = request_irq(gpio_to_irq(wt6670f_int_pin), wt6670f_intr_handler,
-		IRQF_TRIGGER_FALLING | IRQF_ONESHOT, "wt6670f int", dev);
-	enable_irq_wake(gpio_to_irq(wt6670f_int_pin));
 
 	_wt->not_register_qc_dev = of_property_read_bool(np, "not-register-qc-dev");
+
+	if (!_wt->not_register_qc_dev) {
+		gpio_request(wt6670f_int_pin,"wt6670f_int");
+
+		ret = request_irq(gpio_to_irq(wt6670f_int_pin), wt6670f_intr_handler,
+			IRQF_TRIGGER_FALLING | IRQF_ONESHOT, "wt6670f int", dev);
+		enable_irq_wake(gpio_to_irq(wt6670f_int_pin));
+	}
 
 	return 0;
 }
