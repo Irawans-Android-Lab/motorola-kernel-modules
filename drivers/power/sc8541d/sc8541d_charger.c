@@ -33,6 +33,8 @@
 
 #define SC8541D_DEVICE_ID                0x03
 
+#define SC8541D_CTRL5_REG                0x0D
+
 #define SC8541D_REG_11                   0x11
 
 #define SC8541D_REG_15                   0x15
@@ -847,6 +849,93 @@ static int mtk_sc8541d_reset_vbusovp_alarm(struct charger_device *chg_dev)
     return 0;
 }
 
+static int mtk_sc8541d_config_mux(struct charger_device *chg_dev,
+			enum mmi_dvchg_mux_channel typec_mos, enum mmi_dvchg_mux_channel wls_mos)
+{
+	int ret = 0;
+	unsigned int val = 0;
+	struct sc8541d_chip *sc = charger_get_data(chg_dev);
+
+	if (IS_ERR_OR_NULL(sc)) {
+		pr_info("%s sc is err or null.\n", __func__);
+		return 0;
+	}
+	pr_info("%s typec_mos:%d, wls_mos:%d\n", __func__, typec_mos, wls_mos);
+
+	if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN) {
+		ret = sc8541d_field_write(sc, OTG_EN, 0);
+		if (ret) {
+			dev_err(sc->dev, "%s:mmi_mux close en otg fail ret=%d", __func__, ret);
+			return ret;
+		}
+	}
+
+	if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN
+			&& typec_mos != MMI_DVCHG_MUX_DISABLE && wls_mos != MMI_DVCHG_MUX_DISABLE
+			&& wls_mos != MMI_DVCHG_MUX_MANUAL_OPEN) {
+		ret = sc8541d_field_write(sc, ACDRV_MANUAL_EN, 0);
+		if (ret) {
+			dev_err(sc->dev, "%s:mmi_mux dis mos both fail ret=%d", __func__, ret);
+			return ret;
+		}
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_CLOSE) {
+		ret = sc8541d_field_write(sc, ACDRV_EN, 0);
+		if (ret) {
+			dev_err(sc->dev, "%s mmi_mux close typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(100);
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_CHG_OPEN) {
+		ret = sc8541d_field_write(sc, ACDRV_EN, 1);
+		if (ret) {
+			dev_err(sc->dev, "%s:mmi_mux open typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+	} else if (typec_mos == MMI_DVCHG_MUX_OTG_OPEN) {
+		ret = sc8541d_field_write(sc, OTG_EN, 1);
+		if (ret) {
+			dev_err(sc->dev, "%s:mmi_mux  en otg fail ret=%d", __func__, ret);
+			return ret;
+		}
+
+		ret = sc8541d_field_write(sc, ACDRV_MANUAL_EN, 1);
+		if (ret) {
+			dev_err(sc->dev, "%s:mmi_mux set acdrv manual fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(100);
+		ret = sc8541d_field_write(sc, ACDRV_EN, 1);
+		if (ret) {
+			dev_err(sc->dev, "%s:mmi_mux enable otg typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+	}
+
+	if (typec_mos == MMI_DVCHG_MUX_DISABLE) {
+		ret = sc8541d_field_write(sc, ACDRV_MANUAL_EN, 1);
+		if (ret) {
+			dev_err(sc->dev, "%s:mmi_mux set acdrv manual fail ret=%d", __func__, ret);
+			return ret;
+		}
+		ret = sc8541d_field_write(sc, ACDRV_EN, 0);
+		if (ret) {
+			dev_err(sc->dev, "%s:mmi_mux close typec mos fail ret=%d", __func__, ret);
+			return ret;
+		}
+		udelay(1000);
+	}
+
+	ret = regmap_read(sc->regmap, SC8541D_CTRL5_REG, &val);
+	dev_info(sc->dev, "%s:mmi_mux Reg[%02X] = 0x%02X, ret=%d\n",
+			__func__, SC8541D_CTRL5_REG, val, ret);
+
+	return 0;
+}
+
 static int mtk_sc8541d_init_chip(struct charger_device *chg_dev)
 {
     struct sc8541d_chip *sc = charger_get_data(chg_dev);
@@ -871,6 +960,7 @@ static const struct charger_ops sc8541d_chg_ops = {
     .set_vbusovp_alarm = mtk_sc8541d_set_vbusovp_alarm,
     .reset_vbusovp_alarm = mtk_sc8541d_reset_vbusovp_alarm,
     .enable_adc = mtk_sc8541d_enable_adc,
+    .config_mux = mtk_sc8541d_config_mux,
 };
 
 static const struct charger_properties sc8541d_chg_props = {
@@ -1230,6 +1320,66 @@ static ssize_t sc8541d_store_register(struct device *dev,
 
 static DEVICE_ATTR(registers, 0660, sc8541d_show_registers, sc8541d_store_register);
 
+static ssize_t show_typec_mos(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sc8541d_chip *sc = dev_get_drvdata(dev);
+	int ret = 0;
+	int val = 0;
+
+	if (!sc) {
+		pr_err("sc8541d chip not valid\n");
+		return -ENODEV;
+	}
+	if (sc->role == SC8541D_SLAVE) {
+		dev_err(sc->dev, "%s sc8541d slave not support\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = regmap_read(sc->regmap, SC8541D_CTRL5_REG, &val);
+
+	return sprintf(buf, "REG[%02X]=0x%02X ret=%d\n", SC8541D_CTRL5_REG, val, ret);
+}
+
+static ssize_t store_typec_mos(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	int tmp;
+	int ret = 0;
+	struct sc8541d_chip *sc = dev_get_drvdata(dev);
+	if (!sc) {
+		dev_err(sc->dev, "%s sc8541d chip not valid\n", __func__);
+		return -ENODEV;
+	}
+
+	if (sc->role == SC8541D_SLAVE) {
+		dev_err(sc->dev, "%s sc8541d slave not support\n", __func__);
+		return -ENODEV;
+	}
+
+	tmp = simple_strtoul(buf, NULL, 0);
+	if (tmp == 0) {
+		ret = sc8541d_field_write(sc, OTG_EN, 0);
+		ret |= sc8541d_field_write(sc, ACDRV_MANUAL_EN, 1);
+		ret |= sc8541d_field_write(sc, ACDRV_EN, 0);
+	} else if (tmp == 1) {
+		ret = sc8541d_field_write(sc, OTG_EN, 0);
+		ret |= sc8541d_field_write(sc, ACDRV_MANUAL_EN, 1);
+		ret |= sc8541d_field_write(sc, ACDRV_EN, 1);
+	} else if (tmp == 2) {
+		ret = sc8541d_field_write(sc, OTG_EN, 1);
+		ret |= sc8541d_field_write(sc, ACDRV_MANUAL_EN, 1);
+		udelay(100);
+		ret |= sc8541d_field_write(sc, ACDRV_EN, 1);
+	}
+
+	if (ret) {
+		dev_err(sc->dev, "%s fail ret=%d", __func__, ret);
+		return ret;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(typec_mos, 0664, show_typec_mos, store_typec_mos);
+
 static void sc8541d_create_device_node(struct device *dev)
 {
     device_create_file(dev, &dev_attr_force_chg_auto_enable);
@@ -1237,6 +1387,7 @@ static void sc8541d_create_device_node(struct device *dev)
     device_create_file(dev, &dev_attr_reg_addr);
     device_create_file(dev, &dev_attr_reg_data);
     device_create_file(dev, &dev_attr_registers);
+    device_create_file(dev, &dev_attr_typec_mos);
 }
 
 /********************creat devices note end*************************************************/
