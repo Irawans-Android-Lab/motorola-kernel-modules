@@ -107,6 +107,10 @@ ifneq ($(filter m y,$(CONFIG_FTS_INPUT_ID)),)
     EXTRA_CFLAGS += -DCONFIG_FTS_INPUT_ID
 endif
 
+ifneq ($(filter m y,$(CONFIG_ENABLE_FTS_PALM_CANCEL)),)
+    EXTRA_CFLAGS += -DCONFIG_ENABLE_FTS_PALM_CANCEL
+endif
+
 ifneq ($(filter m y,$(CONFIG_FTS_GAME_MODE_EN)),)
     EXTRA_CFLAGS += -DCONFIG_FTS_GAME_MODE_EN
 endif
