@@ -1175,7 +1175,7 @@ int sc9624_rx_get_fw_version(struct wireless_device *wls_dev, int *fw_version)
 	sc = dev_get_drvdata(&wls_dev->dev);
 
 	rt = sc9624_get_fwver(sc, &ver);
-	if (rt > 0 && !IS_ERR_OR_NULL(fw_version))
+	if (rt == 0 && !IS_ERR_OR_NULL(fw_version))
 		*fw_version = ver ;
 
 	return rt;
