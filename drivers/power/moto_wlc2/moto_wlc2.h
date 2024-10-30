@@ -84,6 +84,22 @@ typedef enum
 } AUTH_HANDSHAKE_T;
 
 typedef enum {
+	MMI_DOCK_LIGHT_OFF = 0x10,
+	MMI_DOCK_LIGHT_ON = 0x20,
+	MMI_DOCK_LIGHT_BREATH_2S = 0x30,
+	MMI_DOCK_LIGHT_BREATH_4S = 0x40,
+	MMI_DOCK_LIGHT_DEFAULT = MMI_DOCK_LIGHT_BREATH_4S,
+} MMI_DOCK_LIGHT_CTRL_T;
+
+/* value = fan speed / 100 */
+typedef enum {
+	MMI_DOCK_FAN_SPEED_OFF= 0,
+	MMI_DOCK_FAN_SPEED_LOW = 20,//2000
+	MMI_DOCK_FAN_SPEED_HIGH = 40,//4000
+	MMI_DOCK_FAN_DEFAULT = MMI_DOCK_FAN_SPEED_HIGH,
+} MMI_DOCK_FAN_SPEED_T;
+
+typedef enum {
 	MOTOAUTH_EVENT_TX_CAPABILITY = 0x00,
 	MOTOAUTH_EVENT_TX_ID,
 	MOTOAUTH_EVENT_TX_CAP,
@@ -167,6 +183,7 @@ struct wireless_ctl
 struct wireless_data
 {
 	bool moto_stand;
+	int uisoc;
 	int chip_id;
 	int rx_irect;
 	int rx_vrect;
@@ -324,6 +341,7 @@ struct moto_wlc {
 	struct workqueue_struct *wls_wq;
 	struct delayed_work fw_update_work;
 	struct delayed_work bpp_icl_work;
+	struct delayed_work light_fan_work;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
@@ -381,6 +399,9 @@ extern void wlc_chg_bpp_mode_icl_work(struct work_struct *work);
 extern int wls_device_node_create(struct device *dev);
 extern void wls_device_fw_update_work(struct work_struct *work);
 extern int wls_device_tcmd_register(struct moto_wlc *wlc);
+extern int wls_device_update_light_fan(struct moto_wlc *wlc);
+extern void wls_device_light_fan_work(struct work_struct *work);
+extern int wls_device_uisoc_change(struct moto_wlc *wlc, int uisoc);
 
 extern int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev);
 

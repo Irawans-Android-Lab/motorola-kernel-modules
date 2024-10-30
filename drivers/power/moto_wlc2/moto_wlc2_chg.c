@@ -269,6 +269,7 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 		case WLS_EVENT_HS_FAIL:
 			wlc->data.moto_stand = false;
 			wlc->auth.hs_st = AUTH_HS_FAIL;
+			queue_delayed_work(wlc->wls_wq, &wlc->light_fan_work, msecs_to_jiffies(0));
 			break;
 		case WLS_EVENT_RX_FSK_PKT:
 			wls_auth_decode_fsk_packet(wlc, msg->data, msg->len);

@@ -453,6 +453,10 @@ static int __wlc_run(struct chg_alg_device *alg)
 	mmi_thermal_check_status(alg);
 
 	uisoc = wlc_hal_get_uisoc(alg);
+	if (uisoc != wlc->data.uisoc) {
+		wls_device_uisoc_change(wlc, uisoc);
+		wlc->data.uisoc = uisoc;
+	}
 
 	if (wlc_sc_set_charger(alg) != 0) {
 		ret = wlc_leave(alg);
@@ -797,7 +801,7 @@ static int moto_wlc_probe(struct platform_device *pdev)
 	wlc->wls_wq = create_singlethread_workqueue("wls_workqueue");
 	INIT_DELAYED_WORK(&wlc->fw_update_work, wls_device_fw_update_work);
 	INIT_DELAYED_WORK(&wlc->bpp_icl_work, wlc_chg_bpp_mode_icl_work);
-
+	INIT_DELAYED_WORK(&wlc->light_fan_work, wls_device_light_fan_work);
 	return 0;
 }
 

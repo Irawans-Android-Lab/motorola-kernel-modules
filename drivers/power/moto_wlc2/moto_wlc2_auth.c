@@ -253,6 +253,7 @@ static int wls_auth_events_thread(void *arg)
 		}
 
 		if (MOTOAUTH_EVENT_DONE == wls_auth_get_next_event(auth)) {
+			wls_device_update_light_fan(wlc);
 			auth->auth_done = true;
 		}
 

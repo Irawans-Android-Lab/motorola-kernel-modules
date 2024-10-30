@@ -159,6 +159,81 @@ fw_update_exit:
 	wls_device_pm_set_awake(wlc, false);
 }
 
+int wls_device_uisoc_change(struct moto_wlc *wlc, int uisoc)
+{
+	if (uisoc == 100 || wlc->data.uisoc == 100) {
+		queue_delayed_work(wlc->wls_wq, &wlc->light_fan_work, msecs_to_jiffies(0));
+	}
+
+	return 0;
+}
+
+int wls_device_update_light_fan(struct moto_wlc *wlc)
+{
+	int status = 0;
+	uint8_t data[4] = {0x38, 0x05, 0x40, 0x28};
+	int retry = 2;
+
+	if (100 == wlc_hal_get_uisoc(wlc->alg)) {
+		if (wlc->ctl.light_level == 0)
+			data[2] = MMI_DOCK_LIGHT_OFF;
+		else
+			data[2] = MMI_DOCK_LIGHT_ON;
+		data[3] = MMI_DOCK_FAN_SPEED_OFF;
+	} else {
+		if (wlc->ctl.fan_speed == 0)
+			data[3] = MMI_DOCK_FAN_SPEED_LOW;
+		else
+			data[3] = MMI_DOCK_FAN_SPEED_HIGH;
+
+		if (wlc->ctl.light_level == 0)
+			data[2] = MMI_DOCK_LIGHT_OFF;
+		else
+			data[2] = MMI_DOCK_LIGHT_DEFAULT;
+	}
+
+	do {
+		status = wls_rx_send_ask_packet(wlc->wls_dev, data, sizeof(data));
+		wlc_info("%s: QI set fan/light, FAN_SPEED %d, LIGHT %d",
+					__func__, wlc->ctl.fan_speed, wlc->ctl.light_level);
+		wlc_info("%s: QI set fan/light, ight 0x%x, fan 0x%x", __func__, data[2], data[3]);
+		msleep(200);
+		retry--;
+	} while (retry);
+
+	return status;
+}
+
+int wls_device_notify_tx_chgfull(struct moto_wlc *wlc)
+{
+	int status = 0;
+	uint8_t data[2] = {0x5, 0x64};
+	int retry = 3;
+
+	do {
+		status = wls_rx_send_ask_packet(wlc->wls_dev, data, sizeof(data));
+		wlc_info("%s: QI notify TX battery full , head 0x%x, cmd 0x%x, status %d\n",
+				__func__, data[0], data[1], status);
+		msleep(200);
+		retry--;
+	} while(retry);
+
+	return status;
+}
+
+void wls_device_light_fan_work(struct work_struct *work)
+{
+	struct moto_wlc *wlc =
+		container_of((struct delayed_work*)work, struct moto_wlc, light_fan_work);
+
+	pr_info("%s hs_st:%d auth_done:%d\n", __func__, wlc->auth.hs_st, wlc->auth.auth_done);
+	if (wlc->auth.hs_st == AUTH_HS_OK) {
+		wls_device_update_light_fan(wlc);
+	} else if (100 == wlc_hal_get_uisoc(wlc->alg)) {
+		wls_device_notify_tx_chgfull(wlc);
+	}
+}
+
 static ssize_t wireless_fw_version_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int fw_version = 0x00;
@@ -356,6 +431,8 @@ static ssize_t store_wlc_fan_speed(struct device *dev,
 	}
 
 	pWlc->ctl.fan_speed = simple_strtoul(buf, NULL, 0);
+	wlc_info("[%s] fan_speed %d\n", __func__ , pWlc->ctl.fan_speed);
+	queue_delayed_work(pWlc->wls_wq, &pWlc->light_fan_work, msecs_to_jiffies(0));
 
 	return count;
 }
@@ -390,6 +467,8 @@ static ssize_t store_wlc_light_ctl(struct device *dev,
 	}
 
 	pWlc->ctl.light_level = simple_strtoul(buf, NULL, 0);
+	wlc_info("[%s] light_level %d\n", __func__ , pWlc->ctl.light_level);
+	queue_delayed_work(pWlc->wls_wq, &pWlc->light_fan_work, msecs_to_jiffies(0));
 
 	return count;
 }
