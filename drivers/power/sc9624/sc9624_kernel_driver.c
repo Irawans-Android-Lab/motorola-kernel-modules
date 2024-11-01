@@ -1529,7 +1529,7 @@ static int sc9624_psy_register(struct sc9624 *sc)
     sc->psy_cfg.of_node = sc->dev->of_node;
 
     sc->psy_desc.name = "wireless-sc9624";
-    sc->psy_desc.type = POWER_SUPPLY_TYPE_MAINS;
+    sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
     sc->psy_desc.properties = sc9624_charger_props;
     sc->psy_desc.num_properties = ARRAY_SIZE(sc9624_charger_props);
     sc->psy_desc.get_property = sc9624_charger_get_property;
