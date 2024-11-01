@@ -1014,7 +1014,7 @@ void stk_report_sar_data(struct stk_data* stk)
     for (i = 0; i < stk->pdata->ch_num; i ++)
     {
         nf_flag = is_change = stk->state_change[mapping_phase[i]];
-        STK_LOG("stk_report_sar_data:: change ph[%d] =%d,(%d)", i, stk->state_change[mapping_phase[i]], is_change);
+        STK_DBG("stk_report_sar_data:: change ph[%d] =%d,(%d)", i, stk->state_change[mapping_phase[i]], is_change);
 
         //near to far dist
         if(stk->last_nearby[mapping_phase[i]] & (1 << 3))
