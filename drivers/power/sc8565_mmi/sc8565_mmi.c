@@ -2053,7 +2053,7 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
 	    //disable reverse mode
 	    sc858x_field_read(bq, MODE, &ret);
 	    if(ret == 6) {
-            	sc858x_field_write(bq, MODE, 0);
+            	sc858x_field_write(bq, MODE, 1);
 		dev_err(bq->dev, "%s:mmi_mux dis cp otg reverse mode", __func__);
 	    }
 #if 0
