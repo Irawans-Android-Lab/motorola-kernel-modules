@@ -1825,7 +1825,7 @@ static int sc9624_charger_probe(struct i2c_client *client,
 
     i2c_set_clientdata(client, sc);
 
-    sc->regmap = regmap_init_i2c(client, &sc9624_regmap_config);
+    sc->regmap = devm_regmap_init_i2c(client, &sc9624_regmap_config);
 
     sc9624_create_device_node(&(client->dev));
 
