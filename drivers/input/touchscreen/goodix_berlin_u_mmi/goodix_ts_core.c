@@ -1615,7 +1615,7 @@ static int goodix_ts_power_init(struct goodix_ts_core *core_data)
 			ts_err("set iovdd voltage fail");
 			return ret;
 		}
-		ret = regulator_enable(core_data->iovdd);
+//		ret = regulator_enable(core_data->iovdd);
 	} else {
 		ts_info("iovdd name is NULL");
 	}
@@ -1633,7 +1633,7 @@ static int goodix_ts_power_init(struct goodix_ts_core *core_data)
 			ts_err("set avdd voltage fail");
 			return ret;
 		}
-		ret = regulator_enable(core_data->avdd);
+//		ret = regulator_enable(core_data->avdd);
 	} else {
 		ts_info("Avdd name is NULL");
 	}
