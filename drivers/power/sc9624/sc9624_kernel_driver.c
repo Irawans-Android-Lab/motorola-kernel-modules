@@ -270,6 +270,28 @@ int sc9624_get_voltage(struct sc9624 *sc, uint16_t *volt)
     return ret;
 }
 
+int sc9624_get_voltage_setting(struct sc9624 *sc, uint32_t *volt)
+{
+    int ret;
+    uint16_t offset = 0;
+
+    OFFSET(RXCustType, VoutSet, offset);
+
+    //refresh
+    ret = sc9624_rx_set_cmd(sc, RX_REFRESH);
+    if (ret) {
+        sc_err("sc9624 set cmd refresh fail\n");
+    }
+
+    ret = sc9624_read_block(sc, offset, (uint8_t *)volt,
+            (uint8_t)sizeof(((RXCustType *)0)->VoutSet));
+    if (ret) {
+        sc_err("sc9624 get voltage_setting fail\n");
+    }
+
+    return ret;
+}
+
 int sc9624_get_current(struct sc9624 *sc, uint16_t *curr)
 {
     int ret;
@@ -1278,6 +1300,20 @@ int sc9624_get_rx_vout(struct wireless_device *wls_dev, int *voltage)
 	return rt;
 }
 
+int sc9624_get_rx_vout_setting(struct wireless_device *wls_dev, int *voltage)
+{
+	int rt = 0;
+	uint32_t vout = 0;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	rt = sc9624_get_voltage_setting(sc, &vout);
+	if (rt == 0 && !IS_ERR_OR_NULL(voltage))
+		*voltage = vout ;
+
+	return rt;
+}
+
 bool sc9624_check_ldo_on(struct wireless_device *wls_dev)
 {
 	uint16_t voltage = 0;
@@ -1383,6 +1419,7 @@ static int sc9624_wlc2_init(struct sc9624 *sc)
 	sc->rx_ops.get_rx_iout = sc9624_get_rx_irect;
 	sc->rx_ops.get_rx_vrect = sc9624_get_rx_vrect;
 	sc->rx_ops.get_rx_vout = sc9624_get_rx_vout;
+	sc->rx_ops.get_rx_vout_setting = sc9624_get_rx_vout_setting;
 	sc->rx_ops.check_ldo_on = sc9624_check_ldo_on;
 	sc->rx_ops.send_ask_packet = sc9624_send_ask_packet;
 	sc->rx_ops.set_mode_select = sc9624_set_mode_select;

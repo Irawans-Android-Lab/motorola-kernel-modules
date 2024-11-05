@@ -166,6 +166,8 @@ struct wireless_ctl
 	bool rx_offset;
 	bool mode_select_force;
 	bool enable_rod;
+	bool rod_stop;
+	bool rx_ldo_on;
 	bool factory_wls_en;
 	bool fw_update_force;
 	bool fw_uploading;
@@ -178,6 +180,9 @@ struct wireless_ctl
 	int rx_vout_threshold;
 	int fan_speed;
 	int light_level;
+	int rx_offset_detect_count;
+	int rx_ldo_detect_count;
+	ktime_t rx_start_ktime;
 };
 
 struct wireless_data
@@ -188,6 +193,8 @@ struct wireless_data
 	int rx_irect;
 	int rx_vrect;
 	int rx_vout;
+	int rx_vout_set;
+	int rx_vout_threshold;
 	int rx_neg_power;
 	int rx_fop;
 	int rx_ept;
@@ -198,6 +205,7 @@ struct wireless_data
 	int wlc_status;
 	int wls_fw_version;
 	int wlc_power;
+	int vbus_select;
 
 	int mode_type;
 	int qi_mode_type;
@@ -279,6 +287,7 @@ struct moto_wlc {
 	struct platform_device *pdev;
 	struct chg_alg_device *alg;
 	struct wireless_device *wls_dev;
+	struct charger_device *chg1_dev;
 
 	struct mutex access_lock;
 	struct wakeup_source *suspend_lock;
@@ -342,6 +351,7 @@ struct moto_wlc {
 	struct delayed_work fw_update_work;
 	struct delayed_work bpp_icl_work;
 	struct delayed_work light_fan_work;
+	struct delayed_work offset_detect_work;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
@@ -402,6 +412,7 @@ extern int wls_device_tcmd_register(struct moto_wlc *wlc);
 extern int wls_device_update_light_fan(struct moto_wlc *wlc);
 extern void wls_device_light_fan_work(struct work_struct *work);
 extern int wls_device_uisoc_change(struct moto_wlc *wlc, int uisoc);
+extern void wls_device_offset_detect_work(struct work_struct *work);
 
 extern int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev);
 

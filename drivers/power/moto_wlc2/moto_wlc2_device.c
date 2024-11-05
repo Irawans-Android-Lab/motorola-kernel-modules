@@ -234,6 +234,234 @@ void wls_device_light_fan_work(struct work_struct *work)
 	}
 }
 
+bool wls_device_check_iout(struct moto_wlc *wlc, int target_current, int current_now)
+{
+	bool skip_rod = false;
+	bool chg_en = true;
+	bool powerpath_en = true;
+	int wls_icl = 0;
+
+	if (!IS_ERR_OR_NULL(wlc->chg1_dev)) {
+		charger_dev_is_enabled(wlc->chg1_dev, &chg_en);
+		charger_dev_is_powerpath_enabled(wlc->chg1_dev, &powerpath_en);
+		charger_dev_get_input_current(wlc->chg1_dev, &wls_icl);
+		wls_icl = wls_icl / 1000;// uA-> mA
+	}
+
+	if (!chg_en || !powerpath_en || wls_icl <= target_current) {
+		skip_rod = true;
+		pr_info("%s chg_en:%d, powerpath_en:%d wls_icl:%d\n",
+				__func__, chg_en, powerpath_en, wls_icl);
+	} else if (wlc->cur_state > 0) {
+		skip_rod = true;
+	} else if (wlc->config.rod_stop_battery_soc > 0) {
+		skip_rod = (wlc_hal_get_uisoc(wlc->alg) > wlc->config.rod_stop_battery_soc) ? true : false;
+	} else {
+		skip_rod = false;
+	}
+
+	wlc_info("[%s] skip:%d now:%dmA target:%dmA cur_state:%d\n",
+				__func__, skip_rod, current_now, target_current, wlc->cur_state);
+
+	return !skip_rod && (current_now < target_current);
+}
+
+#define OFFSET_DETECT_TIME_DELAY_DEFAULT_MS 1000
+
+void wls_device_offset_detect_work(struct work_struct *work)
+{
+	struct moto_wlc *wlc =
+		container_of((struct delayed_work*)work, struct moto_wlc, offset_detect_work);
+	int rt = 0;
+	int chip_id = 0;
+
+	int sys_mode = 0;
+	int op_mode = 0;
+	static int work_timedelay = 1000;
+	static int wls_current = 0; //uA
+
+	if (IS_ERR_OR_NULL(wlc))
+		return;
+
+	if (IS_ERR_OR_NULL(wlc->chg1_dev)) {
+		wlc->chg1_dev = get_charger_by_name("primary_chg");
+		if (wlc->chg1_dev)
+			wlc_info("%s: Found primary charger\n", __func__);
+		else {
+			wlc_err("%s: Error : can't find primary charger\n",__func__);
+		}
+	}
+
+	rt = wls_rx_get_chip_id(wlc->wls_dev, &chip_id);
+	if (chip_id != wlc->config.chip_id) { //chip not power on
+		wlc_info("%s: chip not power on\n", __func__);
+		return;
+	}
+
+	if (!wlc->ctl.rx_ldo_on) {
+		rt = wls_rx_get_sys_mode(wlc->wls_dev, &sys_mode);
+		if (sys_mode == SYS_MODE_RX) {
+			wlc->ctl.rx_ldo_detect_count ++;
+			if (wlc->ctl.rx_ldo_detect_count >= 3 &&
+				!wlc->ctl.rx_offset) {
+				wlc->ctl.rx_offset = true;
+				wls_chg_notify_st_changed(wlc, WLC_ERR_LOWER_EFFICIENCY);
+				pr_info("%s wlc->ctl.rx_offset=%d\n", __func__, wlc->ctl.rx_offset);
+			}
+			if (ktime_get_boottime() - wlc->ctl.rx_start_ktime >= WLS_ROD_STOP_TIME) {
+				wlc_info("[%s] rx_ldo_on detect stop,wls status:%d\n",
+					__func__, wlc->data.wlc_status);
+				wlc->ctl.rod_stop = true;
+				wlc->ctl.rx_offset = false;
+			} else
+				queue_delayed_work(wlc->wls_wq, &wlc->offset_detect_work, msecs_to_jiffies(1000));
+			return;
+		} else { //Disconnected
+			wlc->ctl.rx_offset_detect_count = 0;
+			wlc->ctl.rx_offset = false;
+			wlc_info("[%s] rx_ldo_on:%d,rod_stop:%d",
+				__func__, wlc->ctl.rx_ldo_on, wlc->ctl.rod_stop);
+			return;
+		}
+	}
+
+	if (ktime_get_boottime() - wlc->ctl.rx_start_ktime >= WLS_ROD_STOP_TIME) {
+		wlc_info("[%s] rx offset detect stop,wls status:%d\n", __func__, wlc->data.wlc_status);
+		wlc->ctl.rod_stop = true;
+		wlc->ctl.rx_offset_detect_count = 0;
+		wlc->ctl.rx_offset = false;
+		goto detect_exit;
+	}
+
+	rt = wls_rx_get_rx_neg_power(wlc->wls_dev, &wlc->data.rx_neg_power);
+	if (rt) {
+		wlc_info("[%s] err rt:%d\n", __func__, rt);
+		return;
+	}
+	rt = wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+	wlc_info("[%s] op_mode:%d rx_neg_power:%d\n", __func__, op_mode, wlc->data.rx_neg_power);
+
+	if ((op_mode == Sys_Op_Mode_BPP && wlc->ctl.bpp_icl_done) ||
+		(op_mode == Sys_Op_Mode_EPP && wlc->data.rx_neg_power == WLS_RX_CAP_5W)) {
+
+		rt = wls_rx_get_rx_irect(wlc->wls_dev, &wlc->data.rx_irect);
+		if (!wlc->ctl.rx_offset) {
+			if (wlc->cur_state > 0) {
+				wlc->ctl.rod_stop = true;
+				wlc->ctl.rx_offset_detect_count = 0;
+				goto detect_exit;
+			}
+			if (wls_device_check_iout(wlc, WLS_BPP_ROD_THRESHOLD_CURRENT_MIN, wlc->data.rx_irect)) {
+				wlc->ctl.rx_offset_detect_count ++;
+			} else {
+				wlc->ctl.rx_offset_detect_count = 0;
+			}
+			work_timedelay = OFFSET_DETECT_TIME_DELAY_DEFAULT_MS;
+			if (wlc->ctl.rx_offset_detect_count >= WLS_BPP_ROD_DETECT_COUNT_MAX) {
+				wlc->ctl.rx_offset = true;
+				wlc->ctl.rx_offset_detect_count = 0;
+				wlc_info("[%s] offset true\n", __func__);
+				if (wlc->data.wlc_status != WLC_DISCONNECTED)
+					wls_chg_notify_st_changed(wlc, WLC_ERR_LOWER_EFFICIENCY);
+				if (wlc->chg1_dev) {
+					wls_current = wlc->data.rx_irect * 1000 / wlc->config.bpp_icl_step_uA
+									* wlc->config.bpp_icl_step_uA;
+					if (wls_current < wlc->config.bpp_icl_min_uA)
+						wls_current = wlc->config.bpp_icl_min_uA;
+					charger_dev_set_input_current(wlc->chg1_dev, wls_current);
+					work_timedelay = WLS_ICL_INCREASE_DELAY;
+				}
+			}
+		} else {
+			work_timedelay = OFFSET_DETECT_TIME_DELAY_DEFAULT_MS / 2;
+			if (wls_current < wlc->config.bpp_icl_max_uA) {
+				if (wlc->chg1_dev) {
+					wlc_info("[%s] wls_current = %dmA rx_irect=%dmA\n",
+							__func__, wls_current, wlc->data.rx_irect);
+					wls_current = wls_current + wlc->config.bpp_icl_step_uA;
+					charger_dev_set_input_current(wlc->chg1_dev, wls_current * 1000);
+					work_timedelay = WLS_ICL_INCREASE_DELAY;
+				}
+			} else {
+				if (!wls_device_check_iout(wlc, WLS_BPP_ROD_THRESHOLD_CURRENT_MAX, wlc->data.rx_irect)) {
+					wlc->ctl.rx_offset_detect_count ++;
+				} else {
+					wlc->ctl.rx_offset_detect_count = 0;
+				}
+				if (wlc->ctl.rx_offset_detect_count >= WLS_BPP_ROD_DETECT_COUNT_MAX) {
+					wlc->ctl.rx_offset = false;
+					wlc_info("[%s] offset exit\n", __func__);
+					wlc->ctl.rx_offset_detect_count = 0;
+					if (wlc->data.wlc_status != WLC_DISCONNECTED)
+						wls_chg_notify_st_changed(wlc, WLC_CHGING);
+					wlc->ctl.rod_stop = true;
+				}
+			}
+		}
+	} else if(op_mode == Sys_Op_Mode_EPP) {
+		/*For EPP*/
+		rt = wls_rx_get_rx_vout(wlc->wls_dev, &wlc->data.rx_vout);
+		rt = wls_rx_get_rx_vout_setting(wlc->wls_dev, &wlc->data.rx_vout_set);
+
+		if (wlc->data.rx_vout_set == 12000)
+			wlc->data.rx_vout_threshold = WLS_EPP_ROD_THRESHOLD_12V;
+		else if (wlc->data.rx_vout_set == 10000)
+			wlc->data.rx_vout_threshold = WLS_EPP_ROD_THRESHOLD_10V;
+		else if (wlc->data.rx_vout_set == 9000)
+			wlc->data.rx_vout_threshold = WLS_EPP_ROD_THRESHOLD_9V;
+		else
+			wlc->data.rx_vout_threshold = wlc->data.vbus_select * 80 / 100;
+
+		wlc_info("[%s] vout:%dmV vout_set:%dmV vout_threshold:%dmV vbus_select:%dmV\n", __func__,
+				wlc->data.rx_vout, wlc->data.rx_vout_set, wlc->data.rx_vout_threshold, wlc->data.vbus_select);
+		if (!wlc->ctl.rx_offset) {
+			if (wlc->data.rx_vout < wlc->data.rx_vout_threshold) {
+				wlc->ctl.rx_offset_detect_count ++;
+			} else {
+				wlc->ctl.rx_offset_detect_count = 0;
+			}
+			work_timedelay = OFFSET_DETECT_TIME_DELAY_DEFAULT_MS;
+			if (wlc->ctl.rx_offset_detect_count >= WLS_EPP_ROD_DETECT_COUNT_MAX) {
+				wlc->ctl.rx_offset = true;
+				wlc->ctl.rx_offset_detect_count = 0;
+				wlc_info("[%s] EPP offset true\n", __func__);
+				if (wlc->data.wlc_status != WLC_DISCONNECTED)
+					wls_chg_notify_st_changed(wlc, WLC_ERR_LOWER_EFFICIENCY);
+				work_timedelay = WLS_ICL_INCREASE_DELAY;
+			}
+		} else {
+			work_timedelay = OFFSET_DETECT_TIME_DELAY_DEFAULT_MS / 2;
+			if (wlc->data.rx_vout > wlc->data.rx_vout_threshold + 500) {
+				wlc->ctl.rx_offset_detect_count ++;
+			} else {
+				wlc->ctl.rx_offset_detect_count = 0;
+			}
+			if (wlc->ctl.rx_offset_detect_count >= WLS_EPP_ROD_DETECT_COUNT_MAX) {
+				wlc->ctl.rx_offset = false;
+				wlc_info("[%s] EPP offset exit\n", __func__);
+				wlc->ctl.rx_offset_detect_count = 0;
+				if (wlc->data.wlc_status != WLC_DISCONNECTED)
+					wls_chg_notify_st_changed(wlc, WLC_CHGING);
+				wlc->ctl.rod_stop = true;
+			}
+		}
+	}
+
+	wlc_info("[%s] rx_offset_detect_count:%d rod_stop:%d\n",
+			__func__, wlc->ctl.rx_offset_detect_count, wlc->ctl.rod_stop);
+
+	if (!wlc->ctl.rod_stop) {
+		queue_delayed_work(wlc->wls_wq, &wlc->offset_detect_work, msecs_to_jiffies(work_timedelay));
+		return;
+	} else if (wlc->ctl.rx_offset) {
+		wlc->ctl.rx_offset_detect_count = 0;
+		wlc->ctl.rx_offset = false;
+	}
+
+detect_exit:
+	return;
+}
+
 static ssize_t wireless_fw_version_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int fw_version = 0x00;
@@ -648,6 +876,39 @@ static ssize_t inhibit_show(struct device *dev,
 }
 static DEVICE_ATTR(inhibit, S_IRUGO|S_IWUSR, inhibit_show, inhibit_store);
 
+static ssize_t show_offset_detect_enable(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct moto_wlc *pWlc = dev->driver_data;
+
+	if (IS_ERR_OR_NULL(pWlc)) {
+		wlc_err("%s: chip not valid\n", __func__);
+		return -ENODEV;
+	}
+
+	return sprintf(buf, "%d\n", pWlc->ctl.enable_rod);
+}
+
+static ssize_t store_offset_detect_enable(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int tmp = 0;
+	struct moto_wlc *pWlc = dev->driver_data;
+
+	if (IS_ERR_OR_NULL(pWlc)) {
+		wlc_err("%s: chip not valid\n", __func__);
+		return -ENODEV;
+	}
+
+	tmp = simple_strtoul(buf, NULL, 0);
+	if (pWlc->config.enable_rx_offset_detect) {
+		pWlc->ctl.enable_rod = (tmp == 0? false: true);
+	}
+
+	return count;
+}
+static DEVICE_ATTR(offset_detect_enable, 0664, show_offset_detect_enable, store_offset_detect_enable);
+
 int wls_device_node_create(struct device *dev)
 {
 	if (IS_ERR_OR_NULL(dev)) {
@@ -676,6 +937,7 @@ int wls_device_node_create(struct device *dev)
 	device_create_file(dev, &dev_attr_wlc_tx_power);
 	device_create_file(dev, &dev_attr_wlc_tx_type);
 	device_create_file(dev, &dev_attr_wlc_st_changed);
+	device_create_file(dev, &dev_attr_offset_detect_enable);
 
 //-----------------------MOTO WLC2.0-------------------
 	device_create_file(dev, &dev_attr_wlc_tx_capability);

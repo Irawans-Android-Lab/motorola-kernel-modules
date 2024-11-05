@@ -74,6 +74,7 @@ int wls_chg_power_on(struct moto_wlc *wlc)
 	if (wlc->ctl.factory_wls_en)
 		return 0;
 
+	wlc->ctl.rx_start_ktime = ktime_get_boottime();
 	wls_rx_get_sys_mode(wlc->wls_dev, &sys_mode);
 	if (sys_mode == SYS_MODE_RX) {
 		rt = wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_CHG, true);
@@ -83,12 +84,21 @@ int wls_chg_power_on(struct moto_wlc *wlc)
 		}
 	}
 
+	if (wlc->ctl.enable_rod) {
+		wlc->ctl.rod_stop = false;
+		wlc->ctl.rx_ldo_detect_count = 0;
+		pr_info("%s start offset_detect_work\n", __func__);
+		queue_delayed_work(wlc->wls_wq, &wlc->offset_detect_work, msecs_to_jiffies(4000));
+	}
+
 	return rt;
 }
 
 int wls_chg_power_off(struct moto_wlc *wlc)
 {
 	int rt = -1;
+
+	wlc->ctl.rx_ldo_on = false;
 
 	if (wlc->ctl.factory_wls_en) {
 		if (gpio_is_valid(wlc->wls_control_en)) {
@@ -124,6 +134,7 @@ int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus)
 	if (wlc->data.mode_type == Sys_Op_Mode_BPP) {
 		*icl = wlc->config.bpp_icl_max_uA;
 		*vbus = 5000;
+		wlc->data.vbus_select = *vbus;
 		if (!wlc->ctl.bpp_icl_done) {
 			return -1;
 		}
@@ -145,6 +156,7 @@ int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus)
 			*icl = 1000000;
 			*vbus = 5000;
 		}
+		wlc->data.vbus_select = *vbus;
 	}
 
 	if (wlc->ctl.input_current_max != 0 &&
@@ -250,6 +262,7 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 				wls_chg_notify_st_changed(wlc, WLC_TX_POWER_CHANGED);
 			break;
 		case WLS_EVENT_RX_LDO_ON:
+			wlc->ctl.rx_ldo_on = true;
 			wlc->ctl.bpp_icl_done = false;
 			wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
 			wls_rx_get_rx_neg_power(wlc->wls_dev, &wlc->data.wlc_power);
