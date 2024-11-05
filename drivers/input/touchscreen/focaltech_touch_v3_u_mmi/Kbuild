@@ -125,10 +125,17 @@ else
 USE_TARGET_PRODUCT := $(TARGET_PRODUCT)
 endif
 
+ifeq ($(TARGET_PRODUCT),)
+USE_TARGET_PRODUCT := $(CONFIG_MTK_PROJECT_NAME)
+$(warning "USE_TARGET_PRODUCT = $(USE_TARGET_PRODUCT)")
+endif
+
 ifneq ($(filter bangkk%, $(USE_TARGET_PRODUCT)), )
         EXTRA_CFLAGS += -DPRODUCT_BANGKK
 else ifneq ($(filter avatrn%, $(USE_TARGET_PRODUCT)), )
         EXTRA_CFLAGS += -DPRODUCT_AVATRN
+else ifneq ($(filter scout%, $(USE_TARGET_PRODUCT)), )
+        EXTRA_CFLAGS += -DPRODUCT_SCOUT
 endif
 
 $(warning "focalteh EXTRA_CFLAGS = $(EXTRA_CFLAGS)")

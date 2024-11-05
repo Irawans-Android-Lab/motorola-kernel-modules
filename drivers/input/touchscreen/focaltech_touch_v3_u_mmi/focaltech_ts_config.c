@@ -13,7 +13,7 @@
 #include "focaltech_ts_config.h"
 
 struct focaltech_ic_report_rate_config report_rate_config_info = {
-#if defined(CONFIG_FTS_GAME_MODE_EN) || defined(PRODUCT_BANGKK)|| defined(PRODUCT_AVATRN)
+#if defined(PRODUCT_BANGKK)|| defined(PRODUCT_AVATRN)
 	.rate_config_count = 2,
 	.refresh_rate_ctrl = 0,
 	.interpolation_ctrl = 1,
@@ -21,6 +21,22 @@ struct focaltech_ic_report_rate_config report_rate_config_info = {
 		{
 			.interpolation_flag = 0,
 			.report_rate = 240,
+			.command = 0,
+		},
+		{
+			.interpolation_flag = 1,
+			.report_rate = 360,
+			.command = 1,
+		},
+	}
+#elif defined(PRODUCT_SCOUT)
+	.rate_config_count = 2,
+	.refresh_rate_ctrl = 0,
+	.interpolation_ctrl = 1,
+	{
+		{
+			.interpolation_flag = 0,
+			.report_rate = 120,
 			.command = 0,
 		},
 		{
