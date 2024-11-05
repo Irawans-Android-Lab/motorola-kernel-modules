@@ -178,8 +178,9 @@ struct mmi_fg_chip {
 	struct device *dev;
 	struct i2c_client *client;
 
-	struct work_struct  fg_upgrade_work;
-	struct work_struct  fg_force_upgrade_work;
+	struct delayed_work	fg_FUpgrade_dwork;
+	struct delayed_work	fg_upgrade_dwork;
+
 	struct iio_channel *Batt_NTC_channel;
 	struct iio_channel *vref_channel;
 	struct fg_temp *ntc_temp_table;
@@ -1607,14 +1608,24 @@ void nfg1000_ota_init(struct mmi_fg_chip *di)
 static u8 *nfg1000_upgrade_read_firmware(char *bin_name, struct mmi_fg_chip *mmi_fg)
 {
 	const struct firmware *fw;
-	int ret;
+	int ret, i;
 	u8 *des_buf = NULL;
 
-	ret = request_firmware(&fw, bin_name, mmi_fg->dev);
+	for (i=0; i < 10; i++) {
+		ret = request_firmware(&fw, bin_name, mmi_fg->dev);
+		if (ret || fw->size <= 0) {
+			mmi_info("Couldn't get firmware=%s,  ret=%d, retry times=%d\n", bin_name, ret, i);
+			msleep(1000);
+		}
+		else
+			break;
+	}
+
 	if (ret || fw->size <= 0 ) {
 		mmi_info("Couldn't get nfg1000_firmware  rc=%d\n", ret);
 		return NULL;
 	}
+
 	des_buf = kzalloc(fw->size, GFP_KERNEL);
 	memset(des_buf, 0, fw->size);
 	memcpy(des_buf, fw->data, fw->size);
@@ -1787,7 +1798,7 @@ err_putnode:
 
 static void nfg1000_force_upgrade_func(struct work_struct *work)
 {
-	struct mmi_fg_chip *di = container_of(work, struct mmi_fg_chip, fg_force_upgrade_work);
+	struct mmi_fg_chip *di = container_of(work, struct mmi_fg_chip, fg_FUpgrade_dwork.work);
 	int count = 1;
 
 	if (di->force_upgrade == false)
@@ -1841,7 +1852,7 @@ upgrade_error:
 
 static void nfg1000_upgrade_func(struct work_struct *work)
 {
-	struct mmi_fg_chip *di = container_of(work, struct mmi_fg_chip, fg_upgrade_work);
+	struct mmi_fg_chip *di = container_of(work, struct mmi_fg_chip, fg_upgrade_dwork.work);
 	int count = 1;
 
 	if (di->force_upgrade == true) {
@@ -2637,10 +2648,10 @@ static ssize_t fg_attr_store_FW_update(struct device *dev,
 				__func__, mmi->do_upgrading, mmi->fake_battery, count, buf);
 		if (count == 2 && !mmi->do_upgrading && !mmi->fake_battery) {
 			if (buf[0] == '1') {
-				schedule_work(&mmi->fg_upgrade_work);
+				queue_delayed_work(system_long_wq, &mmi->fg_upgrade_dwork, msecs_to_jiffies(queue_start_work_time));
 			} else if (buf[0] == '2') {
 				mmi->force_upgrade = true;
-				schedule_work(&mmi->fg_force_upgrade_work);
+				queue_delayed_work(system_long_wq, &mmi->fg_FUpgrade_dwork, msecs_to_jiffies(queue_start_work_time));
 			}
 		}
 	}
@@ -2845,12 +2856,11 @@ static int mmi_fg_probe(struct i2c_client *client,
 		return ret;
 	}
 
+	INIT_DELAYED_WORK(&mmi->fg_FUpgrade_dwork, nfg1000_force_upgrade_func);
+	INIT_DELAYED_WORK(&mmi->fg_upgrade_dwork, nfg1000_upgrade_func);
 	if (mmi->fake_battery == false && is_atm_mode() == true) {
-		INIT_WORK(&mmi->fg_force_upgrade_work, nfg1000_force_upgrade_func);
-		schedule_work(&mmi->fg_force_upgrade_work);
-
-		INIT_WORK(&mmi->fg_upgrade_work, nfg1000_upgrade_func);
-		schedule_work(&mmi->fg_upgrade_work);
+		queue_delayed_work(system_long_wq, &mmi->fg_FUpgrade_dwork , msecs_to_jiffies(queue_delayed_work_time));
+		queue_delayed_work(system_long_wq, &mmi->fg_upgrade_dwork , msecs_to_jiffies(queue_delayed_work_time));
 	}
 
 	mmi_info("mmi fuel gauge probe successfully, %s\n", device2str[mmi->chip]);
