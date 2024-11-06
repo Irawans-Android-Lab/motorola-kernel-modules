@@ -1677,6 +1677,7 @@ static ssize_t gain_store(struct device *dev, struct device_attribute *attr, con
 {
 	cdev_t *cdev = dev_get_drvdata(dev);
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic, vib_dev);
+	uint8_t val_temp = 0;
 	uint32_t val = 0;
 	int rc = 0;
 
@@ -1688,7 +1689,9 @@ static ssize_t gain_store(struct device *dev, struct device_attribute *attr, con
 
 	mutex_lock(&aw_haptic->lock);
 	aw_haptic->gain = val;
-	aw_haptic->func->set_gain(aw_haptic, aw_haptic->gain);
+	haptic_nv_i2c_reads(aw_haptic, AW862XX_REG_PLAYCFG2, &val_temp, AW_I2C_BYTE_ONE);
+	val_temp = val_temp * (val / aw_haptic->gain)  ;
+	aw_haptic->func->set_gain(aw_haptic, val_temp);
 	mutex_unlock(&aw_haptic->lock);
 
 	return count;
