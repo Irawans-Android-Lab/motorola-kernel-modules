@@ -1,0 +1,32 @@
+DLKM_DIR := motorola/kernel/modules
+LOCAL_PATH := $(call my-dir)
+
+ifneq ($(BOARD_USES_DOUBLE_TAP),)
+	KERNEL_CFLAGS += CONFIG_OVT_ENABLE_DOUBLE_TAP=y
+endif
+
+ifeq ($(BOARD_USES_DOUBLE_TAP_CTRL),true)
+	KERNEL_CFLAGS += CONFIG_BOARD_USES_DOUBLE_TAP_CTRL=y
+endif
+
+ifneq ($(BOARD_USES_MTK_CHECK_PANEL),)
+	KERNEL_CFLAGS += CONFIG_TP_MTK_CHECK_PANEL=y
+endif
+
+ifeq ($(MTK_PANEL_NOTIFICATIONS),true)
+	KERNEL_CFLAGS += CONFIG_MTK_PANEL_NOTIFICATIONS=y
+endif
+
+ifeq ($(TOUCHSCREEN_LAST_TIME),true)
+	KERNEL_CFLAGS += CONFIG_TP_LAST_TIME=y
+endif
+
+include $(CLEAR_VARS)
+ifneq ($(BOARD_USES_DOUBLE_TAP),)
+LOCAL_ADDITIONAL_DEPENDENCIES += $(KERNEL_MODULES_OUT)/sensors_class.ko
+endif
+LOCAL_MODULE := omnivision_tcm_0flash_mmi.ko
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/lib/modules/
+
+include $(DLKM_DIR)/AndroidKernelModule.mk

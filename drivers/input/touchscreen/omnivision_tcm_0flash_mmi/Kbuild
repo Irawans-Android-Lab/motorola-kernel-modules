@@ -1,0 +1,48 @@
+# add -Wall to try to catch everything we can.
+EXTRA_CFLAGS += -Wall
+ifeq ($(DEVICE_MODULES_PATH),)
+DEVICE_MODULES_PATH = $(srctree)
+endif
+$(warning DEVICE_MODULES_PATH=$(DEVICE_MODULES_PATH))
+EXTRA_CFLAGS += \
+		-I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek/mediatek_v2/ \
+		-I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/
+EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/include \
+		-I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/drivers/sensors \
+		-I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/drivers/input/touchscreen/omnivision_tcm_0flash_mmi \
+		-I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/drivers/input/touchscreen/omnivision_tcm_0flash_mmi/include
+
+ifneq ($(filter m y, $(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)),)
+	EXTRA_CFLAGS += -DCONFIG_BOARD_USES_DOUBLE_TAP_CTRL
+endif
+
+obj-m := omnivision_tcm_0flash_mmi.o
+omnivision_tcm_0flash_mmi-objs += omnivision_tcm_core.o \
+			omnivision_tcm_touch.o \
+			omnivision_tcm_spi.o \
+			omnivision_tcm_zeroflash.o \
+			omnivision_tcm_reflash.o \
+			omnivision_tcm_device.o \
+			omnivision_tcm_testing.o \
+			omnivision_tcm_recovery.o \
+			omnivision_tcm_diagnostics.o
+
+
+ifneq ($(filter m y,$(CONFIG_OVT_ENABLE_DOUBLE_TAP)),)
+	EXTRA_CFLAGS += -DOVT_SENSOR_EN
+	KBUILD_EXTRA_SYMBOLS += $(CURDIR)/$(KBUILD_EXTMOD)/../../../sensors/$(GKI_OBJ_MODULE_DIR)/Module.symvers
+endif
+
+ifneq ($(filter m y,$(CONFIG_TP_MTK_CHECK_PANEL)),)
+	EXTRA_CFLAGS += -DOVT_MTK_CHECK_PANEL
+endif
+
+
+ifneq ($(filter m y, $(CONFIG_MTK_PANEL_NOTIFICATIONS)),)
+	EXTRA_CFLAGS += -DCONFIG_MTK_PANEL_NOTIFICATIONS
+endif
+
+ifneq ($(filter m y,$(CONFIG_TP_LAST_TIME)),)
+	EXTRA_CFLAGS += -DCONFIG_TP_LAST_TIME
+endif
+
