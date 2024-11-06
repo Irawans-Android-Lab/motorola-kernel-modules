@@ -302,6 +302,12 @@ static int gf_hw_power_enable(struct gf_device *gf_dev, u8 onoff)
 	int rc = 0;
 
 	if (onoff && enable) {
+		#ifdef CONFIG_OF
+		rc = pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_reset_low);
+		if (0 != rc) {
+			gf_debug(ERR_LOG, "%s, pinctrl_select_state failed:pins_reset_low.\n", __func__);
+		}
+		#endif
 		gf_debug(INFO_LOG, "%s, enable\n", __func__);
 		if(gf_dev->rgltr_ctrl_support && !IS_ERR_OR_NULL(gf_dev->pwr_supply)) {
 			rc = regulator_enable(gf_dev->pwr_supply);
@@ -313,10 +319,6 @@ static int gf_hw_power_enable(struct gf_device *gf_dev, u8 onoff)
 		}
 		enable = 0;
 		#ifdef CONFIG_OF
-		rc = pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_reset_low);
-		if (0 != rc) {
-			gf_debug(ERR_LOG, "%s, pinctrl_select_state failed:pins_reset_low.\n", __func__);
-		}
 		mdelay(15);
 
 		rc = pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_reset_high);
