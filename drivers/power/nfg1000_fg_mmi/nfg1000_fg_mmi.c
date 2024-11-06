@@ -2433,6 +2433,19 @@ int fg_get_soh(struct gauge_device *gauge_dev, int *soh)
 	return 0;
 }
 
+int fg_get_batt_id(struct gauge_device *gauge_dev, char* battidmap)
+{
+	struct mmi_fg_chip *fg = dev_get_drvdata(&gauge_dev->dev);
+	int i, count = 0;
+
+	count += sprintf(battidmap, "%x", fg->battid_cnt);
+	for (i = 0; i < fg->battid_cnt; i++) {
+		count += sprintf(battidmap + count, "%s",fg->batt_serialnum_arry[i]);
+	}
+
+	return count;
+}
+
 int fg_get_cycle_count(struct gauge_device *gauge_dev, int *cycle_count)
 {
 	struct mmi_fg_chip *mmi = dev_get_drvdata(&gauge_dev->dev);
@@ -2707,6 +2720,7 @@ static struct gauge_ops nfg1000_gauge_ops = {
 	.get_charge_counter = fg_get_charge_counter,
 	.get_cycle_count = fg_get_cycle_count,
 	.get_soh = fg_get_soh,
+	.get_battid = fg_get_batt_id,
 	.set_charge_type = fg_set_charge_type,
 	.set_temperature = fg_set_temp,
 	.set_shutdown_threshold = fg_set_shutdown_threshold,

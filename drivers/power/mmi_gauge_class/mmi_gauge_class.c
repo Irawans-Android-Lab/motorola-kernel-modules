@@ -140,6 +140,16 @@ int gauge_dev_get_soh(struct gauge_device *gauge_dev, int *soh)
 }
 EXPORT_SYMBOL(gauge_dev_get_soh);
 
+int gauge_dev_get_battid(struct gauge_device *gauge_dev, char *battid)
+{
+	if (gauge_dev != NULL && gauge_dev->ops != NULL &&
+	    gauge_dev->ops->get_battid)
+		return gauge_dev->ops->get_battid(gauge_dev, battid);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(gauge_dev_get_battid);
+
 int gauge_dev_get_charge_counter(struct gauge_device *gauge_dev, int *charge_counter)
 {
 	if (gauge_dev != NULL && gauge_dev->ops != NULL &&

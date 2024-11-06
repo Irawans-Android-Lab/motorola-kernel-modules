@@ -632,6 +632,25 @@ static int  tcmd_get_bat_ocv(void *input, int* val)
 	return ret;
 }
 
+static int  tcmd_get_bat_id(void *input, int* battids)
+{
+	int ret = 0;
+	char * pbattids = (char *)battids;
+	struct mmi_battery_pack *battery = NULL;
+	struct mmi_smart_battery *chip = (struct mmi_smart_battery *)input;
+
+	if (IS_ERR_OR_NULL(pbattids))
+		return -EINVAL;
+	list_for_each_entry(battery, &chip->battery_list, list) {
+		if (strcmp(battery->gauge_dev->dev.kobj.name, "bms") == 0 ||
+			strcmp(battery->gauge_dev->dev.kobj.name, "main_battery") == 0)  {
+			ret = gauge_dev_get_battid(battery->gauge_dev, pbattids);
+		}
+	}
+
+	return ret;
+}
+
 #ifdef CONFIG_MOTO_1200_CYCLE
 static int  tcmd_get_bat_cycle(void *input, int* val)
 {
@@ -672,6 +691,7 @@ static int battery_tcmd_register(struct mmi_smart_battery *chip)
 	chip->batt_tcmd_client.get_bat_temp = tcmd_get_bat_temp;
 	chip->batt_tcmd_client.get_bat_voltage = tcmd_get_bat_voltage;
 	chip->batt_tcmd_client.get_bat_ocv= tcmd_get_bat_ocv;
+	chip->batt_tcmd_client.get_bat_id= tcmd_get_bat_id;
 #ifdef CONFIG_MOTO_1200_CYCLE
 	chip->batt_tcmd_client.get_bat_cycle = tcmd_get_bat_cycle;
 	chip->batt_tcmd_client.set_bat_cycle= tcmd_set_bat_cycle;
