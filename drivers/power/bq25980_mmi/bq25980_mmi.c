@@ -168,6 +168,7 @@ struct bq25980_device {
 	struct mutex irq_complete;
 
 	bool mmi_disable_mux;
+	bool otg_delay_mos_config;
 };
 
 static struct reg_default bq25980_reg_init_val[] = {
@@ -1091,6 +1092,18 @@ static irqreturn_t bq25980_irq_handler_thread(int irq, void *private)
 	if (ret < 0) {
 		mutex_unlock(&bq->irq_complete);
 		goto irq_out;
+	}
+
+	if (bq->part_no == SGM41606S_PART_NO) {
+		if (bq->otg_delay_mos_config && state.online) {
+			bq->otg_delay_mos_config = false;
+			ret = regmap_update_bits(bq->regmap, BQ25980_CHRGR_CTRL_2,
+					BQ25980_ENABLE_TYPEC_MOS, BQ25980_ENABLE_TYPEC_MOS);
+			if (ret) {
+				dev_err(bq->dev, "mmi_mux enable otg typec mos fail ret=%d", ret);
+				return ret;
+			}
+		}
 	}
 
 	if (!bq25980_state_changed(bq, &state)) {
@@ -2184,6 +2197,7 @@ static int bq25980_config_mux(struct charger_device *chg_dev,
 		return sc8541_config_mux(bq, typec_mos, wls_mos);
 
 	if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN) {
+		bq->otg_delay_mos_config = false;
 		ret = regmap_update_bits(bq->regmap, BQ25980_CHRGR_CTRL_2,
 				BQ25980_EN_OTG, 0);
 		if (ret) {
@@ -2258,6 +2272,7 @@ static int bq25980_config_mux(struct charger_device *chg_dev,
 				dev_err(bq->dev, "mmi_mux enable otg typec mos fail ret=%d", ret);
 				return ret;
 			}
+			bq->otg_delay_mos_config = true;
 		}
 #ifdef CONFIG_MOTO_CHANNEL_SWITCH
 	} else if (typec_mos == MMI_DVCHG_MUX_OTG_WLC_OPEN) {
