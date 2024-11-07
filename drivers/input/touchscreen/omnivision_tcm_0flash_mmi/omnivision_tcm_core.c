@@ -2391,6 +2391,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	int retval;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+	OVT_FUNC_ENTER();
 	if (bdata->irq_gpio >= 0) {
 		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio,
 				true, 0, 0);
@@ -2434,6 +2435,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 		ovt_tcm_request_gpio(tcm_hcd, bdata->reset_gpio, false);
 	}
 
+	OVT_INFO("success, return 0\n");
 	return 0;
 
 err_set_gpio_reset:
@@ -4342,6 +4344,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 	tcm_hcd->in_hdl_mode = false;
 	tcm_hcd->sensor_type = TYPE_UNKNOWN;
 
+	OVT_FUNC_ENTER();
 	/* read sensor info for identification */
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
@@ -4432,6 +4435,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 			tcm_hcd->id_info.mode);
 	}
 
+	OVT_FUNC_EXIT();
 	return 0;
 }
 #ifdef CONFIG_OVT_CHARGER_DETECT
@@ -4671,6 +4675,8 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	struct drm_panel *active_panel = tcm_get_panel();
 #endif
 #endif
+
+	OVT_INFO("enter\n");
 	hw_if = pdev->dev.platform_data;
 	if (!hw_if) {
 		LOGE(&pdev->dev,
@@ -4800,7 +4806,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to configure GPIO's\n");
-		goto err_config_gpio;
+		//goto err_config_gpio;
 	}
 
 	/* detect the type of touch controller */
@@ -4808,9 +4814,10 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to detect the sensor\n");
-		goto err_sysfs_create_dir;
+		//goto err_sysfs_create_dir;
 	}
 
+	OVT_INFO("device_module_init\n");
 	device_module_init();
 	testing_module_init();
 	zeroflash_module_init();
@@ -4989,9 +4996,12 @@ prepare_modules:
 	queue_work(mod_pool.workqueue, &mod_pool.work);
 	mutex_unlock(&tcm_hcd->suspend_resume_mutex);
 	g_retry_max = 10;
+
+	OVT_INFO("probe successfully\n");
 	return 0;
 
 err_enable_irq:
+	OVT_INFO("err_enable_irq\n");
 	cancel_delayed_work_sync(&tcm_hcd->polling_work);
 	flush_workqueue(tcm_hcd->polling_workqueue);
 	destroy_workqueue(tcm_hcd->polling_workqueue);
@@ -5010,6 +5020,7 @@ err_enable_irq:
 	kthread_stop(tcm_hcd->notifier_thread);
 
 err_create_run_kthread:
+	OVT_INFO("err_create_run_kthread\n");
 #endif
 
 #ifndef USE_SYS_SUSPEND_METHOD
@@ -5023,6 +5034,7 @@ err_create_run_kthread:
 #endif
 
 err_sysfs_create_dynamic_config_file:
+	OVT_INFO("err_sysfs_create_dynamic_config_file\n");
 	for (idx--; idx >= 0; idx--) {
 		sysfs_remove_file(tcm_hcd->dynamnic_config_sysfs_dir,
 				&(*dynamic_config_attrs[idx]).attr);
@@ -5040,6 +5052,7 @@ err_sysfs_create_file:
 	kobject_put(tcm_hcd->sysfs_dir);
 
 err_sysfs_create_dir:
+	OVT_INFO("err_sysfs_create_dir\n");
 	if (bdata->irq_gpio >= 0)
 		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0);
 
@@ -5049,7 +5062,7 @@ err_sysfs_create_dir:
 	//if (bdata->reset_gpio >= 0)
 	//	ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
 
-err_config_gpio:
+//err_config_gpio:
 	ovt_tcm_enable_regulator(tcm_hcd, false);
 
 err_enable_regulator:
@@ -5068,6 +5081,8 @@ err_alloc_mem:
 	mutex_unlock(&tcm_hcd->suspend_resume_mutex);
 
 	kfree(tcm_hcd);
+
+	OVT_INFO("err ret:%d\n", retval);
 	return retval;
 }
 

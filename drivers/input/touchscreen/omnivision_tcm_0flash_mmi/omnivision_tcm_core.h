@@ -126,16 +126,32 @@ struct ovt_tcm_board_data {
 #define HOST_DOWNLOAD_TIMEOUT_MS 5000
 
 #define LOGx(func, dev, log, ...) \
-	func(dev, "%s info: " log, __func__, ##__VA_ARGS__)
+	func(dev, "[OVT]%s info: " log, __func__, ##__VA_ARGS__)
 
 #define LOGy(func, dev, log, ...) \
-	func(dev, "%s error: (line %d) " log, __func__, __LINE__, ##__VA_ARGS__)
+	func(dev, "[OVT]%s error: (line %d) " log, __func__, __LINE__, ##__VA_ARGS__)
 
 #define LOGD(dev, log, ...) LOGx(dev_dbg, dev, log, ##__VA_ARGS__)
 #define LOGI(dev, log, ...) LOGx(dev_info, dev, log, ##__VA_ARGS__)
 #define LOGN(dev, log, ...) LOGx(dev_notice, dev, log, ##__VA_ARGS__)
 #define LOGW(dev, log, ...) LOGy(dev_warn, dev, log, ##__VA_ARGS__)
 #define LOGE(dev, log, ...) LOGy(dev_err, dev, log, ##__VA_ARGS__)
+
+#define OVT_FUNC_ENTER() do { \
+    pr_info("[omnivison/OVT]%s: Enter\n", __func__); \
+} while (0)
+
+#define OVT_FUNC_EXIT() do { \
+    pr_info("[omnivison/OVT]%s: Exit(%d)\n", __func__, __LINE__); \
+} while (0)
+
+#define OVT_INFO(fmt, args...) do { \
+    pr_info("[omnivison/OVT/I]%s:"fmt"\n", __func__, ##args); \
+} while (0)
+
+#define OVT_DEBUG(fmt, args...) do { \
+    pr_debug("[omnivison/OVT/D]%s:"fmt"\n", __func__, ##args); \
+} while (0)
 
 #define INIT_BUFFER(buffer, is_clone) \
 	mutex_init(&buffer.buf_mutex); \

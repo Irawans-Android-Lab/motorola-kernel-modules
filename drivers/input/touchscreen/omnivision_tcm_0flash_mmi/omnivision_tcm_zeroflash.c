@@ -1347,9 +1347,12 @@ static int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	int retval = 0;
 	int idx;
 
+	OVT_FUNC_ENTER();
 	zeroflash_hcd = NULL;
-	if (!(tcm_hcd->in_hdl_mode))
+	if (!(tcm_hcd->in_hdl_mode)) {
+		LOGI(tcm_hcd->pdev->dev.parent, "!in_hdl_mode, return 0\n");
 		return 0;
+	}
 
 	zeroflash_hcd = kzalloc(sizeof(*zeroflash_hcd), GFP_KERNEL);
 	if (!zeroflash_hcd) {
@@ -1411,6 +1414,8 @@ init_finished:
 
 		}
 	}
+
+	LOGI(tcm_hcd->pdev->dev.parent, "return %d\n", retval);
 	return retval;
 }
 

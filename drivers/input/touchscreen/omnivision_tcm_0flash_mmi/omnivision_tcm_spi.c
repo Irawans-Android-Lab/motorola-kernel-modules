@@ -47,6 +47,45 @@ static struct platform_device *ovt_tcm_spi_device;
 static struct pinctrl *pinctrl;
 static struct pinctrl_state *pin_spi_mode_default;
 */
+
+#ifdef OVT_MTK_CHECK_PANEL
+const char *active_panel_name;
+static void ovt_get_active_panel(void)
+{
+	int rc;
+	struct device_node *chosen = of_find_node_by_name(NULL, "chosen");
+
+	if(chosen) {
+		rc = of_property_read_string(chosen, "mmi,panel_name", (const char **)&active_panel_name);
+		if (rc)
+			OVT_INFO("mmi,panel_name null\n");
+		else
+			OVT_DEBUG("active_panel=%s\n", active_panel_name);
+	}
+	else
+		OVT_INFO("chosen node null\n");
+
+}
+
+static int ovt_get_panel(void)
+{
+	OVT_DEBUG("enter");
+	ovt_get_active_panel();
+
+	if (!active_panel_name)
+		OVT_INFO("active_panel NULL\n");
+	else if(strstr(active_panel_name, "_td"))
+	{
+		OVT_INFO("matched active_panel: %s ", active_panel_name);
+		return 0;
+	}
+	else
+		OVT_INFO("unmacth active_panel: %s\n", active_panel_name);
+
+	return -1;
+}
+#endif
+
 #ifdef CONFIG_DRMV
 static struct drm_panel *active_tcm_panel;
 
@@ -91,6 +130,9 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 	struct property *prop;
 	struct device_node *np = dev->of_node;
 	const char *name;
+
+	OVT_FUNC_ENTER();
+
 #ifdef CONFIG_DRMV
 	retval = ovt_tcm_check_dt(np);
 	if (retval == -EPROBE_DEFER)
@@ -100,8 +142,10 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 	if (prop && prop->length) {
 		bdata->irq_gpio = of_get_named_gpio(np,
 				"omnivision,irq-gpio", 0);
+		OVT_INFO("irq-gpio get\n");
 	} else {
 		bdata->irq_gpio = -1;
+		OVT_INFO("irq-gpio get fail, set as -1\n");
 	}
 
 	retval = of_property_read_u32(np, "omnivision,irq-on-state", &value);
@@ -128,6 +172,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 				"omnivision,power-gpio", 0);
 	} else {
 		bdata->power_gpio = -1;
+		OVT_DEBUG("power-gpio not set\n");
 	}
 
 	prop = of_find_property(np, "omnivision,power-on-state", NULL);
@@ -164,8 +209,10 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 	if (prop && prop->length) {
 		bdata->reset_gpio = of_get_named_gpio(np,
 				"omnivision,reset-gpio", 0);
+		OVT_INFO("reset-gpio get\n");
 	} else {
 		bdata->reset_gpio = -1;
+		OVT_INFO("reset-gpio get fail\n");
 	}
 
 	prop = of_find_property(np, "omnivision,reset-on-state", NULL);
@@ -219,6 +266,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 				"omnivision,tpio-reset-gpio", 0);
 	} else {
 		bdata->tpio_reset_gpio = -1;
+		OVT_DEBUG("tpio-reset-gpio not set\n");
 	}
 
 	prop = of_find_property(np, "omnivision,x-flip", NULL);
@@ -305,6 +353,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		bdata->ubl_byte_delay_us = 0;
 	}
 
+	OVT_FUNC_EXIT();
 	return 0;
 }
 #endif
@@ -623,6 +672,7 @@ static int ovt_tcm_spi_probe(struct spi_device *spi)
 {
 	int retval;
 
+	OVT_FUNC_ENTER();
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
 		LOGE(&spi->dev,
 				"Full duplex not supported by host\n");
@@ -643,6 +693,15 @@ static int ovt_tcm_spi_probe(struct spi_device *spi)
 				"Failed to allocate memory for board data\n");
 		return -ENOMEM;
 	}
+
+#ifdef OVT_MTK_CHECK_PANEL
+	retval = ovt_get_panel();
+	if (retval) {
+		OVT_INFO("MTK ovt panel fail, return %d\n", retval);
+		return retval;
+	}
+#endif
+
 	parse_dt(&spi->dev, hw_if.bdata);
 /*
 	pinctrl = devm_pinctrl_get(spi->controller->dev.parent);
@@ -712,6 +771,7 @@ static int ovt_tcm_spi_probe(struct spi_device *spi)
 		return retval;
 	}
 
+	OVT_INFO("success, spi mode:%d, return 0\n", spi->mode);
 	return 0;
 }
 
