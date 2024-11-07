@@ -177,6 +177,8 @@ int mmi_ram_info_init(void)
 			vname = vendors[vid];
 		else if (vid == 0x12)
 			vname = "BAMC";
+		else if (vid == 0x13)
+			vname = "CXMT";
 		else if (vid == 0x1B)
 			vname = "ISSI";
 		else if (vid == 0x1C)
