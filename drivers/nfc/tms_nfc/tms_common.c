@@ -89,7 +89,11 @@ int tms_device_register(struct dev_register *dev, void *data)
         goto err_free_devno;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0)
+    dev->creation = device_create(tms->class, NULL, dev->devno, data, "%s", dev->name);
+#else
     dev->creation = device_create(tms->class, NULL, dev->devno, data, dev->name);
+#endif
 
     if (IS_ERR(dev->creation)) {
         ret = PTR_ERR(dev->creation);
@@ -225,6 +229,8 @@ static int __init tms_driver_init(void)
         goto err;
     }
 
+    ret = tms_guide_init();
+/*
 #if IS_ENABLED(CONFIG_TMS_GUIDE_DEVICE)
     ret = tms_guide_init();
 #else
@@ -238,6 +244,7 @@ static int __init tms_driver_init(void)
     ret = ese_driver_init();
 #endif
 #endif
+*/
 err:
     return ret;
 }

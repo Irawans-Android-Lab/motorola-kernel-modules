@@ -9,7 +9,7 @@
 /*********** PART0: Head files ***********/
 #include <linux/i2c.h>
 
-#include "../tms_common.h"
+#include "tms_common.h"
 /*********** PART1: Define Area ***********/
 #ifdef TMS_MOUDLE
 #undef TMS_MOUDLE

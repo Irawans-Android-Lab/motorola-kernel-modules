@@ -11,7 +11,7 @@
 #include <linux/timekeeping.h>
 #include "nfc_common.h"
 /*********** PART1: Define Area ***********/
-#define NFC_DEVICE               "tms,nfc"
+#define NFC_DEVICE               "qcom,sn-nci"
 #define MAX_BUFFER_SIZE           (4096)
 #define NFC_CMD_RSP_TIMEOUT_MS    (2000)
 #define NFC_MAGIC                 (0xE9)

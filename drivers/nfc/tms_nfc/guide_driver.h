@@ -6,10 +6,10 @@
 #ifndef _TMS_GUIDEV_H_
 #define _TMS_GUIDEV_H_
 /*********** PART0: Head files ***********/
-#include "../nfc/nfc_driver.h"
+#include "nfc_driver.h"
 
 /*********** PART1: Define Area ***********/
-#define GUIDEDEV_NAME         "tms,nfc"
+#define GUIDEDEV_NAME         "qcom,sn-nci"
 #ifdef TMS_MOUDLE
 #undef TMS_MOUDLE
 #define TMS_MOUDLE            "Guidev"
