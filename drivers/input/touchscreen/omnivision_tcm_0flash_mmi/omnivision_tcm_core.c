@@ -88,6 +88,8 @@ struct ovt_tcm_hcd *onmivision_tcm_hcd;
 
 //#define USE_SYS_SUSPEND_METHOD
 
+#define OVT_CHIP_NAME_PRIMARY "primary"
+
 struct ovt_tcm_hcd *g_tcm_hcd;
 #if SPEED_UP_RESUME
 static void speedup_resume(struct work_struct *work);
@@ -302,6 +304,196 @@ static struct device_attribute *dynamic_config_attrs[] = {
 	ATTRIFY(enable_thick_glove),
 	ATTRIFY(enable_glove),
 };
+
+#include <linux/major.h>
+#include <linux/kdev_t.h>
+
+static char *ts_mmi_kobject_get_path(struct kobject *kobj, gfp_t gfp_mask)
+{
+	char *path;
+	int len = 1;
+	struct kobject *parent = kobj;
+
+	do {
+		if (parent->name == NULL) {
+			len = 0;
+			break;
+		}
+		len += strlen(parent->name) + 1;
+		parent = parent->parent;
+	} while (parent);
+
+	if (len == 0)
+		return NULL;
+
+	path = kzalloc(len, gfp_mask);
+	if (!path)
+		return NULL;
+
+	--len;
+	for (parent = kobj; parent; parent = parent->parent) {
+		int cur = strlen(parent->name);
+		len -= cur;
+		memcpy(path + len, parent->name, cur);
+		*(path + --len) = '/';
+	}
+	pr_debug("kobject: '%s' (%p): %s: path = '%s'\n", kobj->name,
+		kobj, __func__, path);
+
+	return path;
+}
+
+// Attribute: path (RO)
+static ssize_t path_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	ssize_t blen;
+	const char *path;
+
+	if(!g_tcm_hcd) {
+		OVT_INFO("g_tcm_hcd NULL, fail return\n");
+		return -1;
+	}
+
+	path = ts_mmi_kobject_get_path(&g_tcm_hcd->pdev->dev.kobj, GFP_KERNEL);
+	blen = scnprintf(buf, PAGE_SIZE, "%s", path ? path : "na");
+	kfree(path);
+	return blen;
+}
+
+// Attribute: vendor (RO)
+static ssize_t vendor_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "omnivision");
+}
+
+static ssize_t ic_ver_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int count = 0;
+
+	count += snprintf(buf + count, PAGE_SIZE, "Product ID: %s\n", g_tcm_hcd->id_info.part_number);
+	count += snprintf(buf + count, PAGE_SIZE, "Build ID: %d\n", g_tcm_hcd->packrat_number);
+	count += snprintf(buf + count, PAGE_SIZE, "Config ID: 0x%02X\n", g_tcm_hcd->app_info.customer_config_id[15]);
+
+	return count;
+}
+
+static ssize_t productinfo_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	static char product_info[10];
+
+	if (!product_info[0]) {
+		char *split = strstr(g_tcm_hcd->id_info.part_number, "-");
+		int len = strlen(g_tcm_hcd->id_info.part_number);
+
+		if (split) {
+			len -= strlen(split);
+			OVT_INFO("updatre len=%d", len);
+		}
+
+		scnprintf(product_info, len+1, "%s\n", g_tcm_hcd->id_info.part_number);
+		OVT_INFO("get product_info=%s", product_info);
+	}
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n", product_info);
+}
+
+static struct device_attribute touchscreen_attributes[] = {
+	__ATTR_RO(path),
+	__ATTR_RO(vendor),
+	__ATTR_RO(ic_ver),
+	__ATTR_RO(productinfo),
+	__ATTR_NULL
+};
+
+static int ovt_sysfs_touchscreen_class(bool create)
+{
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+	struct ovt_tcm_board_data *bdata;
+	struct device_attribute *attrs = touchscreen_attributes;
+	int i, error = 0;
+	static struct class *touchscreen_class;
+	static struct device *ts_class_dev;
+	dev_t devno;
+
+	if(!tcm_hcd) {
+		OVT_INFO("tcm_hcd NULL, fail return\n");
+		return -1;
+	}
+	bdata = tcm_hcd->hw_if->bdata;
+
+	if (create) {
+		error = alloc_chrdev_region(&devno, 0, 1, OVT_CHIP_NAME_PRIMARY);
+
+		if (error) {
+			OVT_ERROR("cant`t allocate chrdev");
+			return error;
+		}
+
+		touchscreen_class = class_create(THIS_MODULE, "touchscreen");
+		if (IS_ERR(touchscreen_class)) {
+			error = PTR_ERR(touchscreen_class);
+			touchscreen_class = NULL;
+			return error;
+		}
+
+		ts_class_dev = device_create(touchscreen_class, NULL, devno, bdata, "%s", OVT_CHIP_NAME_PRIMARY);
+		if (IS_ERR(ts_class_dev)) {
+			error = PTR_ERR(ts_class_dev);
+			ts_class_dev = NULL;
+			return error;
+		}
+
+		for (i = 0; attrs[i].attr.name != NULL; ++i) {
+			error = device_create_file(ts_class_dev, &attrs[i]);
+			if (error)
+				break;
+		}
+
+		if (error)
+			goto device_ts_sys_remove;
+
+		OVT_INFO("touchscreen sys done");
+		return 0;
+	}
+	else {
+		//remove
+		OVT_INFO("touchscreen sys remove");
+		goto device_ts_sys_remove;
+	}
+
+device_ts_sys_remove:
+	if (ts_class_dev) {
+		for (--i; i >= 0; --i)
+			device_remove_file(ts_class_dev, &attrs[i]);
+
+		ts_class_dev = NULL;
+	}
+	else
+		OVT_INFO("ts_class_dev null, skip");
+
+	if (touchscreen_class)
+		class_unregister(touchscreen_class);
+	else
+		OVT_INFO("touchscreen_class null, skip");
+
+	OVT_ERROR("error creating touchscreen class\n");
+	return -ENODEV;
+}
+
+static int ovt_create_touchscreen_sysfs(void)
+{
+    int ret = 0;
+
+    ret = ovt_sysfs_touchscreen_class(true);
+    if (ret) {
+        OVT_INFO("ovt_sysfs_touchscreen_class() failed!!");
+    }
+
+    return ret;
+}
 
 static int ovt_tcm_get_app_info(struct ovt_tcm_hcd *tcm_hcd);
 static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
@@ -4880,6 +5072,8 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 			goto err_sysfs_create_dynamic_config_file;
 		}
 	}
+
+    ovt_create_touchscreen_sysfs();
 
 #if IS_ENABLED(CONFIG_OEM_DEVINFO)
 	onmivision_tcm_hcd = tcm_hcd;

@@ -149,6 +149,10 @@ struct ovt_tcm_board_data {
     pr_info("[omnivison/OVT/I]%s:"fmt"\n", __func__, ##args); \
 } while (0)
 
+#define OVT_ERROR(fmt, args...) do { \
+    pr_err("[omnivison/OVT/I]%s:"fmt"\n", __func__, ##args); \
+} while (0)
+
 #define OVT_DEBUG(fmt, args...) do { \
     pr_debug("[omnivison/OVT/D]%s:"fmt"\n", __func__, ##args); \
 } while (0)
