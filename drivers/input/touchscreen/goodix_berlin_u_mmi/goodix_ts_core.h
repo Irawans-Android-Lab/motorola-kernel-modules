@@ -401,6 +401,9 @@ enum touch_point_status {
 /* coordinate package */
 struct goodix_ts_coords {
 	int status; /* NONE, RELEASE, TOUCH */
+#if defined(CONFIG_MOTO_DDA_PASSIVESTYLUS) || defined(CONFIG_ENABLE_GTP_PALM_CANCEL_BY_ID)
+	int plam_status;
+#endif
 	unsigned int x, y, w, p;
 };
 
