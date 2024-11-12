@@ -194,6 +194,9 @@ typedef enum sc8565_chrg_role {
 #define SC8565_SS_TIMEOUT_20480MS           6
 #define SC8565_SS_TIMEOUT_81920MS           7
 
+#define CPS2023_MXGATE_STAT            BIT(6)
+
+
 //SC8565_CHRGR_CTRL_4 0x0E
 #define SC8565_IBAT_SNS_RES		BIT(4)
 #define SC8565_REG_RST		BIT(3)
@@ -212,6 +215,9 @@ typedef enum sc8565_chrg_role {
 #define SC8565_OVPFATE_OFF                 0
 #define SC8565_OVPFATE_ON                  1
 #define SC8565_WPCGATE_STAT            BIT(6)
+#define SC8565_MANU_CHK_DIS            BIT(5)
+#define SC8565_MANU_CHK_DIS_OFF     1
+#define SC8565_MANU_CHK_DIS_ON      0
 #define SC8565_WPCFATE_OFF                 0
 #define SC8565_WPCFATE_ON                  1
 #define SC8565_VWPC_OVP_DIS            BIT(3)
@@ -572,6 +578,8 @@ static struct intr_flag cp_intr_flag[] = {
 /************************************************************************/
 #define SC858X_DEVICE_ID                0x81
 #define SC8566_DEVICE_ID                0x2D
+#define CPS2023H_DEVICE_ID            0x6
+#define CPS2023_DEVICE_ID              0x5
 
 #define SC858X_REG17                    0x17
 #define SC858X_REGMAX                   0x7F
@@ -786,7 +794,8 @@ struct sc858x_chip {
 	int reg_addr;
 	int reg_data;
 	struct charger_properties chg_prop;
-
+       int device_id;
+	bool otg_delay_mos_config;
 };
 
 #if 0//def CONFIG_MTK_CLASS
@@ -885,16 +894,19 @@ __maybe_unused static int sc858x_detect_device(struct sc858x_chip *sc)
     int ret;
     int val;
 
+    sc->device_id = 0;
     ret = sc858x_field_read(sc, DEVICE_ID, &val);
     if (ret < 0) {
         dev_err(sc->dev, "%s fail(%d)\n", __func__, ret);
         return ret;
     }
 
-    if (val != SC858X_DEVICE_ID && val !=SC8566_DEVICE_ID) {
+    if (val != SC858X_DEVICE_ID && val !=SC8566_DEVICE_ID && val != CPS2023_DEVICE_ID && val != CPS2023H_DEVICE_ID) {
         dev_err(sc->dev, "%s not find SC858X, ID = 0x%02x\n", __func__, val);
         return -EINVAL;
     }
+    sc->device_id = val;
+    dev_err(sc->dev, "%s find SC858X, ID = 0x%02x\n", __func__, val);
 
     return ret;
 }
@@ -1156,6 +1168,31 @@ __maybe_unused static int sc858x_enable_charge(struct sc858x_chip *sc, bool en)
     return ret;
 }
 
+int sc858x_init_cps2023_device(struct sc858x_chip *sc) {
+	int ret = 0;
+
+	//only cps2023 need this.
+	if (sc->device_id != CPS2023H_DEVICE_ID && sc->device_id != CPS2023_DEVICE_ID){
+		return 0;
+	}
+
+	ret = regmap_update_bits(sc->regmap, SC8565_CHRGR_CTRL_5,
+					SC8565_MANU_CHK_DIS, SC8565_MANU_CHK_DIS);
+	if (ret) {
+	    dev_err(sc->dev, "%s:mmi_mux dis manu_chk_dis fail ret=%d", __func__, ret);
+	    return ret;
+	}
+
+	ret = regmap_update_bits(sc->regmap, SC8565_CHRGR_CTRL_3,
+						CPS2023_MXGATE_STAT, 0);
+	if (ret) {
+		dev_err(sc->dev, "%s:mmi_mux dis mxgate fail ret=%d", __func__, ret);
+		return ret;
+	}
+
+	return ret;
+}
+
 __maybe_unused static int sc858x_init_device(struct sc858x_chip *sc)
 {
     int ret = 0;
@@ -1210,7 +1247,7 @@ __maybe_unused static int sc858x_init_device(struct sc858x_chip *sc)
 
     sc858x_enable_adc(sc, true);
     sc858x_set_private_code(sc);
-
+    sc858x_init_cps2023_device(sc);
     sc858x_dump_reg(sc);
 
     return ret;
@@ -1661,13 +1698,30 @@ static void sc858x_dump_check_fault_status(struct sc858x_chip *sc)
 static irqreturn_t sc858x_irq_handler(int irq, void *data)
 {
     struct sc858x_chip *sc = data;
+    unsigned int val = 0;
+    int ret;
 
     dev_err(sc->dev,"INT OCCURED\n");
     dev_err(sc->dev,"[%s]%s enter\n",sc->model_name, __func__);
+	if (sc->device_id== CPS2023H_DEVICE_ID || sc->device_id== CPS2023_DEVICE_ID){
+		if (sc->otg_delay_mos_config == true) {
+			sc->otg_delay_mos_config = false;
+			regmap_read(sc->regmap, SC8565_INT_STAT, &val);
+			if(val & SC8565_VBUS_PRESENT_STAT) {
+				dev_err(sc->dev,"INT enable otg typec mos\n");
+				ret = regmap_update_bits(sc->regmap, SC8565_CHRGR_CTRL_1,
+									SC8565_OVPGATE_EN, SC8565_OVPGATE_EN);
+				if (ret) {
+					dev_err(sc->dev, "mmi_mux enable otg typec mos fail ret=%d", ret);
+					return ret;
+				}
+			}
+		}
+	}
+
     sc858x_dump_check_fault_status(sc);
 
     power_supply_changed(sc->psy);
-
     return IRQ_HANDLED;
 }
 
@@ -2050,11 +2104,14 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
 		return 0;
 
 	 if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN) {
-	    //disable reverse mode
-	    sc858x_field_read(bq, MODE, &ret);
-	    if(ret == 6) {
-            	sc858x_field_write(bq, MODE, 1);
-		dev_err(bq->dev, "%s:mmi_mux dis cp otg reverse mode", __func__);
+	     bq-> otg_delay_mos_config = false;
+	     //disable reverse mode at sc8565, cps no need.
+	     if(bq->device_id != CPS2023H_DEVICE_ID  && bq->device_id != CPS2023_DEVICE_ID) {
+		    sc858x_field_read(bq, MODE, &ret);
+		    if(ret == 6 ) {
+	            	sc858x_field_write(bq, MODE, 1);
+			dev_err(bq->dev, "%s:mmi_mux dis cp otg reverse mode", __func__);
+		    }
 	    }
 #if 0
             ret = regmap_update_bits(bq->regmap, BQ25980_CHRGR_CTRL_2,
@@ -2086,8 +2143,9 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
             udelay(100);
         }
         if (wls_mos == MMI_DVCHG_MUX_CLOSE) {
+
             ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
-                    SC8565_OVPGATE_EN, 0);
+                    SC8565_WPCGATE_EN, 0);
             if (ret) {
                 dev_err(bq->dev, "%s:mmi_mux close wls mos fail ret=%d", __func__, ret);
                 return ret;
@@ -2111,8 +2169,11 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
                 return ret;
             }
 #endif
-	    //reverse mode
-	    sc858x_field_write(bq, MODE, 6);
+	     //reverse mode
+	     if(bq->device_id != CPS2023H_DEVICE_ID  && bq->device_id != CPS2023_DEVICE_ID) {
+	         sc858x_field_write(bq, MODE, 6);
+	     }
+	     bq-> otg_delay_mos_config = true;
             ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_ACDRV_MANUAL, SC8565_ACDRV_MANUAL);
             if (ret) {
@@ -2127,6 +2188,7 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
                 dev_err(bq->dev, "%s:mmi_mux enable otg typec mos fail ret=%d", __func__, ret);
                 return ret;
             }
+
 #ifdef CONFIG_MOTO_CHANNEL_SWITCH
         } else if (typec_mos == MMI_DVCHG_MUX_OTG_WLC_OPEN) {
 #if 0
@@ -2137,8 +2199,10 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
                 return ret;
             }
 #endif
-	    //reverse mode
-	    sc858x_field_write(bq, MODE, 6);
+	     //reverse mode
+	     if(bq->device_id != CPS2023H_DEVICE_ID  && bq->device_id != CPS2023_DEVICE_ID) {
+		  sc858x_field_write(bq, MODE, 6);
+	     }
             ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_ACDRV_MANUAL, SC8565_ACDRV_MANUAL);
             if (ret) {
@@ -2165,8 +2229,11 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
             }
         }else if (wls_mos == MMI_DVCHG_MUX_OTG_WLC_OPEN) {
 		//reverse mode
-		sc858x_field_write(bq, MODE, 6);
-            ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
+		if(bq->device_id != CPS2023H_DEVICE_ID  && bq->device_id != CPS2023_DEVICE_ID) {
+			sc858x_field_write(bq, MODE, 6);
+		}
+
+		ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_WPCGATE_EN, SC8565_WPCGATE_EN);
             if (ret) {
                 dev_err(bq->dev, "%s:mmi_mux  open wls mux fail ret=%d", __func__, ret);
@@ -2229,11 +2296,11 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
 
         ret = regmap_read(bq->regmap, SC8565_CHRGR_CTRL_5, &val);
        if (!ret)
-               dev_err(bq->dev, "%s:mmi_mux Reg SC8541_CHRGR_CTRL_5] = 0x%02X\n", __func__,val);
+               dev_err(bq->dev, "%s:mmi_mux Reg SC8565_CHRGR_CTRL_5 reg_0xF] = 0x%02X\n", __func__,val);
 
         ret = regmap_read(bq->regmap, SC8565_CHRGR_CTRL_1, &val);
         if (!ret)
-                dev_err(bq->dev, "%s:mmi_mux Reg SC8565_CHRGR_CTRL_1] = 0x%02X\n", __func__, val);
+                dev_err(bq->dev, "%s:mmi_mux Reg SC8565_CHRGR_CTRL_1 reg_0xB] = 0x%02X , device_id:%d\n", __func__, val, bq->device_id);
 
 	sc858x_dump_reg(bq);
 	return 0;
