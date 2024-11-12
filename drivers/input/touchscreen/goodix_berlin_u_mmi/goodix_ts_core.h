@@ -43,6 +43,11 @@
 #include <linux/jiffies.h>
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+#include <linux/pinctrl/consumer.h>
+#include <linux/mmi_wake_lock.h>
+#endif
+
 #define GOODIX_CORE_DRIVER_NAME			"goodix_ts"
 #define GOODIX_PEN_DRIVER_NAME			"goodix_ts,pen"
 #define GOODIX_DRIVER_VERSION			"v1.2.3"
