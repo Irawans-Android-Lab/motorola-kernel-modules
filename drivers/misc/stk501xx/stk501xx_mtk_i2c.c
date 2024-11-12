@@ -310,7 +310,6 @@ static ssize_t reg_show(struct class *class,
             return -1;
         }
         STK_LOG("read_reg=0x%x, val=0x%x", stk_wrapper->read_reg, *val);
-        scnprintf(buf, PAGE_SIZE, "read_reg=0x%x, val=0x%x", stk_wrapper->read_reg, *val);
 
         return 4;
     }
