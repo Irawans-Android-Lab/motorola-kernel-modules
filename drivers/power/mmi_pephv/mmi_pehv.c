@@ -764,7 +764,7 @@ static inline void pehv_init_algo_data(struct pehv_algo_info *info)
 	struct pehv_algo_data *data = info->data;
 	struct pehv_algo_desc *desc = info->desc;
 
-	data->ita_lmt =  desc->idvchg_cc;
+	data->ita_lmt =  min(desc->idvchg_cc, desc->ita_cap_max);
 	data->idvchg_ss_init = max_t(u32, desc->idvchg_ss_init,
 				     desc->ita_cap_min);
 	data->idvchg_ss_init = min(data->idvchg_ss_init, data->ita_lmt);

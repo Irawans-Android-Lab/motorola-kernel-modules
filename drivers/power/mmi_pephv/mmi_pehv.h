@@ -196,6 +196,7 @@ struct pehv_algo_desc {
 	u32 vta_cap_max;		/* max ta voltage capability */
 	u32 vta_step;		/* input voltage step */
 	u32 ita_cap_min;		/* min ta current capability */
+	u32 ita_cap_max;
 	const char **support_ta;	/* supported ta name */
 	u32 support_ta_cnt;		/* supported ta count */
 };

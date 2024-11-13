@@ -448,6 +448,8 @@ out:
 int pehv_hal_is_hv_adapter_ready(struct chg_alg_device *alg)
 {
 	struct pehv_hal *hal;
+	struct pehv_algo_info *info;
+	struct pehv_algo_desc *desc;
 	int type = 0;
 
 	if (alg == NULL) {
@@ -455,10 +457,26 @@ int pehv_hal_is_hv_adapter_ready(struct chg_alg_device *alg)
 		return -EINVAL;
 	}
 
+	info = chg_alg_dev_get_drvdata(alg);
+	desc = info->desc;
+
 	hal = chg_alg_dev_get_drv_hal_data(alg);
 
 	charger_dev_get_protocol(hal->chgdevs[MMI_CHGTYP_SWCHG], &type);
 	pr_notice("%s type:%d\n", __func__, type);
+
+	switch(type) {
+	case USB_TYPE_QC3P_18:
+		desc->ita_cap_max = 2000;
+		break;
+	case USB_TYPE_QC3P_27:
+	case USB_TYPE_QC3P_45:
+		desc->ita_cap_max = 3000;
+		break;
+	default:
+		desc->ita_cap_max = 3000;
+		break;
+	}
 
 	if (type == USB_TYPE_QC3P_18 || type == USB_TYPE_QC3P_27 || type == USB_TYPE_QC3P_45)
 		return ALG_READY;
