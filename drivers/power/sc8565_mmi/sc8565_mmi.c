@@ -60,6 +60,12 @@ typedef enum sc8565_chrg_role {
 	SC8565_SLAVE,
 } SC8565_CHRG_ROLE;
 
+enum sc8565_cp_op_mode {
+	CP_2_1_MODE = 0,
+	CP_3_1_MODE,
+	CP_4_1_MODE,
+};
+
 #define SC_REG_ADDR_LENGTH_BYTE     1//number of bytes for register addres
 #define SC_REG_DATA_LENGTH_BYTE     1//number of bytes for register data
 #define SC8565_DEV_ID                    0x81
@@ -2314,16 +2320,29 @@ static int sc8565_config_mux(struct charger_device *chg_dev,
 	return sc858x_config_mux(bq, typec_mos, wls_mos);
 }
 
-static int sc8565_operation_mode_select(struct charger_device *chg_dev, bool div4_mode)
+static int sc8565_operation_mode_select(struct charger_device *chg_dev, int cp_op_mode)
 {
-	struct sc858x_chip *bq  = charger_get_data(chg_dev);
+	struct sc858x_chip *sc  = charger_get_data(chg_dev);
 	int ret = 0;
+	int reg_op_mode = 1;
 
-	dev_info(bq->dev, "%s: %d\n",__func__, div4_mode);
-	if(div4_mode) //4:1
-		ret = sc858x_field_write(bq, MODE, 0);
-	else  //2:1
-		ret = sc858x_field_write(bq, MODE, 1);
+	dev_info(sc->dev, "%s: %d\n",__func__, cp_op_mode);
+	switch (cp_op_mode) {
+	case CP_2_1_MODE:
+		reg_op_mode = 1;
+		break;
+	case CP_4_1_MODE:
+		reg_op_mode = 0;
+		break;
+	default:
+		reg_op_mode = 1;
+		break;
+	}
+
+	ret = sc858x_field_write(sc, MODE, reg_op_mode);
+	if(ret < 0) {
+		dev_err(sc->dev,"%s failed to set operation mode:%d\n", __func__, ret);
+	}
 
 	return ret;
 }
@@ -2373,7 +2392,7 @@ static const struct charger_ops sc858x_chg_ops = {
 #ifdef CONFIG_MOTO_CHANNEL_SWITCH
 	 .get_vmos_chg = sc8565_get_vmos_chg,
 #endif
-	.set_operation_mode = sc8565_operation_mode_select,
+	.set_cp_operation_mode = sc8565_operation_mode_select,
 };
 
 static int sc8565_register_chgdev(struct sc858x_chip *bq)
