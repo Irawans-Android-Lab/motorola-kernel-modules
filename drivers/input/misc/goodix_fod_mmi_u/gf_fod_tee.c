@@ -50,6 +50,9 @@
 #include "gf_fod_tee.h"
 #include  <linux/regulator/consumer.h>
 #include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+#include <linux/pinctrl/consumer.h>
+#endif
 
 /**************************defination******************************/
 #define GF_DEV_NAME "goodix_fp"
@@ -1182,7 +1185,11 @@ static int gf_probe(struct spi_device *spi)
 #endif
 
 	/* create class */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+	gf_dev->class = class_create(GF_CLASS_NAME);
+#else
 	gf_dev->class = class_create(THIS_MODULE, GF_CLASS_NAME);
+#endif
 	if (IS_ERR(gf_dev->class)) {
 		gf_debug(ERR_LOG, "%s, Failed to create class.\n", __func__);
 		status = -ENODEV;
