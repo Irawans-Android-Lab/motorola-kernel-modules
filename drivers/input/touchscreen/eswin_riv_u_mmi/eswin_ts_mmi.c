@@ -74,10 +74,8 @@ static int eswin_ts_mmi_methods_get_build_id(struct device *dev, void *cdata)
 
 static int eswin_ts_mmi_methods_get_config_id(struct device *dev, void *cdata)
 {
-    int ret;
     struct eph_data *ephdata;
     struct eph_device_control_config_read_command command_request;
-    char buf[16];
 
     GET_ESWIN_DATA(dev);
     ts_info("eswin_ts_mmi_methods_get_config_id");
@@ -85,13 +83,8 @@ static int eswin_ts_mmi_methods_get_config_id(struct device *dev, void *cdata)
     command_request.header.length = 0x6;
     command_request.command_id = 0xC;
     command_request.read_length = 0x2;
-    ret = eph_read_control_config(ephdata, &command_request, buf);
-    if (ret) {
-        ts_err("failed get fw version data, %d", ret);
-        return -EINVAL;
-    }
 
-    return snprintf((char*)(cdata), TS_MMI_MAX_ID_LEN, "%04x", le32_to_cpu(buf[0]));
+    return 0;
 }
 
 static int eswin_ts_mmi_methods_get_bus_type(struct device *dev, void *idata)
@@ -336,7 +329,7 @@ static int eswin_ts_mmi_panel_state(struct device *dev,
     enum ts_mmi_pm_mode from, enum ts_mmi_pm_mode to)
 {
     int ret = 0;
-#if defined(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)
+#if defined(CONFIG_ESWIN_USES_DOUBLE_TAP_CTRL)
     unsigned char gesture_type = 0;
 #endif
     struct eph_data *ephdata;
@@ -344,7 +337,7 @@ static int eswin_ts_mmi_panel_state(struct device *dev,
 
     switch (to) {
         case TS_MMI_PM_GESTURE:
-#if defined(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)
+#if defined(CONFIG_ESWIN_USES_DOUBLE_TAP_CTRL)
             if (ephdata->imports && ephdata->imports->get_gesture_type) {
                 ret = ephdata->imports->get_gesture_type(&ephdata->commsdevice->dev, &gesture_type);
             }
@@ -399,13 +392,15 @@ static int eswin_ts_mmi_pre_resume(struct device *dev)
 
 static int eswin_ts_mmi_post_resume(struct device *dev)
 {
+#if defined(CONFIG_ESWIN_USES_DOUBLE_TAP_CTRL)
     int ret;
     u8 gesture_type;
+#endif
 
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
 
-#if defined(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)
+#if defined(CONFIG_ESWIN_USES_DOUBLE_TAP_CTRL)
     if (ephdata->gesture_wakeup_enable) {
         gesture_type = ephdata->gesture_mode & 0xFE;
         /* disable gesture */
@@ -430,7 +425,6 @@ static int eswin_ts_mmi_pre_suspend(struct device *dev)
     GET_ESWIN_DATA(dev);
 
     ts_info("Suspend start");
-    disable_irq(ephdata->chg_irq);
      cancel_work_sync(&ephdata->force_baseline_work);
 #if 0
     atomic_set(&core_data->suspended, 1);
