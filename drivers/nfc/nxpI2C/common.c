@@ -189,7 +189,11 @@ int nfc_misc_register(struct nfc_dev *nfc_dev,
 		       ret);
 		return ret;
 	}
-	nfc_dev->nfc_class = class_create(THIS_MODULE, classname);
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+        nfc_dev->nfc_class = class_create(classname);
+        #else
+        nfc_dev->nfc_class = class_create(THIS_MODULE, classname);
+	#endif
 	if (IS_ERR(nfc_dev->nfc_class)) {
 		ret = PTR_ERR(nfc_dev->nfc_class);
 		pr_err("%s: failed to register device class ret %d\n", __func__,

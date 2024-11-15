@@ -318,7 +318,11 @@ static const struct file_operations nfc_i2c_dev_fops = {
 #endif
 };
 
-int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+int nfc_i2c_dev_probe(struct i2c_client *client)
+#else
+int nfc_i2c_dev_probe(struct i2c_client *client,const struct i2c_device_id *id)
+#endif
 {
 	int ret = 0;
 	struct nfc_dev *nfc_dev = NULL;
