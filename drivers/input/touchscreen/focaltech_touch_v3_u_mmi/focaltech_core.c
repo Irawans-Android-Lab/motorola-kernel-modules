@@ -549,10 +549,21 @@ static int fts_input_report_b(struct fts_ts_data *ts_data, struct ts_event *even
             continue;
         }
 
+#if defined(CONFIG_ENABLE_FTS_PALM_CANCEL_BY_ID)
+        if(events[i].palm_status) {
+            FTS_DEBUG("[B]P%d(%d, %d)[p:%d,tm:%d][palm_status:%d]",
+                      events[i].id, events[i].x, events[i].y,
+                      events[i].p, events[i].area, events[i].palm_status);
+        }
+#endif
         touch_event_coordinate = true;
         if (EVENT_DOWN(events[i].flag)) {
             input_mt_slot(input_dev, events[i].id);
 #ifdef CONFIG_ENABLE_FTS_PALM_CANCEL
+#if defined(CONFIG_ENABLE_FTS_PALM_CANCEL_BY_ID)
+            if ((tool_type != MT_TOOL_PALM) && events[i].palm_status)
+                tool_type = MT_TOOL_PALM;
+#endif
             input_mt_report_slot_state(input_dev, tool_type, true);
 #else
             input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, true);
@@ -899,6 +910,13 @@ static int fts_input_report_touch_pv2(struct fts_ts_data *ts_data, u8 *touch_buf
 #else
         events[i].x = events[i].x  / FTS_HI_RES_X_MAX;
         events[i].y = events[i].y  / FTS_HI_RES_X_MAX;
+#endif
+
+#if defined(CONFIG_ENABLE_FTS_PALM_CANCEL_BY_ID)
+        if((touch_buf[FTS_TOUCH_OFF_E_XH + base] >> 4) & 0x01)
+            events[i].palm_status = true;
+        else
+            events[i].palm_status = false;
 #endif
         events[i].area = touch_buf[FTS_TOUCH_OFF_AREA + base];
         events[i].minor = touch_buf[FTS_TOUCH_OFF_MINOR + base];

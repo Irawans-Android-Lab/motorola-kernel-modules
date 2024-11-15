@@ -194,6 +194,9 @@ struct ts_event {
     int id;     /*touch ID */
     int area;
     int minor;
+#if defined(CONFIG_ENABLE_FTS_PALM_CANCEL_BY_ID)
+    int palm_status;
+#endif
 };
 
 
