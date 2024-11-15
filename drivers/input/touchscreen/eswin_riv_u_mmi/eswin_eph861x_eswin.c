@@ -452,7 +452,7 @@ void eph_reset_device(struct eph_data *ephdata)
 }
 
 /**
- * eswin_ts_power_on - turn on power to the touch device
+ * eswin_power_on - turn on power to the touch device
  * ephdata - pointer to eswin touch data
  * return: 0 ok, <0 failed
 */
@@ -462,24 +462,20 @@ int eph_power_on(struct eph_data *ephdata)
     dev_info(&ephdata->commsdevice->dev, "device power on");
     if (ephdata->power_on)
     {
-        return 0;
-    }
-
-    //TODO: ESWIN do power on process;
-    if (!ret)
-    {
-        ephdata->power_on = 1;
+        dev_dbg(&ephdata->commsdevice->dev, "already power on");
     }
     else
     {
-        dev_err(&ephdata->commsdevice->dev, "failed power on, %d\n", ret);
+        dev_dbg(&ephdata->commsdevice->dev, "power on execute");
+        eph_regulator_enable(ephdata);
+        ephdata->power_on = 1;
     }
 
     return ret;
 }
 
 /**
- * eswin_ts_power_off - turn off power to the touch device
+ * eswin_power_off - turn off power to the touch device
  * ephdata - pointer to eswin touch data
  * return: 0 ok, <0 failed
 */
@@ -489,19 +485,14 @@ int eph_power_off(struct eph_data *ephdata)
     dev_info(&ephdata->commsdevice->dev, "device power off");
     if (!ephdata->power_on)
     {
-        return 0;
-    }
-
-    //TODO: ESWIN do power off process;
-    if (!ret)
-    {
-        ephdata->power_on = 0;
+        dev_dbg(&ephdata->commsdevice->dev, "already power off");
     }
     else
     {
-        dev_err(&ephdata->commsdevice->dev, "failed power off, %d\n", ret);
+        dev_dbg(&ephdata->commsdevice->dev, "power off execute");
+        eph_regulator_disable(ephdata);
+        ephdata->power_on = 0;
     }
-
     return ret;
 }
 

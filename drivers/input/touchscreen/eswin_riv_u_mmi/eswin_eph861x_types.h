@@ -267,6 +267,8 @@ struct eph_data
 
     /* Indicates whether device is updating its device settings */
     bool updating_device_settings;
+     /* Indicates whether firmware is updating */
+    bool updating_firmware;
 
 #if defined(ESWIN_BOARD_FLORAL) // pixel4XL plat
     struct notifier_block notifier;

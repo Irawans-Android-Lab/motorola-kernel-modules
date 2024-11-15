@@ -479,8 +479,8 @@ static int eph_probe_regulators(struct eph_data *ephdata)
         ret_val = PTR_ERR(ephdata->reg_avdd);
         dev_err(dev, "Error %d getting avdd regulator\n", ret_val);
     }
-
-    eph_regulator_enable(ephdata);
+    ephdata->power_on = 0;
+    eph_power_on(ephdata);
     dev_dbg(dev, "%s <\n", __func__);
     return 0;
 
@@ -594,6 +594,7 @@ static int burn_2_ic(struct eph_data *ephdata, const struct firmware *ic_fw)
     struct eph_flash flash;
     struct device *dev = (struct device *)&ephdata->commsdevice->dev;
 
+    ephdata->updating_firmware = true;
     ret_val = eph_enter_bootloader(ephdata);
     if (ret_val)
     {
@@ -613,6 +614,7 @@ static int burn_2_ic(struct eph_data *ephdata, const struct firmware *ic_fw)
 err:
     flash.ephdata = NULL;
     flash.fw = NULL;
+    ephdata->updating_firmware = false;
     return ret_val;
 }
 
@@ -623,8 +625,16 @@ void eph_request_fw_cb(const struct firmware *ic_firmware, void *ctx)
     int ret_val = 0;
     struct eph_data *ephdata = (struct eph_data *)ctx;
     struct device *dev = &ephdata->commsdevice->dev;
+    struct firmware *fw_data;
 
     dev_info(dev, "%s\n", __func__);
+
+    fw_data = (struct firmware*)devm_kzalloc(dev, sizeof(struct firmware), GFP_KERNEL);
+    if (!fw_data)
+    {
+        dev_err(dev, "couldnt allocate memory for firmware %d\n", ret_val);
+        goto err;
+    }
 
     if (NULL == ic_firmware)
     {
@@ -632,14 +642,16 @@ void eph_request_fw_cb(const struct firmware *ic_firmware, void *ctx)
         goto err;
     }
 
-    ret_val = eph_check_firmware_format(dev, ic_firmware);
+    memcpy(fw_data, ic_firmware, sizeof(struct firmware));
+
+    ret_val = eph_check_firmware_format(dev, fw_data);
     if (ret_val)
     {
         dev_err(dev, "check fw fail %d\n", ret_val);
         goto err;
     }
 
-    eph_get_bin_firmware_version(ephdata, ic_firmware);
+    eph_get_bin_firmware_version(ephdata, fw_data);
 
     ret_val = eph_firmware_version_compare(ephdata);
     if (!ret_val)
@@ -652,7 +664,7 @@ void eph_request_fw_cb(const struct firmware *ic_firmware, void *ctx)
         dev_info(dev, "firmware need upgrade %d\n", ret_val);
     }
 
-    ret_val = burn_2_ic(ephdata, ic_firmware);
+    ret_val = burn_2_ic(ephdata, fw_data);
     if (ret_val) {
         dev_err(dev, "burn to ic fail %d\n", ret_val);
         goto err;
@@ -664,7 +676,8 @@ void eph_request_fw_cb(const struct firmware *ic_firmware, void *ctx)
     ephdata->suspended = false;
 
     ret_val = eph_initialize(ephdata);
-    if (ret_val) {
+    if (ret_val)
+    {
         dev_err(dev, "eph init fail %d\n", ret_val);
         goto err;
     }
@@ -679,8 +692,11 @@ void eph_request_fw_cb(const struct firmware *ic_firmware, void *ctx)
         dev_info(dev, "firmware upgraded failed%d\n", ret_val);
     }
 
+    (void)eph_input_device_initialize(ephdata);
+
 err:
     release_firmware(ic_firmware);
+    devm_kfree(dev, fw_data);
     return;
 }
 
@@ -748,8 +764,18 @@ static int eph_initialize(struct eph_data *ephdata)
         }
 
         /* Attempt to exit bootloader into app mode */
+#if 0
         eph_reset_device(ephdata);
         msleep(EPH_FW_RESET_TIME);
+#else
+        for (size_t i = 0; i < 5; i++)
+        {
+            eph_power_off(ephdata);
+            msleep(400u);
+            eph_power_on(ephdata);
+            msleep(100u);
+        }
+#endif
     }
 
     ret_val = eph_acquire_irq(ephdata);
@@ -760,12 +786,6 @@ static int eph_initialize(struct eph_data *ephdata)
 
     ret_val = eph_sysfs_mem_access_init(ephdata);
     if (ret_val)
-    {
-        return ret_val;
-    }
-
-    ret_val = eph_input_device_initialize(ephdata);
-    if(ret_val)
     {
         return ret_val;
     }
@@ -830,7 +850,7 @@ static int eph_enter_bootloader(struct eph_data *ephdata)
         {
             if (ephdata->ephplatform->suspend_mode == EPH_SUSPEND_REGULATOR)
             {
-                eph_regulator_enable(ephdata);
+                eph_power_on(ephdata);
             }
 
             ephdata->suspended = false;
@@ -1099,7 +1119,7 @@ static ssize_t eph_devattr_update_device_settings_store(struct device *dev,
         if (ephplatform->suspend_mode == EPH_SUSPEND_REGULATOR)
         {
             enable_irq(ephdata->chg_irq);
-            eph_regulator_enable(ephdata);
+            eph_power_on(ephdata);
         }
         else if (ephplatform->suspend_mode == EPH_SUSPEND_DEEP_SLEEP)
         {
@@ -1527,7 +1547,7 @@ static int eph_start(struct eph_data *ephdata)
         case EPH_SUSPEND_REGULATOR:
             enable_irq(ephdata->chg_irq);
             #if (ESWIN_EPH861X_I2C)
-            eph_regulator_enable(ephdata);
+            eph_power_on(ephdata);
             #endif
             break;
 
@@ -1563,7 +1583,7 @@ static int eph_stop(struct eph_data *ephdata)
         case EPH_SUSPEND_REGULATOR:
             disable_irq(ephdata->chg_irq);
             #if (ESWIN_EPH861X_I2C)
-            eph_regulator_disable(ephdata);
+            eph_power_off(ephdata);
             #endif
             eph_clear_all_host_touch_slots(ephdata);
             break;
@@ -1913,12 +1933,6 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
         goto err_free_irq;
     }
 
-    ret_val = eph_power_on(ephdata);
-    if (ret_val)
-    {
-        goto err_free_irq;
-    }
-
     ret_val = eph_acquire_irq(ephdata);
     if (ret_val)
     {
@@ -1961,10 +1975,10 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
     else
         dev_info(&commsdevice->dev, "success register panel bridge\n");
 #endif
+
     /* Async load ic firmware */
     dev_info(&commsdevice->dev, "fw_name: %s\n", ephdata->fw_name);
     if(ephdata->fw_name)
-    //if(0)
     {
         ret_val = request_firmware_nowait(THIS_MODULE,
                                           true,
@@ -2054,7 +2068,6 @@ static void eph_remove(struct comms_device *commsdevice)
     gpio_free(ephdata->ephplatform->gpio_reset);
     gpio_free(ephdata->ephplatform->gpio_chg_irq);
     gpio_free(ephdata->ephplatform->gpio_avdd);
-    eph_power_off(ephdata);
 
     if(ephdata->reg_avdd)
     {

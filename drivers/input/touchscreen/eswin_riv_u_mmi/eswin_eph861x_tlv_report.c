@@ -383,12 +383,17 @@ void eph_clear_all_host_touch_slots(struct eph_data *ephdata)
         return;
     }
 
+    mutex_lock(&ephdata->inputdev->mutex);
+
     for (id = 0; id < CONFIG_SUPPORTED_TOUCHES; id++)
     {
         input_mt_slot(ephdata->inputdev, id);
         input_mt_report_slot_state(ephdata->inputdev, 0, false);
         input_report_key(ephdata->inputdev, BTN_TOUCH, 0u);
     }
+    input_sync(ephdata->inputdev);
+
+    mutex_unlock(&ephdata->inputdev->mutex);
 }
 
 
