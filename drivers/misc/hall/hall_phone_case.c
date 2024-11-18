@@ -22,7 +22,7 @@
 #include <linux/sensors.h>
 #include <linux/regulator/consumer.h>
 
-#define DRIVER_NAME "hall_pen_detect"
+#define DRIVER_NAME "hall_phone_case_detect"
 #define LOG_DBG(fmt, args...)    pr_debug(DRIVER_NAME " [DBG]" "<%s:%d>"fmt, __func__, __LINE__, ##args)
 #define LOG_INFO(fmt, args...)   pr_info(DRIVER_NAME " [INFO]" "<%s:%d>"fmt, __func__, __LINE__, ##args)
 #define LOG_ERR(fmt, args...)    pr_err(DRIVER_NAME " [ERR]" "<%s:%d>"fmt, __func__, __LINE__, ##args)
@@ -43,30 +43,30 @@ static struct hall_sensor_str {
 	int enable;
 	int gpio_num;
 	int report_val;
-	int pen_detect;
+	int phone_case_detect;
 	struct regulator *hall_vdd;
 	struct hall_gpio *gpio_list;
 	spinlock_t mHallSensorLock;
 	struct input_dev *hall_dev;
-	struct sensors_classdev sensors_pen_cdev;
+	struct sensors_classdev sensors_phone_case_cdev;
 }* hall_sensor_dev;
 
 #ifdef CONFIG_OF
-static const struct of_device_id hall_pen_match[] = {
-	{ .compatible = "hall,hall_pen_detect", },
+static const struct of_device_id hall_phone_case_match[] = {
+	{ .compatible = "hall,hall_phone_case_detect", },
 	{}
 };
 #else
-#define hall_pen_match NULL
+#define hall_phone_case_match NULL
 #endif
-MODULE_DEVICE_TABLE(of, hall_pen_match);
+MODULE_DEVICE_TABLE(of, hall_phone_case_match);
 
-static struct platform_driver hall_pen_driver = {
+static struct platform_driver hall_phone_case_driver = {
 	.probe		= hall_sensor_probe,
 	.remove		= hall_sensor_remove,
 	.driver		= {
 		.name	= DRIVER_NAME,
-		.of_match_table    = hall_pen_match,
+		.of_match_table    = hall_phone_case_match,
 	},
 };
 
@@ -82,7 +82,7 @@ void check_and_send(void)
 		else if (gpio_get_value(hall_sensor_dev->gpio_list[i].gpio) == 0)
 			report_val |= hall_sensor_dev->gpio_list[i].gpio_low_report_val;
 	}
-	if(hall_sensor_dev->pen_detect &&
+	if(hall_sensor_dev->phone_case_detect &&
 		hall_sensor_dev->report_val != report_val){
 		LOG_INFO("hall report %d", report_val);
 		hall_sensor_dev->report_val = report_val;
@@ -96,7 +96,7 @@ void hall_enable(bool enable)
 	int i;
 	if (enable && !hall_sensor_dev->enable)
 	{
-		LOG_INFO("hall_pen_sensor enable");
+		LOG_INFO("hall_phone_case_sensor enable");
 		for (i = 0; i < hall_sensor_dev->gpio_num; i++)
 		{
 			enable_irq(hall_sensor_dev->gpio_list[i].irq);
@@ -107,7 +107,7 @@ void hall_enable(bool enable)
 	}
 	else if (!enable && hall_sensor_dev->enable)
 	{
-		LOG_INFO("hall_pen_sensor disable");
+		LOG_INFO("hall_phone_case_sensor disable");
 		for (i = 0; i < hall_sensor_dev->gpio_num; i++)
 		{
 			disable_irq(hall_sensor_dev->gpio_list[i].irq);
@@ -117,11 +117,11 @@ void hall_enable(bool enable)
 	}
 }
 
-static int hallpen_enable(struct sensors_classdev *sensors_cdev,
+static int hallphone_case_enable(struct sensors_classdev *sensors_cdev,
 		unsigned int enable)
 {
 	hall_sensor_dev->report_val = -1;
-	hall_sensor_dev->pen_detect = enable;
+	hall_sensor_dev->phone_case_detect = enable;
 	hall_enable(enable);
 	if (enable == 0)
 	{
@@ -149,7 +149,7 @@ static ssize_t hall_enable_show(struct class *class,
 		struct class_attribute *attr,
 		char *buf)
 {
-	return sprintf(buf, "pen:%d\n", hall_sensor_dev->enable);
+	return sprintf(buf, "phone_case:%d\n", hall_sensor_dev->enable);
 }
 static ssize_t hall_rawdata_show(struct class *class,
 		struct class_attribute *attr,
@@ -207,7 +207,7 @@ static int hall_sensor_probe(struct platform_device *pdev)
 
 	spin_lock_init(&hall_sensor_dev->mHallSensorLock);
 	hall_sensor_dev->enable = 0;
-	hall_sensor_dev->pen_detect = 0;
+	hall_sensor_dev->phone_case_detect = 0;
 	//tcmd node
 	ret = of_property_read_string(np, "hall,factory-class-name", &hall_class.name);
 	ret = class_register(&hall_class);
@@ -242,22 +242,22 @@ static int hall_sensor_probe(struct platform_device *pdev)
 	input_report_abs(hall_sensor_dev->hall_dev, ABS_DISTANCE, -1);
 	input_sync(hall_sensor_dev->hall_dev);
 
-	hall_sensor_dev->sensors_pen_cdev.sensors_enable = hallpen_enable;
-	hall_sensor_dev->sensors_pen_cdev.sensors_poll_delay = NULL;
-	hall_sensor_dev->sensors_pen_cdev.name = hall_sensor_dev->hall_dev->name;
-	hall_sensor_dev->sensors_pen_cdev.vendor = "motorola";
-	hall_sensor_dev->sensors_pen_cdev.version = 1;
-	hall_sensor_dev->sensors_pen_cdev.type = SENSOR_TYPE_MOTO_HALL;
-	hall_sensor_dev->sensors_pen_cdev.max_range = "5";
-	hall_sensor_dev->sensors_pen_cdev.resolution = "5.0";
-	hall_sensor_dev->sensors_pen_cdev.sensor_power = "3";
-	hall_sensor_dev->sensors_pen_cdev.min_delay = 0;
-	hall_sensor_dev->sensors_pen_cdev.fifo_reserved_event_count = 0;
-	hall_sensor_dev->sensors_pen_cdev.fifo_max_event_count = 0;
-	hall_sensor_dev->sensors_pen_cdev.delay_msec = 100;
-	hall_sensor_dev->sensors_pen_cdev.enabled = 0;
+	hall_sensor_dev->sensors_phone_case_cdev.sensors_enable = hallphone_case_enable;
+	hall_sensor_dev->sensors_phone_case_cdev.sensors_poll_delay = NULL;
+	hall_sensor_dev->sensors_phone_case_cdev.name = hall_sensor_dev->hall_dev->name;
+	hall_sensor_dev->sensors_phone_case_cdev.vendor = "motorola";
+	hall_sensor_dev->sensors_phone_case_cdev.version = 1;
+	hall_sensor_dev->sensors_phone_case_cdev.type = SENSOR_TYPE_MOTO_HALL;
+	hall_sensor_dev->sensors_phone_case_cdev.max_range = "5";
+	hall_sensor_dev->sensors_phone_case_cdev.resolution = "5.0";
+	hall_sensor_dev->sensors_phone_case_cdev.sensor_power = "3";
+	hall_sensor_dev->sensors_phone_case_cdev.min_delay = 0;
+	hall_sensor_dev->sensors_phone_case_cdev.fifo_reserved_event_count = 0;
+	hall_sensor_dev->sensors_phone_case_cdev.fifo_max_event_count = 0;
+	hall_sensor_dev->sensors_phone_case_cdev.delay_msec = 100;
+	hall_sensor_dev->sensors_phone_case_cdev.enabled = 0;
 
-	err = sensors_classdev_register(&hall_sensor_dev->hall_dev->dev, &hall_sensor_dev->sensors_pen_cdev);
+	err = sensors_classdev_register(&hall_sensor_dev->hall_dev->dev, &hall_sensor_dev->sensors_phone_case_cdev);
 	if (err < 0)
 		LOG_ERR("create cap sensor_class  file failed (%d)\n", err);
 
@@ -310,7 +310,8 @@ static int hall_sensor_probe(struct platform_device *pdev)
 	if (IS_ERR(hall_sensor_dev->hall_vdd))
 	{
 		LOG_ERR("vdd error %ld", PTR_ERR(hall_sensor_dev->hall_vdd));
-		goto fail_for_irq;
+		hall_sensor_dev->hall_vdd = NULL;
+		/* goto fail_for_irq; */
 	}
 	else
 	{
@@ -345,8 +346,10 @@ fail_for_mem:
 static int hall_sensor_remove(struct platform_device *pdev)
 {
 	int i;
-	regulator_disable(hall_sensor_dev->hall_vdd);
-	regulator_put(hall_sensor_dev->hall_vdd);
+	if (hall_sensor_dev->hall_vdd) {
+		regulator_disable(hall_sensor_dev->hall_vdd);
+		regulator_put(hall_sensor_dev->hall_vdd);
+	}
 	class_unregister(&hall_class);
 	for (i = 0; i < hall_sensor_dev->gpio_num; i++)
 	{
@@ -360,14 +363,14 @@ static int hall_sensor_remove(struct platform_device *pdev)
 	if (hall_sensor_dev)
 		kfree(hall_sensor_dev);
 
-	sensors_classdev_unregister(&hall_sensor_dev->sensors_pen_cdev);
+	sensors_classdev_unregister(&hall_sensor_dev->sensors_phone_case_cdev);
 	input_unregister_device(hall_sensor_dev->hall_dev);
 	LOG_INFO("paltform rm");
 	return 0;
 }
 
-module_platform_driver(hall_pen_driver);
+module_platform_driver(hall_phone_case_driver);
 
-MODULE_DESCRIPTION("Hall_sensor_pen Driver");
+MODULE_DESCRIPTION("Hall_sensor_phone_case Driver");
 MODULE_AUTHOR("cuijy1 <cuijy1@motorola.com>");
 MODULE_LICENSE("GPL v2");

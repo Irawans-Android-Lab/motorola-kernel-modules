@@ -1,0 +1,29 @@
+load("//build/bazel_mgk_rules:mgk_ko.bzl", "define_mgk_ko")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+mgk_outs = [
+    "hall_pen.ko",
+    "hall_folio.ko",
+    "hall_phone_case.ko",
+]
+
+define_mgk_ko(
+    name = "moto_hall",
+    srcs = glob([
+        "*.c",
+        "*.h",
+        "Kbuild",
+        "Makefile",
+    ]) + [
+        "//motorola/kernel/modules:public_headers",
+    ],
+    outs = mgk_outs,
+    deps = [
+        "//motorola/kernel/modules/drivers/sensors:sensors_class",
+    ],
+)

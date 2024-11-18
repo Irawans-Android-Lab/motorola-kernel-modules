@@ -195,6 +195,7 @@ static int hall_sensor_probe(struct platform_device *pdev)
 	int i;
 	int err ;
 	const char *name_temp;
+	int32_t rc = 0;
 	LOG_INFO("enter folio hall_sensor_probe  \r\n");
 	//Memory allocation
 	hall_sensor_dev = kzalloc(sizeof (struct hall_sensor_str), GFP_KERNEL);
@@ -313,10 +314,10 @@ static int hall_sensor_probe(struct platform_device *pdev)
 	}
 	else
 	{
-		regulator_enable(hall_sensor_dev->hall_vdd);
-		LOG_INFO("hall_vdd regulator is %s",
+		rc = regulator_enable(hall_sensor_dev->hall_vdd);
+		LOG_INFO("hall_vdd regulator is %s, ret %d",
 				regulator_is_enabled(hall_sensor_dev->hall_vdd) ?
-				"on" : "off");
+				"on" : "off", rc);
 	}
 	LOG_INFO("hall_sensor_probe Done");
 	return 0;
