@@ -802,6 +802,10 @@ struct sc858x_chip {
 	struct charger_properties chg_prop;
        int device_id;
 	bool otg_delay_mos_config;
+	bool irq_waiting;
+	bool irq_disabled;
+	bool resume_completed;
+	struct mutex irq_complete;
 };
 
 #if 0//def CONFIG_MTK_CLASS
@@ -1707,7 +1711,20 @@ static irqreturn_t sc858x_irq_handler(int irq, void *data)
     unsigned int val = 0;
     int ret;
 
-    dev_err(sc->dev,"INT OCCURED\n");
+       dev_err(sc->dev,"INT OCCURED\n");
+	mutex_lock(&sc->irq_complete);
+	sc->irq_waiting = true;
+	if (!sc->resume_completed) {
+		dev_dbg(sc->dev, "IRQ triggered before device-resume\n");
+		if (!sc->irq_disabled) {
+			disable_irq_nosync(irq);
+			sc->irq_disabled = true;
+		}
+		mutex_unlock(&sc->irq_complete);
+		return IRQ_HANDLED;
+	}
+	sc->irq_waiting = false;
+
     dev_err(sc->dev,"[%s]%s enter\n",sc->model_name, __func__);
 	if (sc->device_id== CPS2023H_DEVICE_ID || sc->device_id== CPS2023_DEVICE_ID){
 		if (sc->otg_delay_mos_config == true) {
@@ -1719,6 +1736,7 @@ static irqreturn_t sc858x_irq_handler(int irq, void *data)
 									SC8565_OVPGATE_EN, SC8565_OVPGATE_EN);
 				if (ret) {
 					dev_err(sc->dev, "mmi_mux enable otg typec mos fail ret=%d", ret);
+				       mutex_unlock(&sc->irq_complete);
 					return ret;
 				}
 			}
@@ -1726,6 +1744,7 @@ static irqreturn_t sc858x_irq_handler(int irq, void *data)
 	}
 
     sc858x_dump_check_fault_status(sc);
+    mutex_unlock(&sc->irq_complete);
 
     power_supply_changed(sc->psy);
     return IRQ_HANDLED;
@@ -2508,6 +2527,10 @@ static int sc858x_charger_probe(struct i2c_client *client,
 
     sc->dev = &client->dev;
     sc->client = client;
+    mutex_init(&sc->irq_complete);
+
+    sc->resume_completed = true;
+    sc->irq_waiting = false;
 
 	strncpy(sc->model_name, id->name, I2C_NAME_SIZE);
     dev_err(&client->dev, "%s (%s)\n", __func__, sc->model_name);
@@ -2647,8 +2670,10 @@ static void sc858x_charger_remove(struct i2c_client *client)
     sc858x_enable_adc(sc, false);
 
     power_supply_unregister(sc->psy);
+    mutex_destroy(&sc->irq_complete);
     devm_kfree(&client->dev, sc);
     dev_err(sc->dev,"remove Successfully\n");
+
 
 }
 
@@ -2668,10 +2693,10 @@ static int sc858x_suspend(struct device *dev)
 {
     struct sc858x_chip *sc = dev_get_drvdata(dev);
 
-    dev_info(sc->dev, "Suspend successfully!");
-    if (device_may_wakeup(dev))
-        enable_irq_wake(sc->irq);
-    disable_irq(sc->irq);
+	mutex_lock(&sc->irq_complete);
+	sc->resume_completed = false;
+	mutex_unlock(&sc->irq_complete);
+	dev_info(sc->dev, "Suspend successfully!");
 
     return 0;
 }
@@ -2679,10 +2704,19 @@ static int sc858x_resume(struct device *dev)
 {
     struct sc858x_chip *sc = dev_get_drvdata(dev);
 
-    dev_info(sc->dev, "Resume successfully!");
-    if (device_may_wakeup(dev))
-        disable_irq_wake(sc->irq);
-    enable_irq(sc->irq);
+	mutex_lock(&sc->irq_complete);
+	sc->resume_completed = true;
+	if (sc->irq_waiting) {
+		sc->irq_disabled = false;
+		enable_irq(sc->irq);
+		mutex_unlock(&sc->irq_complete);
+		sc858x_irq_handler(sc->irq, sc);
+	} else {
+		mutex_unlock(&sc->irq_complete);
+	}
+
+	power_supply_changed(sc->psy);
+	dev_info(sc->dev, "Resume successfully!");
 
     return 0;
 }
