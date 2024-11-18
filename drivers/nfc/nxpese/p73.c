@@ -45,6 +45,10 @@
 #include <linux/poll.h>
 #include <linux/ktime.h>
 #include <linux/regulator/consumer.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+#include <linux/pinctrl/consumer.h>
+#endif
 #include <linux/err.h>
 #include "p73.h"
 #include "common_ese.h"
