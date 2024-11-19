@@ -213,7 +213,7 @@ struct mmi_fg_chip {
 
 	int batt_cyclecnt;	/* cycle count */	
 	int force_update;	
-
+	bool support_ifc;
 	/* debug */
 	int skip_reads;
 	int skip_writes;
@@ -508,6 +508,7 @@ u8 app_flash_erase_order[195] = {0x00,0x5F,0x00,0x00,0x00,0x01,0x00,0x02,0x00,0x
 								0x56,0x00,0x57,0x00,0x58,0x00,0x59,0x00,0x5A,0x00,0x5B,0x00,0x5C,0x00,0x5D,0x00,0x5E,0x00,0x5F,0x5F};
 u8 data_flash_erase_order[] = {0x00,0x07,0x01,0x86,0x01,0x87,0x01,0x88,0x01,0x89,0x01,0x8A,0x01,0x8B,0x01,0x8C,0x01,0x8D,0x07};
 u8 nfg1000_Dataflash_updata_CMD[] = {0x00,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0D,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1C};
+u8 nfg1000_Dataflash_updata_CMD_IFC[] = {0x00,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0D,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1C,0x23,0x24,0x25,0x26,0x27,0x28,0x29,0x2a,0x2b,0x2c,0x2d,0x2e,0x2f};
 static u32 crc_table[256];
 
 static s32 nfg1000_GetReturnCode(struct mmi_fg_chip *di)
@@ -1543,10 +1544,22 @@ static int nfg1000_ota_updata_config(struct mmi_fg_chip *di)
 	u8 retry_flag = 0;
 	u16 dataflash_base_addr = 0x4400;
 	u8 config_data_read[32] = {0};
+	int cmd_len;
+	u8 *dataflash_cmds;
 
-	for(i = 0; i < sizeof(nfg1000_Dataflash_updata_CMD);)
+	if (di->support_ifc) {
+		cmd_len = sizeof(nfg1000_Dataflash_updata_CMD_IFC);
+		dataflash_cmds = nfg1000_Dataflash_updata_CMD_IFC;
+	}
+	else
 	{
-		addr_cmd = nfg1000_Dataflash_updata_CMD[i];
+		cmd_len = sizeof(nfg1000_Dataflash_updata_CMD);
+		dataflash_cmds = nfg1000_Dataflash_updata_CMD;
+	}
+
+	for(i = 0; i < cmd_len;)
+	{
+		addr_cmd = dataflash_cmds[i];
 
 		ret = nfg1000_i2c_BLOCK_command_write_with_CHECKSUM(di, dataflash_base_addr + addr_cmd, &di->params_data[addr_cmd*32],32);
 
@@ -1587,7 +1600,7 @@ static int nfg1000_ota_updata_config(struct mmi_fg_chip *di)
 			retry_flag = 0;
 		}
 	}
-	if(i != sizeof(nfg1000_Dataflash_updata_CMD))
+	if(i != cmd_len)
 	{
 		mmi_err("nfg1000_ota_updata config: %x error!!\n",I2C_NO_REG_DATA);
 		return -ERROR_CODE_I2C_WRITE;
@@ -2790,6 +2803,8 @@ static int mmi_parse_dt(struct mmi_fg_chip *mmi_fg)
 			mmi_fg->batt_version_cnt = 0;
 		}
 	}
+
+	mmi_fg->support_ifc =of_property_read_bool(np, "nfg,support_ifc");
 
 	return 0;
 }
