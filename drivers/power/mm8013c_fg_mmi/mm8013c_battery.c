@@ -25,6 +25,7 @@
 #include <linux/fs.h>
 #include <linux/types.h>
 #include <linux/semaphore.h>
+#include <linux/version.h>
 
 #define MM8XXX_MANUFACTURER	"MITSUMI ELECTRIC"
 #define MM8XXX_BATT_PHY "bms"
@@ -1083,7 +1084,6 @@ static int mm8xxx_battery_write_4byteCmd(struct mm8xxx_device_info *di, unsigned
 int mmi_mm8xxx_battery_read(struct mm8xxx_device_info *di, u8 cmd)
 {
 	int ret = 0;
-	struct i2c_client *client = to_i2c_client(di->dev);
 
 	__pm_stay_awake(di->i2c_wake_lock);
 	down(&di->suspend_lock);
@@ -1098,7 +1098,6 @@ int mmi_mm8xxx_battery_write(struct mm8xxx_device_info *di, u8 cmd,
 				int value)
 {
 	int ret = 0;
-	struct i2c_client *client = to_i2c_client(di->dev);
 
 	__pm_stay_awake(di->i2c_wake_lock);
 	down(&di->suspend_lock);
@@ -1221,7 +1220,9 @@ static enum power_supply_property mm8118g01_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	POWER_SUPPLY_PROP_AGE,
+#endif
 	POWER_SUPPLY_PROP_POWER_AVG,
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_MANUFACTURER,
@@ -1242,7 +1243,9 @@ static enum power_supply_property mm8013c10_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	POWER_SUPPLY_PROP_AGE,
+#endif
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_TYPE,
 	POWER_SUPPLY_PROP_MANUFACTURER,
@@ -1657,8 +1660,13 @@ static bool is_input_present(struct mm8xxx_device_info *di)
 	int rc = 0, input_present = 0;
 	union power_supply_propval pval = {0, };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	if (!di->usb_psy)
 		di->usb_psy = power_supply_get_by_name("usb");
+#else
+	if (!di->usb_psy)
+		di->usb_psy = power_supply_get_by_name("primary_chg");
+#endif
 	if (di->usb_psy) {
 		rc = power_supply_get_property(di->usb_psy,
 				POWER_SUPPLY_PROP_ONLINE, &pval);
@@ -1991,7 +1999,9 @@ static int mm8xxx_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		if(di->mm8xxx_input_present) {
 			ret = mm8xxx_battery_current(di, val);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 			val->intval = val->intval * (-1);
+#endif
 		} else {
 			val->intval = di->cache.curr_now;
 		}
@@ -2030,9 +2040,11 @@ static int mm8xxx_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
 		ret = mm8xxx_simple_value(di->cache.cycle_count, val);
 		break;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	case POWER_SUPPLY_PROP_AGE:
 		ret = mm8xxx_simple_value(di->cache.age_factor, val);
 		break;
+#endif
 	case POWER_SUPPLY_PROP_HEALTH:
 		ret = mm8xxx_simple_value(di->cache.health, val);
 		break;
@@ -2204,9 +2216,11 @@ static int mm8xxx_fake_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
 		ret = mm8xxx_simple_value(di->cache.cycle_count, val);
 		break;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	case POWER_SUPPLY_PROP_AGE:
 		ret = mm8xxx_simple_value(di->cache.age_factor, val);
 		break;
+#endif
 	case POWER_SUPPLY_PROP_HEALTH:
 		ret = mm8xxx_simple_value(di->cache.health, val);
 		break;
@@ -2360,10 +2374,12 @@ bool is_factory_mode(void)
 	return factory_mode;
 }
 
-
-
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 static int mm8xxx_battery_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
+#else
+static int mm8xxx_battery_probe(struct i2c_client *client)
+#endif
 {
 	int ret;
 	char *name;
@@ -2372,6 +2388,9 @@ static int mm8xxx_battery_probe(struct i2c_client *client,
 	u32 fg_param_ver;
 	u32 fg_battery_id;
 	u32 parameter_version = 0xFFFF;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+#endif
 	enum UPDATE_INDEX update_index =UPDATE_NONE;
 
 	mm_info("MM8013 prob begin\n");
@@ -2506,7 +2525,11 @@ failed:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 static int mm8xxx_battery_remove(struct i2c_client *client)
+#else
+static void mm8xxx_battery_remove(struct i2c_client *client)
+#endif
 {
 	struct mm8xxx_device_info *di = i2c_get_clientdata(client);
 
@@ -2516,7 +2539,9 @@ static int mm8xxx_battery_remove(struct i2c_client *client)
 	idr_remove(&battery_id, di->id);
 	mutex_unlock(&battery_mutex);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	return 0;
+#endif
 }
 
 static int mmi_fg_suspend(struct device *dev)
