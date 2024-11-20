@@ -38,7 +38,8 @@
 #include <linux/of_irq.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/regmap.h>
-#include <cps_wls_charger.h>
+#include <linux/version.h>
+#include "cps_wls_charger.h"
 #ifdef CONFIG_PM_WAKELOCKS
 #include <linux/pm_wakeup.h>
 #else
@@ -198,7 +199,6 @@ static bool CPS_TX_MODE = false;
 static bool CPS_RX_CHRG_FULL = false;
 static void cps_rx_online_check(struct cps_wls_chrg_chip *chg);
 static int cps_wls_rx_power_on(void);
-static int cps_get_bat_voltage(void);
 static int cps_get_bat_soc(void);
 
 typedef enum {
@@ -1134,7 +1134,7 @@ update_fail:
 
 //-------------------CPS4038 system interface-------------------
 
-static void cps_wls_write_password()
+static void cps_wls_write_password(void)
 {
     cps_wls_log(CPS_LOG_DEBG, "[%s] -------write password\n", __func__);
 //no need at cps4038
@@ -1996,7 +1996,7 @@ set_int_fail:
     return CPS_WLS_FAIL;
 }
 
-static void cps_bpp_icl_on()
+static void cps_bpp_icl_on(void)
 {
 	Sys_Op_Mode mode_type = Sys_Op_Mode_INVALID;
 
@@ -2011,7 +2011,7 @@ static void cps_bpp_icl_on()
 	}
 }
 
-static void cps_epp_icl_on()
+static void cps_epp_icl_on(void)
 {
 	int icl, vbus;
 
@@ -2228,12 +2228,12 @@ static int cps_wls_tx_irq_handler(int int_flag)
 
 static int mmi_mux_wls_chg_chan(enum mmi_mux_channel channel, bool on)
 {
-	struct charger_manager *info = NULL;
+	struct mtk_charger *info = NULL;
 	struct charger_device *chg_psy = NULL;
 
 	chg_psy = get_charger_by_name("primary_chg");
 	if(chg_psy) {
-		info = (struct charger_manager *)charger_dev_get_drvdata(chg_psy);
+		info = (struct mtk_charger *)charger_dev_get_drvdata(chg_psy);
 		if(info)
 			cps_wls_log(CPS_LOG_ERR,"%s could  get charger_manager\n",__func__);
 		else {
@@ -2246,8 +2246,8 @@ static int mmi_mux_wls_chg_chan(enum mmi_mux_channel channel, bool on)
 	}
 
 	cps_wls_log(CPS_LOG_ERR, "%s open wlc chan =%d, on = %d\n", __func__, channel, on);
-	if (info->do_mux)
-		info->do_mux(info, channel, on);
+	if (info->algo.do_mux)
+		info->algo.do_mux(info, channel, on);
 	else
 		cps_wls_log(CPS_LOG_ERR, "%s get info->algo.do_mux fail", __func__);
 
@@ -2647,7 +2647,7 @@ static irqreturn_t cps_wls_irq_handler(int irq, void *dev_id)
         cps_wls_tx_irq_handler(int_flag);
     }
 
-    cps_wls_log(CPS_LOG_DEBG, "cps_wls_get_sys_mode:%d\n",cps_wls_get_sys_mode() );
+    cps_wls_log(CPS_LOG_DEBG, "cps_wls_get_sys_mode:%d,int_clr = %d\n",cps_wls_get_sys_mode(),int_clr);
 
     return IRQ_HANDLED;
 }
@@ -2684,7 +2684,7 @@ static irqreturn_t wls_det_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 void wlc_control_pin_set(bool on);
-static int cps_get_bat_soc()
+static int cps_get_bat_soc(void)
 {
 	union power_supply_propval prop;
 	struct power_supply *battery_psy = NULL;
@@ -2700,24 +2700,8 @@ static int cps_get_bat_soc()
 	}
 	return prop.intval;
 }
-static int cps_get_bat_voltage(void)
-{
-	union power_supply_propval prop;
-	struct power_supply *battery_psy = NULL;
-	int ret = 0;
 
-	battery_psy = power_supply_get_by_name("battery");
-	if (battery_psy == NULL || IS_ERR(battery_psy)) {
-		cps_wls_log(CPS_LOG_ERR,"%s Couldn't get battery_psy\n", __func__);
-		return CPS_WLS_FAIL;
-	} else {
-		power_supply_get_property(battery_psy,
-			POWER_SUPPLY_PROP_VOLTAGE_NOW, &prop);
-		ret = prop.intval;
-	}
-	return ret;
-}
-static bool usb_online()
+static bool usb_online(void)
 {
 	union power_supply_propval prop;
 	struct power_supply *chg_psy = NULL;
@@ -2760,13 +2744,13 @@ static bool cps_wls_query_typec_attached_state(void){return false;}
 void cps_wls_vbus_enable(bool en)
 {
 	int ret = 0;
-	struct charger_manager *info = NULL;
+	struct mtk_charger *info = NULL;
 	struct charger_device *chg_psy = NULL;
 	static bool otg_status = false;
 
 	chg_psy = get_charger_by_name("primary_chg");
 	if(chg_psy) {
-		info = (struct charger_manager *)charger_dev_get_drvdata(chg_psy);
+		info = (struct mtk_charger *)charger_dev_get_drvdata(chg_psy);
 		if(info)
 			cps_wls_log(CPS_LOG_ERR,"%s could  get charger_manager\n",__func__);
 		else {
@@ -2796,35 +2780,22 @@ void cps_wls_vbus_enable(bool en)
 
 	return ;
 }
+
 static int wireless_en(void *input, bool en)
 {
 	int ret = 0;
-//	struct chg_alg_device *alg;
-	struct charger_manager *info = NULL;
-	struct charger_device *chg_psy = NULL;
+	struct chg_alg_device *alg;
+	alg = get_chg_alg_by_name("wlc");
 
-	chg_psy = get_charger_by_name("primary_chg");
-	if(chg_psy) {
-		info = (struct charger_manager *)charger_dev_get_drvdata(chg_psy);
-		if(info)
-			cps_wls_log(CPS_LOG_ERR,"%s could  get charger_manager\n",__func__);
-		else {
-			cps_wls_log(CPS_LOG_ERR,"%s Couldn't get charger_manager\n",__func__);
-			return CPS_WLS_SUCCESS;
-		}
-	} else {
-		cps_wls_log(CPS_LOG_ERR,"%s Couldn't get chg_psy\n",__func__);
-		return CPS_WLS_SUCCESS;
-	}
-
-	wlc_control_pin_set(true);
+	chg_alg_set_prop(alg, ALG_WLC_STATE, false);
 	msleep(1000);
-	wlc_control_pin_set(false);
+	chg_alg_set_prop(alg, ALG_WLC_STATE, true);
 //	       mmi_mux_wls_chg_chan(MMI_MUX_CHANNEL_WLC_FACTORY_TEST, en);
 	chip->factory_wls_en = en;
 	cps_wls_log(CPS_LOG_ERR,"wls: wls_en %d\n",en);
 	return ret;
 }
+
 static int wireless_get_chip_id(void *input)
 {
 	int value = chip->chip_id;
@@ -2987,25 +2958,7 @@ static void cps_wls_pm_set_awake(int awake)
 		__pm_relax(chip->cps_wls_wake_lock);
 	}
 }
-static void wireless_chip_reset()
-{
-#if 1
-	wlc_control_pin_set(true);
-	msleep(100);
-	wlc_control_pin_set(false);
-    cps_wls_log(CPS_LOG_DEBG,"%s\n", __func__);
-#else
-	struct chg_alg_device *alg;
 
-	alg = get_chg_alg_by_name("wlc");
-	if (NULL != alg) {
-		chg_alg_set_prop(alg, ALG_WLC_STATE, false);
-		msleep(100);
-		chg_alg_set_prop(alg, ALG_WLC_STATE, true);
-	}
-#endif
-	return;
-}
 static void cps_wls_set_boost(int val)
 {
 	/* Assume if we turned the boost on we want to stay awake */
@@ -3310,6 +3263,8 @@ static ssize_t wireless_fw_version_show(struct device *dev, struct device_attrib
 	cps_wls_vbus_enable(true);
 	msleep(300);
 	rc = cps_get_fw_revision(&fw_version);
+	if(rc < 0)
+		cps_wls_log(CPS_LOG_ERR,"wls: read fw vision error\n");
 	cps_wls_vbus_enable(false);
 
 	return sprintf(buf, "%08x\n", fw_version);
@@ -4021,7 +3976,7 @@ static int cps_wls_wlc_update_light_fan(void)
 		msleep(200);
 		retry--;
 	} while (retry);
-	return 0;
+	return status;
 }
 
 static void  cps_wls_notify_tx_chrgfull(void)
@@ -4128,7 +4083,7 @@ static int cps_wls_rx_power_on(void)
 #endif
 
 	sys_mode = cps_wls_get_sys_mode();
-	cps_wls_log(CPS_LOG_DEBG, "CPS_TX_MODE %d, sys_mode RX/TX, 0 mode %d", CPS_TX_MODE, sys_mode);
+	cps_wls_log(CPS_LOG_DEBG, "CPS_TX_MODE %d, sys_mode RX/TX, 0 mode %d, rx_power_cnt = %d", CPS_TX_MODE, sys_mode,rx_power_cnt);
 
 	chip_id = cps_wls_get_chip_id();
 	if(chip_id == 0x4038 && sys_mode == SYS_MODE_RX) {
@@ -4163,14 +4118,14 @@ static int cps_wls_rx_power_on(void)
 
 static int cps_get_vbus(void)
 {
-	struct charger_manager *info = NULL;
+	struct mtk_charger *info = NULL;
 	int ret = 0;
 	int vchr = 0;
 	struct charger_device *chg_psy = NULL;
 
 	chg_psy = get_charger_by_name("primary_chg");
 	if(chg_psy) {
-		info = (struct charger_manager *)charger_dev_get_drvdata(chg_psy);
+		info = (struct mtk_charger *)charger_dev_get_drvdata(chg_psy);
 		if(info)
 			cps_wls_log(CPS_LOG_ERR,"%s could  get charger_manager\n",__func__);
 		else {
@@ -4314,7 +4269,7 @@ static const struct thermal_cooling_device_ops cps_tcd_ops = {
 	.set_cur_state = cps_tcd_set_cur_state,
 };
 
-static void cps_init_charge_hardware()
+static void cps_init_charge_hardware(void)
 {
 	struct cps_wls_chrg_chip *chg = chip;
 	chg->chg1_dev = get_charger_by_name("primary_chg");
@@ -4353,8 +4308,12 @@ bool is_factory_mode(void)
 	return factory_mode;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 static int cps_wls_chrg_probe(struct i2c_client *client,
                 const struct i2c_device_id *id)
+#else
+static int cps_wls_chrg_probe(struct i2c_client *client)
+#endif
 {
      int ret=0;
     char *name = NULL;
@@ -4516,7 +4475,7 @@ static void not_called_api(void)
     rc = cps_wls_set_tx_fod4_thresh(3000);
     rc = cps_wls_set_tx_fod5_thresh(3000);
     rc = cps_wls_set_tx_fod6_thresh(3000);
-    rc = cps_wls_set_tx_fod7_thresh(3000);   
+    rc = cps_wls_set_tx_fod7_thresh(3000);
     rc = cps_wls_set_tx_fod_rp0_thresh(20);
     rc = cps_wls_set_tx_fod_rp1_thresh(40);
     rc = cps_wls_set_tx_fod_rp2_thresh(60);
@@ -4529,20 +4488,28 @@ static void not_called_api(void)
     rc = cps_wls_disable_tx_mode();
     rc = cps_wls_send_fsk_packet(data, 2);
     rc = cps_wls_set_fod_para();
+    if(rc < 0)
+    	cps_wls_log(CPS_LOG_ERR, "[%s] rc = %d\n", __func__,rc);
     return;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 static int cps_wls_chrg_remove(struct i2c_client *client)
+#else
+static void cps_wls_chrg_remove(struct i2c_client *client)
+#endif
 {
     not_called_api();
     //cps_wls_lock_destroy(chip);
     kfree(chip);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
     return 0;
+#endif
 }
 
 static const struct i2c_device_id cps_wls_charger_id[] = {
     {"cps-wls-charger", 0},
-    {}, 
+    {},
 };
 
 static const struct of_device_id cps_wls_chrg_of_tbl[] = {

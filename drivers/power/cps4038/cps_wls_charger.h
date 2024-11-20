@@ -11,9 +11,10 @@
 #define __CPS_WLS_CHARGER_H__
 #include <linux/workqueue.h>
 #include <linux/thermal.h>
-#include "mtk_charger_intf.h"
 #include <linux/power/moto_chg_tcmd.h>
-#include "moto_wlc_intf.h"
+#include <moto_wlc.h>
+#include <mtk_charger.h>
+#include <charger_class.h>
 #include "moto_wls_auth2.0.h"
 
 #define CPS_WLS_FAIL    -1
@@ -338,4 +339,5 @@ static void cps_init_charge_hardware(void);
 static void cps_epp_current_select(int  *icl, int *vbus);
 int cps_wls_get_ldo_on(void);
 int cps_wls_sysfs_notify(const char *attr);
+static int  wls_tcmd_register(struct cps_wls_chrg_chip *cm);
 #endif

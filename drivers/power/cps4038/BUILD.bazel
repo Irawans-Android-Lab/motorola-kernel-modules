@@ -1,0 +1,22 @@
+load("//build/bazel_mgk_rules:mgk_ko.bzl", "define_mgk_ko")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+define_mgk_ko(
+    name = "cps_wls_charger_4038",
+    srcs = glob([
+        "*.c",
+        "*.h",
+        "Kbuild",
+        "Makefile",
+        "Makefile.include",
+    ]) + [
+        "//motorola/kernel/modules:public_headers",
+    ],
+
+    outs = ["cps_wls_charger_4038.ko"],
+)
