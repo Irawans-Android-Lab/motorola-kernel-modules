@@ -179,6 +179,8 @@ else ifneq ($(filter aito, $(USE_TARGET_PRODUCT)), )
         EXTRA_CFLAGS += -DPRODUCT_AITO
 else ifneq ($(filter vienna, $(USE_TARGET_PRODUCT)), )
         EXTRA_CFLAGS += -DPRODUCT_VIENNA
+else ifneq ($(filter scout%, $(USE_TARGET_PRODUCT)), )
+        EXTRA_CFLAGS += -DPRODUCT_SCOUT
 endif
 $(warning "goodix berlin EXTRA_CFLAGS = $(EXTRA_CFLAGS)")
 
