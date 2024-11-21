@@ -21,6 +21,13 @@
 #include <linux/irq.h>
 #include <linux/sensors.h>
 #include <linux/regulator/consumer.h>
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#else
+#include <linux/pm_wakeup.h>
+#include <linux/mmi_wake_lock.h>
+#endif
+#include <linux/phone_case_detection_notify.h>
 
 #define DRIVER_NAME "hall_phone_case_detect"
 #define LOG_DBG(fmt, args...)    pr_debug(DRIVER_NAME " [DBG]" "<%s:%d>"fmt, __func__, __LINE__, ##args)
@@ -47,9 +54,63 @@ static struct hall_sensor_str {
 	struct regulator *hall_vdd;
 	struct hall_gpio *gpio_list;
 	spinlock_t mHallSensorLock;
+	#ifdef CONFIG_HAS_WAKELOCK
+	struct wake_lock wake_lock;
+	#else
+	struct wakeup_source *wake_lock;
+	#endif
 	struct input_dev *hall_dev;
 	struct sensors_classdev sensors_phone_case_cdev;
+	struct delayed_work hall_sensor_work;
+	struct delayed_work hall_sensor_irq_work;
+	bool init_completed;
 }* hall_sensor_dev;
+
+static struct workqueue_struct *hall_sensor_wq;
+static struct workqueue_struct *hall_sensor_irq_wq;
+
+static BLOCKING_NOTIFIER_HEAD(phone_case_detection_notifier_list);
+
+/**
+ * phone_case_detection_register_client - register a client notifier
+ * @nb: notifier block to callback on events
+ *
+ * This function registers a notifier callback function
+ * to phone_case_detection_notifier_list, which would be called when
+ * puting on/off a phone case.
+ */
+int phone_case_detection_register_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&phone_case_detection_notifier_list,
+						nb);
+}
+EXPORT_SYMBOL(phone_case_detection_register_client);
+
+/**
+ * phone_case_detection_unregister_client - unregister a client notifier
+ * @nb: notifier block to callback on events
+ *
+ * This function unregisters the callback function from
+ * phone_case_detection_notifier_list.
+ */
+int phone_case_detection_unregister_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&phone_case_detection_notifier_list,
+						  nb);
+}
+EXPORT_SYMBOL(phone_case_detection_unregister_client);
+
+/**
+ * phone_case_detection_notifier_call_chain - notify clients of phone case
+ * detection events.
+ * @val: event PHONE_CASE_DETECTION_MOUNTED or PHONE_CASE_DETECTION_UNMOUNTED
+ * @v: notifier data, NULL.
+ */
+static int phone_case_detection_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&phone_case_detection_notifier_list, val,
+					    v);
+}
 
 #ifdef CONFIG_OF
 static const struct of_device_id hall_phone_case_match[] = {
@@ -74,45 +135,52 @@ void check_and_send(void)
 {
 	int i;
 	int report_val = 0;
+	unsigned long flags;
+
 	for (i = 0; i < hall_sensor_dev->gpio_num; i++)
 	{
-		LOG_INFO("hall report gpio%d = %d", i, gpio_get_value(hall_sensor_dev->gpio_list[i].gpio));
+		LOG_INFO("hall report gpio%d = %d\r\n", i, gpio_get_value(hall_sensor_dev->gpio_list[i].gpio));
 		if (gpio_get_value(hall_sensor_dev->gpio_list[i].gpio) > 0)
 			report_val |= hall_sensor_dev->gpio_list[i].gpio_high_report_val;
 		else if (gpio_get_value(hall_sensor_dev->gpio_list[i].gpio) == 0)
 			report_val |= hall_sensor_dev->gpio_list[i].gpio_low_report_val;
 	}
-	if(hall_sensor_dev->phone_case_detect &&
-		hall_sensor_dev->report_val != report_val){
+	if(hall_sensor_dev->report_val != report_val){
 		LOG_INFO("hall report %d", report_val);
+		spin_lock_irqsave(&hall_sensor_dev->mHallSensorLock, flags);
 		hall_sensor_dev->report_val = report_val;
-		input_report_abs(hall_sensor_dev->hall_dev, ABS_DISTANCE, report_val);
-		input_sync(hall_sensor_dev->hall_dev);
+		if(hall_sensor_dev->phone_case_detect) {
+			input_report_abs(hall_sensor_dev->hall_dev, ABS_DISTANCE, hall_sensor_dev->report_val);
+			input_sync(hall_sensor_dev->hall_dev);
+		}
+		spin_unlock_irqrestore(&hall_sensor_dev->mHallSensorLock, flags);
+
+		if(hall_sensor_dev->report_val)
+			phone_case_detection_notifier_call_chain(PHONE_CASE_DETECTION_MOUNTED, NULL);
+		else
+			phone_case_detection_notifier_call_chain(PHONE_CASE_DETECTION_UNMOUNTED, NULL);
 	}
 }
 
 void hall_enable(bool enable)
 {
-	int i;
+	unsigned long flags;
+
 	if (enable && !hall_sensor_dev->enable)
 	{
-		LOG_INFO("hall_phone_case_sensor enable");
-		for (i = 0; i < hall_sensor_dev->gpio_num; i++)
-		{
-			enable_irq(hall_sensor_dev->gpio_list[i].irq);
-			enable_irq_wake(hall_sensor_dev->gpio_list[i].irq);
-		}
+		LOG_INFO("hall_phone_case_sensor enable\r\n");
 		hall_sensor_dev->enable = 1;
-		check_and_send();
+		if(hall_sensor_dev->phone_case_detect) {
+			/* report initial state on enable */
+			spin_lock_irqsave(&hall_sensor_dev->mHallSensorLock, flags);
+			input_report_abs(hall_sensor_dev->hall_dev, ABS_DISTANCE, hall_sensor_dev->report_val);
+			input_sync(hall_sensor_dev->hall_dev);
+			spin_unlock_irqrestore(&hall_sensor_dev->mHallSensorLock, flags);
+		}
 	}
 	else if (!enable && hall_sensor_dev->enable)
 	{
-		LOG_INFO("hall_phone_case_sensor disable");
-		for (i = 0; i < hall_sensor_dev->gpio_num; i++)
-		{
-			disable_irq(hall_sensor_dev->gpio_list[i].irq);
-			disable_irq_wake(hall_sensor_dev->gpio_list[i].irq);
-		}
+		LOG_INFO("hall_phone_case_sensor disable\r\n");
 		hall_sensor_dev->enable = 0;
 	}
 }
@@ -120,7 +188,6 @@ void hall_enable(bool enable)
 static int hallphone_case_enable(struct sensors_classdev *sensors_cdev,
 		unsigned int enable)
 {
-	hall_sensor_dev->report_val = -1;
 	hall_sensor_dev->phone_case_detect = enable;
 	hall_enable(enable);
 	if (enable == 0)
@@ -178,12 +245,47 @@ struct class hall_class = {
 
 static irqreturn_t hall_sensor_interrupt_handler(int irq, void *dev_id)
 {
-	unsigned long flags;
-	spin_lock_irqsave(&hall_sensor_dev->mHallSensorLock, flags);
-	LOG_DBG("hall_sensor_interrupt_handler = %d", irq);
-	check_and_send();
-	spin_unlock_irqrestore(&hall_sensor_dev->mHallSensorLock, flags);
+	LOG_DBG("hall_sensor_interrupt_handler = %d\r\n", irq);
+	queue_delayed_work(hall_sensor_irq_wq, &hall_sensor_dev->hall_sensor_irq_work, msecs_to_jiffies(0));
+#ifdef CONFIG_HAS_WAKELOCK
+	wake_lock_timeout(&hall_sensor_dev->wake_lock, msecs_to_jiffies(100));
+#else
+	PM_WAKEUP_EVENT(hall_sensor_dev->wake_lock,msecs_to_jiffies(100));
+#endif
 	return IRQ_HANDLED;
+}
+
+static void hall_sensor_irq_work_function(struct work_struct *work)
+{
+	LOG_DBG("enter hall_sensor_irq_work_function\r\n");
+	if (hall_sensor_dev->init_completed) {
+		cancel_delayed_work(&hall_sensor_dev->hall_sensor_work);
+		queue_delayed_work(hall_sensor_wq, &hall_sensor_dev->hall_sensor_work, 0);
+	}
+}
+
+static void hall_sensor_work_function(struct work_struct *work)
+{
+	int i;
+	LOG_INFO("enter hall_sensor_work_function\r\n");
+	/* go on to complete the init process */
+	if (!hall_sensor_dev->init_completed) {
+		hall_sensor_dev->init_completed = true;
+		/* schedule a short time delayed work, it may be canceled if irq
+			triggers immediately after enable */
+		queue_delayed_work(hall_sensor_wq, &hall_sensor_dev->hall_sensor_work, msecs_to_jiffies(5));
+		for (i = 0; i < hall_sensor_dev->gpio_num; i++)
+		{
+			if (hall_sensor_dev->gpio_list[i].irq) {
+				enable_irq(hall_sensor_dev->gpio_list[i].irq);
+				enable_irq_wake(hall_sensor_dev->gpio_list[i].irq);
+				LOG_INFO("enable irq: %d\r\n", hall_sensor_dev->gpio_list[i].irq);
+			}
+		}
+		LOG_INFO("init completed\r\n");
+	} else {
+		check_and_send();
+	}
 }
 
 static int hall_sensor_probe(struct platform_device *pdev)
@@ -200,7 +302,7 @@ static int hall_sensor_probe(struct platform_device *pdev)
 	//Memory allocation
 	hall_sensor_dev = kzalloc(sizeof (struct hall_sensor_str), GFP_KERNEL);
 	if (!hall_sensor_dev) {
-		LOG_ERR("Memory allocation fails for hall sensor");
+		LOG_ERR("Memory allocation fails for hall sensor\r\n");
 		ret = -ENOMEM;
 		goto fail_for_mem;
 	}
@@ -208,22 +310,25 @@ static int hall_sensor_probe(struct platform_device *pdev)
 	spin_lock_init(&hall_sensor_dev->mHallSensorLock);
 	hall_sensor_dev->enable = 0;
 	hall_sensor_dev->phone_case_detect = 0;
+	hall_sensor_dev->report_val = -1;
+	hall_sensor_dev->init_completed = false;
+
 	//tcmd node
 	ret = of_property_read_string(np, "hall,factory-class-name", &hall_class.name);
 	ret = class_register(&hall_class);
 	ret = of_property_read_string(np, "hall,input-dev-name", &name_temp);
-     	LOG_INFO("hall_input num :%s", name_temp);
+	LOG_INFO("hall_input num :%s\r\n", name_temp);
 
 	ret =  of_property_read_u32(np,"hall,nirq-gpio-num", &hall_sensor_dev->gpio_num);
 	if (ret < 0)
 	{
-		LOG_ERR("GPIO for hall sensor does not exist");
+		LOG_ERR("GPIO for hall sensor does not exist\r\n");
 	}
-	LOG_INFO("gpio num :%d", hall_sensor_dev->gpio_num);
+	LOG_INFO("gpio num :%d\r\n", hall_sensor_dev->gpio_num);
 
 	  hall_sensor_dev->hall_dev = input_allocate_device();
 	  	if (!hall_sensor_dev->hall_dev){
-			LOG_ERR(" hall_indev allocation fails\n" );
+			LOG_ERR(" hall_indev allocation fails\r\n" );
 			return -ENOMEM;
 		}
 	hall_sensor_dev->hall_dev->name = name_temp;
@@ -236,7 +341,7 @@ static int hall_sensor_probe(struct platform_device *pdev)
 
 	err = input_register_device(hall_sensor_dev->hall_dev);
 	if (ret) {
-		LOG_ERR("halinput registration fails\n");
+		LOG_ERR("halinput registration fails\r\n");
 		return -ENOMEM;
 	}
 	input_report_abs(hall_sensor_dev->hall_dev, ABS_DISTANCE, -1);
@@ -259,11 +364,11 @@ static int hall_sensor_probe(struct platform_device *pdev)
 
 	err = sensors_classdev_register(&hall_sensor_dev->hall_dev->dev, &hall_sensor_dev->sensors_phone_case_cdev);
 	if (err < 0)
-		LOG_ERR("create cap sensor_class  file failed (%d)\n", err);
+		LOG_ERR("create cap sensor_class  file failed (%d)\r\n", err);
 
 	hall_sensor_dev->gpio_list = kzalloc(sizeof (struct hall_gpio) * hall_sensor_dev->gpio_num, GFP_KERNEL);
 	if (!hall_sensor_dev->gpio_list) {
-		LOG_ERR("Memory allocation fails for hall sensor");
+		LOG_ERR("Memory allocation fails for hall sensor\r\n");
 		ret = -ENOMEM;
 		goto fail_for_mem;
 	}
@@ -276,14 +381,14 @@ static int hall_sensor_probe(struct platform_device *pdev)
 		ret =  of_property_read_u32(np, gpio_name, &hall_sensor_dev->gpio_list[i].gpio_low_report_val);
 		sprintf(gpio_name, "hall,nirq-gpio_%d", i);
 		hall_sensor_dev->gpio_list[i].gpio = of_get_named_gpio_flags(np, gpio_name, 0, &flags);
-		LOG_INFO("hall_sensor %s gpio = %d val = %d:%d", gpio_name, hall_sensor_dev->gpio_list[i].gpio,
+		LOG_INFO("hall_sensor %s gpio = %d val = %d:%d\r\n", gpio_name, hall_sensor_dev->gpio_list[i].gpio,
 						hall_sensor_dev->gpio_list[i].gpio_high_report_val,
 						hall_sensor_dev->gpio_list[i].gpio_low_report_val);
 		if (gpio_is_valid(hall_sensor_dev->gpio_list[i].gpio))
 		{
 			ret = gpio_request(hall_sensor_dev->gpio_list[i].gpio, gpio_name);
 			if (ret) {
-				LOG_ERR("Could not request %s : %d for hall sensor, ret: %d",
+				LOG_ERR("Could not request %s : %d for hall sensor, ret: %d\r\n",
 					gpio_name, hall_sensor_dev->gpio_list[i].gpio, ret);
 				goto fail_for_irq;
 			}
@@ -291,12 +396,12 @@ static int hall_sensor_probe(struct platform_device *pdev)
 
 			//set irq
 			hall_sensor_dev->gpio_list[i].irq = gpio_to_irq(hall_sensor_dev->gpio_list[i].gpio);
-			LOG_INFO("hall_sensor %s irq = %d, gpio = %d", gpio_name, hall_sensor_dev->gpio_list[i].irq, hall_sensor_dev->gpio_list[i].gpio);
+			LOG_INFO("hall_sensor %s irq = %d, gpio = %d\r\n", gpio_name, hall_sensor_dev->gpio_list[i].irq, hall_sensor_dev->gpio_list[i].gpio);
 
-			ret = request_threaded_irq(hall_sensor_dev->gpio_list[i].irq, NULL, hall_sensor_interrupt_handler,
-					IRQF_ONESHOT|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, gpio_name, hall_sensor_dev);
+			ret = request_irq(hall_sensor_dev->gpio_list[i].irq, hall_sensor_interrupt_handler,
+					IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, gpio_name, hall_sensor_dev);
 			if (ret) {
-				LOG_ERR("Could not register for hall sensor interrupt, irq = %d, ret: %d",
+				LOG_ERR("Could not register for hall sensor interrupt, irq = %d, ret: %d\r\n",
 						hall_sensor_dev->gpio_list[i].irq, ret);
 				hall_sensor_dev->gpio_list[i].irq = 0;
 				goto fail_for_irq;
@@ -309,18 +414,28 @@ static int hall_sensor_probe(struct platform_device *pdev)
 	hall_sensor_dev->hall_vdd = regulator_get(&pdev->dev, "hall_vdd");
 	if (IS_ERR(hall_sensor_dev->hall_vdd))
 	{
-		LOG_ERR("vdd error %ld", PTR_ERR(hall_sensor_dev->hall_vdd));
+		LOG_ERR("vdd error %ld\r\n", PTR_ERR(hall_sensor_dev->hall_vdd));
 		hall_sensor_dev->hall_vdd = NULL;
 		/* goto fail_for_irq; */
 	}
 	else
 	{
 		rc = regulator_enable(hall_sensor_dev->hall_vdd);
-		LOG_INFO("hall_vdd regulator is %s, ret %d",
+		LOG_INFO("hall_vdd regulator is %s, ret %d\r\n",
 				regulator_is_enabled(hall_sensor_dev->hall_vdd) ?
 				"on" : "off", rc);
 	}
-	LOG_INFO("hall_sensor_probe Done");
+
+	//schedule a 1s delayed work to inform other drivers with initial state.
+	//suppose 1s is enough for other drivers to get ready and register callback
+	//to this notifier chain.
+	hall_sensor_wq = create_singlethread_workqueue("hall_sensor_wq");
+	hall_sensor_irq_wq = create_singlethread_workqueue("hall_sensor_irq_wq");
+	INIT_DELAYED_WORK(&hall_sensor_dev->hall_sensor_work, hall_sensor_work_function);
+	INIT_DELAYED_WORK(&hall_sensor_dev->hall_sensor_irq_work, hall_sensor_irq_work_function);
+	queue_delayed_work(hall_sensor_wq, &hall_sensor_dev->hall_sensor_work, HZ);
+
+	LOG_INFO("hall_sensor_probe Done\r\n");
 	return 0;
 
 	kfree(hall_sensor_dev);
@@ -346,11 +461,31 @@ fail_for_mem:
 static int hall_sensor_remove(struct platform_device *pdev)
 {
 	int i;
+
+	/* disable irqs */
+	for (i = 0; i < hall_sensor_dev->gpio_num; i++)
+	{
+		if (hall_sensor_dev->gpio_list[i].irq) {
+			disable_irq(hall_sensor_dev->gpio_list[i].irq);
+			LOG_INFO("disable hall irq:%d\r\n", hall_sensor_dev->gpio_list[i].irq);
+		}
+	}
+
+	LOG_INFO("clean up hall workqueue\r\n");
+	/* wait for all works being finished */
+	cancel_delayed_work_sync(&hall_sensor_dev->hall_sensor_irq_work);
+	cancel_delayed_work_sync(&hall_sensor_dev->hall_sensor_work);
+	/* destroy work queue */
+	destroy_workqueue(hall_sensor_irq_wq);
+	destroy_workqueue(hall_sensor_wq);
+
+	LOG_INFO("release hall vdd\r\n");
 	if (hall_sensor_dev->hall_vdd) {
 		regulator_disable(hall_sensor_dev->hall_vdd);
 		regulator_put(hall_sensor_dev->hall_vdd);
 	}
-	class_unregister(&hall_class);
+
+	LOG_INFO("free hall irq and gpio\r\n");
 	for (i = 0; i < hall_sensor_dev->gpio_num; i++)
 	{
 		if (hall_sensor_dev->gpio_list[i].irq)
@@ -358,19 +493,29 @@ static int hall_sensor_remove(struct platform_device *pdev)
 		if (gpio_is_valid(hall_sensor_dev->gpio_list[i].gpio))
 			gpio_free(hall_sensor_dev->gpio_list[i].gpio);
 	}
+	LOG_INFO("free hall gpio list\r\n");
 	if (hall_sensor_dev->gpio_list)
 		kfree(hall_sensor_dev->gpio_list);
+
+	LOG_INFO("free hall sensor classdev\r\n");
+	sensors_classdev_unregister(&hall_sensor_dev->sensors_phone_case_cdev);
+
+	LOG_INFO("free hall intput device\r\n");
+	input_unregister_device(hall_sensor_dev->hall_dev);
+
+	LOG_INFO("unregister hall class\r\n");
+	class_unregister(&hall_class);
+
+	LOG_INFO("free hall_sensor_dev\r\n");
 	if (hall_sensor_dev)
 		kfree(hall_sensor_dev);
 
-	sensors_classdev_unregister(&hall_sensor_dev->sensors_phone_case_cdev);
-	input_unregister_device(hall_sensor_dev->hall_dev);
-	LOG_INFO("paltform rm");
+	LOG_INFO("paltform rm\r\n");
 	return 0;
 }
 
 module_platform_driver(hall_phone_case_driver);
 
 MODULE_DESCRIPTION("Hall_sensor_phone_case Driver");
-MODULE_AUTHOR("cuijy1 <cuijy1@motorola.com>");
+MODULE_AUTHOR("guoyc1 <guoyc1@motorola.com>");
 MODULE_LICENSE("GPL v2");
