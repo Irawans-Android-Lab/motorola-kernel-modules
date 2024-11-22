@@ -7,6 +7,9 @@ EXTRA_CFLAGS += -Wall
 EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/include
 EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/drivers/power/cw2217b_fg_mmi
 
+EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/kernel_device_modules-6.1/include \
+		-I$(ANDROID_BUILD_TOP)/kernel_device_modules-6.1/drivers/power/supply
+
 ifneq ($(filter m y,$(CONFIG_DYNAMIC_UPDATE_UI_FULL)),)
 	EXTRA_CFLAGS += -DDYNAMIC_UPDATE_UI_FULL
 endif
