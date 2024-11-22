@@ -124,7 +124,8 @@ enum sc8541d_fields{
         VOUT_OVP_DG_SET,    /*reg0Fh*/
     IBUS_UCP_FALL_DG_SET, IBUS_OCP_DG_SET, VBAT_OVP_DG_SET, /*reg10h*/
     CP_SWITCHING_STAT,/*reg11h*/
-    VBUS2OUT_OVP_STAT, VBUS2OUT_UVP_STAT,
+    VBUS2OUT_OVP_STAT, VBUS2OUT_UVP_STAT,/*reg14h*/
+    VBUS_PRESENT_MASK, VOUT_TH_CHG_EN_MASK, VOUT_TH_REV_EN_MASK,/*reg19h*/
     ADC_EN, ADC_RATE, /*reg1Dh*/
 
     F_MAX_FIELDS,
@@ -299,6 +300,10 @@ static const struct reg_field sc8541d_reg_fields[] = {
     /*reg14*/
     [VBUS2OUT_OVP_STAT] = REG_FIELD(0x14, 4, 4),
     [VBUS2OUT_UVP_STAT] = REG_FIELD(0x14, 5, 5),
+    /*reg19*/
+    [VOUT_TH_REV_EN_MASK] = REG_FIELD(0x19, 4, 4),
+    [VOUT_TH_CHG_EN_MASK] = REG_FIELD(0x19, 3, 3),
+    [VBUS_PRESENT_MASK] = REG_FIELD(0x19, 2, 2),
     /*reg1D*/
     [ADC_EN] = REG_FIELD(0x1D, 7, 7),
     [ADC_RATE] = REG_FIELD(0x1D, 6, 6),
@@ -377,8 +382,9 @@ static struct intr_flag cp_intr_flag[] = {
                 {.mask = BIT(7), .name = "cp switching flag", .notify = SC8541D_NOTIFY_OTHER},
                 {.mask = BIT(6), .name = "vbus errorhi flag", .notify = SC8541D_NOTIFY_OTHER},
                 {.mask = BIT(5), .name = "vbus errorlo flag", .notify = SC8541D_NOTIFY_OTHER},
-                {.mask = BIT(3), .name = "vout th rev en flag", .notify = SC8541D_NOTIFY_OTHER},
-                {.mask = BIT(2), .name = "vout th chg en flag", .notify = SC8541D_NOTIFY_OTHER},
+                {.mask = BIT(4), .name = "vout th rev en flag", .notify = SC8541D_NOTIFY_OTHER},
+                {.mask = BIT(3), .name = "vout th chg en flag", .notify = SC8541D_NOTIFY_OTHER},
+                {.mask = BIT(2), .name = "vbus present flag", .notify = SC8541D_NOTIFY_OTHER},
                 {.mask = BIT(1), .name = "vbus insert flag", .notify = SC8541D_NOTIFY_OTHER},
                 {.mask = BIT(0), .name = "vout insert flag", .notify = SC8541D_NOTIFY_OTHER},
                 },
@@ -1519,6 +1525,9 @@ static int sc8541d_init_device(struct sc8541d_chip *sc)
         {IBUS_UCP_FALL_DG_SET, sc->cfg.ibus_ucp_fall_dg},
         {IBUS_OCP_DG_SET, sc->cfg.ibus_ocp_dg},
         {VBAT_OVP_DG_SET, sc->cfg.ibus_ocp_dg},
+        {VBUS_PRESENT_MASK, 1},
+        {VOUT_TH_CHG_EN_MASK, 1},
+        {VOUT_TH_REV_EN_MASK, 1},
     };
 
     ret = sc8541d_reg_reset(sc);
