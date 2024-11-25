@@ -42,7 +42,7 @@
 
 #define TOUCH_REPORT_CONFIG_SIZE 128
 
-#define SUPPORT_FACE_DETECT 1
+#define SUPPORT_FACE_DETECT 0
 
 #define SUPPORT_KNUCKLE_DATA_REPORT 0
 
@@ -514,8 +514,10 @@ static int touch_parse_report(void)
 			}
 			touch_data->gesture_id = data;
 			offset += bits;
-			LOGE(tcm_hcd->pdev->dev.parent,
-				"gesture_id = %x\n", touch_data->gesture_id);
+			if (touch_data->gesture_id || dbg_level_en)
+				OVT_INFO("gesture_id = 0x%x\n", touch_data->gesture_id);
+			else
+				OVT_DEBUG("gesture_id = %x\n", touch_data->gesture_id);
 			break;
 		case TOUCH_FRAME_RATE:
 			bits = config_data[idx++];
@@ -1088,7 +1090,7 @@ static int touch_set_report_config(void)
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Y_WIDTH;
 	touch_hcd->out.buf[idx++] = 16;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Z;
-	touch_hcd->out.buf[idx++] = 16;	
+	touch_hcd->out.buf[idx++] = 16;
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_END;
 	touch_hcd->out.buf[idx++] = TOUCH_END;
 
@@ -1334,6 +1336,7 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd)
 
 int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd)
 {
+	OVT_FUNC_ENTER();
 	if (!touch_hcd)
 		return 0;
 
@@ -1353,6 +1356,7 @@ int touch_suspend(struct ovt_tcm_hcd *tcm_hcd)
 	if (!touch_hcd)
 		return 0;
 
+	OVT_FUNC_ENTER();
 	touch_hcd->suspend_touch_finger = true;
 	touch_hcd->suspend_touch = true;
 
@@ -1373,6 +1377,7 @@ int touch_resume(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
 
+	OVT_FUNC_ENTER();
 	if (!touch_hcd)
 		return 0;
 

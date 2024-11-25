@@ -95,6 +95,7 @@ struct ovt_tcm_hcd *g_tcm_hcd;
 static void speedup_resume(struct work_struct *work);
 #endif
 static int g_retry_max = 1;
+bool dbg_level_en = 0;
 
 #define ovt_tcm_set_func_en(c_name, id) \
 int ovt_tcm_set_func_##c_name##_en_state(unsigned short value) \
@@ -343,6 +344,37 @@ static char *ts_mmi_kobject_get_path(struct kobject *kobj, gfp_t gfp_mask)
 	return path;
 }
 
+static ssize_t log_level_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%02x\n", g_tcm_hcd->log_level);
+}
+
+static ssize_t log_level_store(struct device *dev,
+					     struct device_attribute *attr,
+					     const char *buf, size_t count)
+{
+	unsigned int value = 0;
+	int err = 0;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+
+	OVT_INFO("enter\n");
+	err = sscanf(buf, "%d", &value);
+	if (err < 0) {
+		OVT_INFO("Failed to convert value\n");
+		return -EINVAL;
+	}
+
+	tcm_hcd->log_level = value;
+	if (tcm_hcd->log_level)
+		dbg_level_en = 1;
+	else
+		dbg_level_en = 0;
+
+	OVT_INFO("set log_level: %d, dbg_level_en=%d\n", tcm_hcd->log_level, dbg_level_en);
+	return count;
+}
+
 // Attribute: path (RO)
 static ssize_t path_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -405,6 +437,7 @@ static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(vendor),
 	__ATTR_RO(ic_ver),
 	__ATTR_RO(productinfo),
+	__ATTR_RW(log_level),
 	__ATTR_NULL
 };
 
@@ -1816,19 +1849,22 @@ retry:
 
 	tcm_hcd->payload_length = le2_to_uint(header->length);
 
-	LOGN(tcm_hcd->pdev->dev.parent,
-			"Status report code = 0x%02x\n",
-			tcm_hcd->status_report_code);
+	if (tcm_hcd->log_level > 1) {
+		LOGN(tcm_hcd->pdev->dev.parent,
+				"Status report code = 0x%02x\n",
+				tcm_hcd->status_report_code);
 
-	LOGN(tcm_hcd->pdev->dev.parent,
-			"Payload length = %d\n",
-			tcm_hcd->payload_length);
+		LOGN(tcm_hcd->pdev->dev.parent,
+				"Payload length = %d\n",
+				tcm_hcd->payload_length);
+	}
 
 	if (tcm_hcd->status_report_code <= STATUS_ERROR ||
 			tcm_hcd->status_report_code == STATUS_INVALID) {
 		switch (tcm_hcd->status_report_code) {
 		case STATUS_OK:
-			printk("omnivision_tcm STATUS_OK\n");
+			if (tcm_hcd->log_level > 1)
+				printk("omnivision_tcm STATUS_OK\n");
 			break;
 		case STATUS_CONTINUED_READ:
 			LOGD(tcm_hcd->pdev->dev.parent,

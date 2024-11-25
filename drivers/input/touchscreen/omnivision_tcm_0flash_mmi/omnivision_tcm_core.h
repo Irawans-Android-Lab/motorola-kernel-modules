@@ -60,6 +60,7 @@
 #include <linux/power_supply.h>
 #endif
 
+extern bool dbg_level_en;
 
 struct ovt_tcm_board_data {
 	bool x_flip;
@@ -546,6 +547,7 @@ struct ovt_tcm_hcd {
 	unsigned int func_charger_connected_en;
 	unsigned int func_roate_horizontal_level_en;
 	unsigned int func_face_detect_en;
+	unsigned int log_level;
 
 	struct platform_device *pdev;
 	struct regulator *pwr_reg;
