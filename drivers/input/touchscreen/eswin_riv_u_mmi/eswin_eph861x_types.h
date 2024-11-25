@@ -23,6 +23,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/gpio.h>
 #include <generated/autoconf.h>
+#include <linux/workqueue.h>
 
 #ifdef CONFIG_INPUT_TOUCHSCREEN_MMI
 #include <linux/touchscreen_u_mmi.h>
@@ -64,7 +65,6 @@
 #if (ESWIN_EPH861X_I2C)
 #include <linux/i2c.h>
 #endif
-
 
 /* Delay times */
 #define EPH_RESET_TIME       200  /* msec */
@@ -250,6 +250,8 @@ struct eph_data
 
     /* Indicates whether device is in suspend */
     bool suspended;
+    /* Indicate whether palm touched */
+    bool palm_on;
 
     bool gesture_wakeup_enable;
     u8 gesture_mode;
@@ -257,6 +259,7 @@ struct eph_data
     /* low power mode gesture */
     u8 lp;
     bool irq_wake;
+    bool irq_enabled;
     int power_on;
     int refresh_rate;
 
@@ -264,7 +267,7 @@ struct eph_data
     unsigned int last_brightness;
 
     struct work_struct force_baseline_work;
-
+    struct delayed_work heartbeat_work;
     /* Indicates whether device is updating its device settings */
     bool updating_device_settings;
      /* Indicates whether firmware is updating */

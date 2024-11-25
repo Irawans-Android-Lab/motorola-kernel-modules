@@ -20,6 +20,7 @@
 #include "eswin_ts_mmi.h"
 #include "eswin_eph861x_tlv_command.h"
 #include "eswin_eph861x_eswin.h"
+#include "eswin_eph861x_tlv_report.h"
 
 #define GET_ESWIN_DATA(dev) { \
     ephdata = (struct eph_data*)dev_get_drvdata(dev); \
@@ -74,17 +75,33 @@ static int eswin_ts_mmi_methods_get_build_id(struct device *dev, void *cdata)
 
 static int eswin_ts_mmi_methods_get_config_id(struct device *dev, void *cdata)
 {
+    int ret;
     struct eph_data *ephdata;
     struct eph_device_control_config_read_command command_request;
+    char buf[16] = {0};
 
     GET_ESWIN_DATA(dev);
     ts_info("eswin_ts_mmi_methods_get_config_id");
     command_request.header.type = 0xB;
     command_request.header.length = 0x6;
     command_request.command_id = 0xC;
+    command_request.offset = 0x0;
     command_request.read_length = 0x2;
-
-    return 0;
+    if(!ephdata->updating_firmware)
+    {
+        mutex_lock(&ephdata->comms_mutex);
+        ret = eph_read_control_config(ephdata, &command_request, buf);
+        mutex_unlock(&ephdata->comms_mutex);
+        if (ret) {
+            ts_err("failed get fw version data, %d", ret);
+            return -EINVAL;
+        }
+    }
+    else
+    {
+        ts_info("firmware updating, in case aboring, do not read config id");
+    }
+    return snprintf((char*)(cdata), TS_MMI_MAX_ID_LEN, "%04x", le32_to_cpu(buf[0]));
 }
 
 static int eswin_ts_mmi_methods_get_bus_type(struct device *dev, void *idata)
@@ -132,7 +149,7 @@ static int eswin_ts_mmi_methods_get_flashprog(struct device *dev, void *idata)
     struct eph_data *ephdata;
 
     GET_ESWIN_DATA(dev);
-    TO_INT(idata) = ephdata->updating_device_settings;
+    TO_INT(idata) = ephdata->updating_firmware;
     return 0;
 }
 
@@ -171,22 +188,64 @@ static int eswin_ts_mmi_methods_power(struct device *dev, int on)
 static int eswin_ts_mmi_charger_mode(struct device *dev, int mode)
 {
     int ret = 0;
-
+    uint8_t cmd[] = {0x08, 0x05, 0x00, 0x0C, 0x00, 0x02, 0x00, 0x01};
     struct eph_data *ephdata;
+
     GET_ESWIN_DATA(dev);
-    //TODO: what process eswin need to do in charger mode??
+
+    if(mode == 0)
+    {
+        /* disable charger mode. */
+        cmd[7] = 0x0;
+    }
+
+    mutex_lock(&ephdata->comms_mutex);
+    ret = eph_write_control_config(ephdata, 8 , cmd);
+    if (ret)
+    {
+        ts_err("failed to set charge mode\n");
+    }
+    msleep(10);
+    ts_err("Success to %s charge mode\n", mode ? "Enable" : "Disable");
+    mutex_unlock(&ephdata->comms_mutex);
+
     return ret;
 }
 
 static int eswin_ts_mmi_refresh_rate(struct device *dev, int freq)
 {
     struct eph_data *ephdata;
+    int ret = 0;
+    uint8_t cmd[] = {0x08, 0x05, 0x00, 0x0C, 0x00, 0x0a, 0x00, 0x00};
     GET_ESWIN_DATA(dev);
 
-    mutex_lock(&ephdata->comms_mutex);
     /* set report rate */
     ephdata->refresh_rate = freq;
-    //TODO: How ESWIN change Report rate??
+    switch(freq)
+    {
+        case 240:
+            cmd[7] = 0x1;
+            break;
+        case 300:
+            cmd[7] = 0x2;
+            break;
+        case 360:
+            cmd[7] = 0x3;
+            break;
+        case 480:
+            cmd[7] = 0x4;
+            break;
+        default:
+            break;
+    }
+
+    mutex_lock(&ephdata->comms_mutex);
+    ret = eph_write_control_config(ephdata, 8 , cmd);
+    if (ret)
+    {
+        ts_err("failed to set refresh rate\n");
+    }
+    ts_err("Success to set refresh rate %dHz\n", freq);
     mutex_unlock(&ephdata->comms_mutex);
 
     return 0;
@@ -272,7 +331,7 @@ static int eswin_ts_firmware_update(struct device *dev, char *fwname)
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
 
-    //ret = eph_update_fw(dev, fwname);
+    ret = eph_update_fw(dev, fwname);
     ret = 0;
     return ret;
 }
@@ -329,15 +388,43 @@ static int eswin_ts_mmi_panel_state(struct device *dev,
     enum ts_mmi_pm_mode from, enum ts_mmi_pm_mode to)
 {
     int ret = 0;
-#if defined(CONFIG_ESWIN_USES_DOUBLE_TAP_CTRL)
+#if defined(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)
     unsigned char gesture_type = 0;
+    u8 gesture_cmd = 0;
 #endif
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
 
     switch (to) {
         case TS_MMI_PM_GESTURE:
-#if defined(CONFIG_ESWIN_USES_DOUBLE_TAP_CTRL)
+#if defined(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)
+            if (ephdata->imports && ephdata->imports->get_gesture_type) {
+                ret = ephdata->imports->get_gesture_type(&ephdata->commsdevice->dev, &gesture_type);
+            }
+            /* gesture enable */
+            if (gesture_type & TS_MMI_GESTURE_ZERO) {
+                // NOTE: must to check
+                //gesture_cmd |= BIT(0);
+                ts_info("enable zero gesture mode cmd 0x%02x\n", gesture_cmd);
+            }
+            if (gesture_type & TS_MMI_GESTURE_SINGLE) {
+                gesture_cmd |= 1;
+                ts_info("enable single gesture mode cmd 0x%02x\n", gesture_cmd);
+            }
+            if (gesture_type & TS_MMI_GESTURE_DOUBLE) {
+                gesture_cmd |= (1 << 1);
+                ts_info("enable double gesture mode cmd 0x%02x\n", gesture_cmd);
+            }
+            ephdata->gesture_mode = gesture_cmd;
+            ret = eph_gesture_mode_enable(&ephdata->commsdevice->dev, (u8)gesture_type);
+            if (ret)
+            {
+                ts_err("failed to send cmd enter gesture mode!\n");
+            }
+            ts_info("Send enable gesture mode 0x%02x 0x%02x\n", gesture_cmd, gesture_type);
+            enable_irq_wake(ephdata->chg_irq);
+            ephdata->gesture_wakeup_enable = true;
+#if 0
             if (ephdata->imports && ephdata->imports->get_gesture_type) {
                 ret = ephdata->imports->get_gesture_type(&ephdata->commsdevice->dev, &gesture_type);
             }
@@ -360,15 +447,16 @@ static int eswin_ts_mmi_panel_state(struct device *dev,
             gesture_type |= BIT(0);
             ret = eph_gesture_mode_enable(&ephdata->commsdevice->dev, (u8)gesture_type);
 
-            enable_irq(ephdata->chg_irq);
             enable_irq_wake(ephdata->chg_irq);
             ephdata->gesture_wakeup_enable = 1;
             ts_info("Send enable gesture mode 0x%04x \n", gesture_type);
+#endif
 #endif
             break;
         case TS_MMI_PM_DEEPSLEEP:
             ret = eph_deepsleep_enable(&ephdata->commsdevice->dev, 1);
             ts_info("eph deepsleep %d\n", ret);
+            ephdata->gesture_wakeup_enable = false;
             break;
         case TS_MMI_PM_ACTIVE:
             break;
@@ -392,29 +480,27 @@ static int eswin_ts_mmi_pre_resume(struct device *dev)
 
 static int eswin_ts_mmi_post_resume(struct device *dev)
 {
-#if defined(CONFIG_ESWIN_USES_DOUBLE_TAP_CTRL)
     int ret;
     u8 gesture_type;
-#endif
 
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
 
-#if defined(CONFIG_ESWIN_USES_DOUBLE_TAP_CTRL)
+#if defined(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)
     if (ephdata->gesture_wakeup_enable) {
         gesture_type = ephdata->gesture_mode & 0xFE;
         /* disable gesture */
         ret = eph_gesture_mode_enable(&ephdata->commsdevice->dev, (u8)gesture_type);
         if (ret)
             ts_err("gesture disbale fail %d.\n", ret);
-        disable_irq_wake(ephdata->chg_irq);
+        //disable_irq_wake(ephdata->chg_irq);
         ephdata->gesture_wakeup_enable = 0;
     }
 #endif
     /* open esd */
     //goodix_ts_blocking_notify(NOTIFY_RESUME, NULL);
     /* TODO - grip, report rate change, pocket mode. */
-    ts_info("Resume end");
+    schedule_work(&ephdata->force_baseline_work);
 
     return 0;
 }
@@ -425,7 +511,7 @@ static int eswin_ts_mmi_pre_suspend(struct device *dev)
     GET_ESWIN_DATA(dev);
 
     ts_info("Suspend start");
-     cancel_work_sync(&ephdata->force_baseline_work);
+    cancel_work_sync(&ephdata->force_baseline_work);
 #if 0
     atomic_set(&core_data->suspended, 1);
 
@@ -444,7 +530,7 @@ static int eswin_ts_mmi_post_suspend(struct device *dev)
     GET_ESWIN_DATA(dev);
 
     ephdata->suspended = true;
-     //eph_clear_all_host_touch_slots(ephdata);
+    eph_clear_all_host_touch_slots(ephdata);
     ts_info("Suspend end");
 
     return 0;
@@ -457,8 +543,11 @@ static int eswin_ts_mmi_update_fod_mode(struct device *dev, int mode)
 
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
-
+#if 0
+    mutex_lock(&ephdata->comms_mutex);
     ret = eph_fod_mode_enable(&ephdata->commsdevice->dev, ((mode >0) ? 0x01 : 0x00));
+    mutex_unlock(&ephdata->comms_mutex);
+#endif
     ts_info("update_fod_mode %d\n", mode);
 
     return ret;

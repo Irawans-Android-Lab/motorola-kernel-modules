@@ -38,6 +38,21 @@
 #define EPH_MT_PRESSURE_CONTACTING     1
 #define EPH_MT_PRESSURE_HOVER          0
 
+#define KEY_GESTURE_U                           KEY_U
+#define KEY_GESTURE_UP                          KEY_UP
+#define KEY_GESTURE_DOWN                        KEY_DOWN
+#define KEY_GESTURE_LEFT                        KEY_LEFT
+#define KEY_GESTURE_RIGHT                       KEY_RIGHT
+#define KEY_GESTURE_O                           KEY_O
+#define KEY_GESTURE_E                           KEY_E
+#define KEY_GESTURE_M                           KEY_M
+#define KEY_GESTURE_L                           KEY_L
+#define KEY_GESTURE_W                           KEY_W
+#define KEY_GESTURE_S                           KEY_S
+#define KEY_GESTURE_V                           KEY_V
+#define KEY_GESTURE_C                           KEY_C
+#define KEY_GESTURE_Z                           KEY_Z
+#define KEY_GESTURE_F1                         KEY_F1
 
 u8 sysfs_report_buf[PAGE_SIZE]={0};
 u8 sysfs_packetised_eng_buf[PAGE_SIZE]={0};
@@ -71,9 +86,9 @@ const char *get_touch_type_str(u8 touch_type)
 
 static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
 {
-    struct device *dev = &ephdata->commsdevice->dev;
     struct input_dev *input_dev = ephdata->inputdev;
-
+#if 0
+    struct device *dev = &ephdata->commsdevice->dev;
     u8 gesture_type = message[1];
 
     switch (gesture_type) {
@@ -116,6 +131,127 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
         dev_err(dev, "unexpected gesture type %x\n", gesture_type);
         break;
     }
+
+#else
+    u8 gesture_id = message[1];
+    int gesture;
+    int ret = 0;
+    u16 position_x;
+    u16 position_y;
+    position_x = message[2] | ((u16)message[3] << 8);
+    position_y = message[4] | ((u16)message[5] << 8);
+
+    ts_info("gesture_id:0x%x", gesture_id);
+    switch (gesture_id) {
+    case GESTURE_SWIPE_LEFT:
+        gesture = KEY_GESTURE_LEFT;
+        break;
+    case GESTURE_SWIPE_RIGHT:
+        gesture = KEY_GESTURE_RIGHT;
+        break;
+    case GESTURE_SWIPE_UP:
+        gesture = KEY_GESTURE_UP;
+        break;
+    case GESTURE_SWIPE_DOWN:
+        gesture = KEY_GESTURE_DOWN;
+        break;
+    case GESTURE_DOUBLE_TAP:
+        gesture = KEY_GESTURE_U;
+        break;
+    case GESTURE_TAP:
+        gesture = KEY_GESTURE_F1;
+        break;
+#if 0
+    case GESTURE_O:
+        gesture = KEY_GESTURE_O;
+        break;
+    case GESTURE_W:
+        gesture = KEY_GESTURE_W;
+        break;
+    case GESTURE_M:
+        gesture = KEY_GESTURE_M;
+        break;
+    case GESTURE_E:
+        gesture = KEY_GESTURE_E;
+        break;
+    case GESTURE_L:
+        gesture = KEY_GESTURE_L;
+        break;
+    case GESTURE_S:
+        gesture = KEY_GESTURE_S;
+        break;
+    case GESTURE_V:
+        gesture = KEY_GESTURE_V;
+        break;
+    case GESTURE_Z:
+        gesture = KEY_GESTURE_Z;
+        break;
+    case  GESTURE_C:
+        gesture = KEY_GESTURE_C;
+        break;
+#endif
+    default:
+        gesture = -1;
+        break;
+    }
+    /* report event key */
+    if (gesture != -1)
+    {
+        ts_info("Gesture Code=%d", gesture);
+
+#ifdef CONFIG_BOARD_USES_DOUBLE_TAP_CTRL
+        /* report double tap */
+        if (gesture == KEY_GESTURE_U)
+        {
+            if (ephdata->imports && ephdata->imports->report_gesture)
+            {
+                struct gesture_event_data event;
+                ts_info("invoke imported report double tap gesture function\n");
+                event.evcode = 4;
+                event.evdata.x = position_x;
+                event.evdata.y = position_y;
+                /* call class method */
+                ret = ephdata->imports->report_gesture(&event);
+            }
+	/* report single tap */
+        }
+        else if (gesture == KEY_GESTURE_F1)
+        {
+            if (ephdata->imports && ephdata->imports->report_gesture)
+            {
+                struct gesture_event_data event;
+                ts_info("invoke imported report single tap gesture function\n");
+                event.evcode = 1;
+                event.evdata.x = position_x;
+                event.evdata.y = position_y;
+                /* call class method */
+                ret = ephdata->imports->report_gesture(&event);
+            }
+        }
+#else
+        /* report single tap */
+        if (gesture == KEY_GESTURE_U)
+        {
+            if (ephdata->imports && ephdata->imports->report_gesture)
+            {
+                struct gesture_event_data event;
+                ts_info("invoke imported report gesture function\n");
+                event.evcode = 1;
+                /* call class method */
+                ret = ephdata->imports->report_gesture(&event);
+            }
+        }
+#endif
+        if (!ret)
+        {
+            ts_err("import-report_gesture failed");
+        }
+        input_report_key(input_dev, gesture, 1);
+        input_sync(input_dev);
+        input_report_key(input_dev, gesture, 0);
+        input_sync(input_dev);
+    }
+#endif
 }
 
 void eph_recv_event_report_contianer(struct eph_data *ephdata, u8 *message)
@@ -128,13 +264,22 @@ void eph_recv_event_report_contianer(struct eph_data *ephdata, u8 *message)
     u8 event_length;
 
     tlvheader = eph_get_tl_header_info(ephdata, message);
+#ifdef CONFIG_ENABLE_ESWIN_PALM_CANCEL
+    ephdata->palm_on = false;
+#endif
     while (message_offset < tlvheader.length)
     {
 
         /* Get the event report type and length */
         event_type = (message[message_offset] & EVENT_REPORT_TYPE_MASK) >> EVENT_REPORT_TYPE_OFFSET;
         event_length = (message[message_offset] & EVENT_REPORT_LENGTH_MASK);
-
+#ifdef CONFIG_ENABLE_ESWIN_PALM_CANCEL
+        if (PALM_TYPE == event_type)
+        {
+            ephdata->palm_on = true;
+            dev_info(dev, "Touch palm on %d", event_type);
+        }
+#endif
         dev_info(dev,
              "report - offset: %u event_type: %u event_length: %u ",
              message_offset, event_type, event_length);
@@ -249,67 +394,71 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
     width = message[6];
     height = message[7];
 
-        switch (touch_type)
+    switch (touch_type)
+    {
+
+        case CONTACT_TYPE:
         {
+            touch_tool_type = MT_TOOL_FINGER;
+            touch_pressure = EPH_MT_PRESSURE_CONTACTING;
+            is_active = true;
 
-            case CONTACT_TYPE:
-            {
-                touch_tool_type = MT_TOOL_FINGER;
-                touch_pressure = EPH_MT_PRESSURE_CONTACTING;
-                is_active = true;
-
-                touch_major_axis = height;
-                touch_minor_axis = width;
-                break;
-            }
-
-            case RELEASE_TYPE:
-            {
-                touch_tool_type = MT_TOOL_FINGER;
-                touch_pressure = EPH_MT_PRESSURE_HOVER;
-                is_active = false;
-
-                touch_major_axis = height;
-                touch_minor_axis = width;
-                break;
-            }
-
-           case HOVER_TYPE:
-           {
-                touch_tool_type = MT_TOOL_FINGER;
-                touch_pressure = EPH_MT_PRESSURE_HOVER;
-                is_active = true;
-                break;
-            }
-
-            case STYLUS_POSITION_TYPE:
-            {
-                is_active = true;
-                touch_tool_type = MT_TOOL_PEN;
-                touch_pressure = EPH_MT_PRESSURE_CONTACTING;
-
-                touch_major_axis = height;
-                touch_minor_axis = width;
-
-                break;
-            }
-            case STYLUS_RELEASE_TYPE:
-            {
-                touch_tool_type = MT_TOOL_PEN;
-                touch_pressure = EPH_MT_PRESSURE_HOVER;
-                is_active = false;
-
-                touch_major_axis = height;
-                touch_minor_axis = width;
-                break;
-            }
-
-            default:
-            {
-                dev_err(dev, "Unexpected touch_type %d\n", touch_type);
-                return;
-            }
+            touch_major_axis = height;
+            touch_minor_axis = width;
+            break;
         }
+
+        case RELEASE_TYPE:
+        {
+            touch_tool_type = MT_TOOL_FINGER;
+            touch_pressure = EPH_MT_PRESSURE_HOVER;
+            is_active = false;
+
+            touch_major_axis = height;
+            touch_minor_axis = width;
+            break;
+        }
+
+        case HOVER_TYPE:
+        {
+            touch_tool_type = MT_TOOL_FINGER;
+            touch_pressure = EPH_MT_PRESSURE_HOVER;
+            is_active = true;
+            break;
+        }
+
+        case STYLUS_POSITION_TYPE:
+        {
+            is_active = true;
+            touch_tool_type = MT_TOOL_PEN;
+            touch_pressure = EPH_MT_PRESSURE_CONTACTING;
+
+            touch_major_axis = height;
+            touch_minor_axis = width;
+
+            break;
+        }
+        case STYLUS_RELEASE_TYPE:
+        {
+            touch_tool_type = MT_TOOL_PEN;
+            touch_pressure = EPH_MT_PRESSURE_HOVER;
+            is_active = false;
+
+            touch_major_axis = height;
+            touch_minor_axis = width;
+            break;
+        }
+
+        default:
+        {
+            dev_err(dev, "Unexpected touch_type %d\n", touch_type);
+            return;
+        }
+    }
+
+#ifdef CONFIG_ENABLE_ESWIN_PALM_CANCEL
+    touch_tool_type = ephdata->palm_on ? MT_TOOL_PALM : touch_tool_type;
+#endif
 
     input_mt_slot(ephdata->inputdev, touch_id_slot);
 

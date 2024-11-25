@@ -33,6 +33,9 @@
 #include "eswin_eph861x_project_config.h"
 #include "eswin_eph861x_comms.h"
 
+#define READ_REPORT_RETRY_NUMBER            3
+#define READ_REPORT_DELAY                   150 /* unit: us */
+
 struct dma_pool *pool_rx;
 struct dma_pool *pool_tx;
 
@@ -77,13 +80,24 @@ int eph_comms_two_stage_read(struct eph_data *ephdata, u8 *buf)
     return ret_val;
 }
 
-
-
 int eph_read_report(struct eph_data *ephdata, u8 *buf)
 {
     int ret_val = 0;
+    int i;
 
-    ret_val = eph_comms_two_stage_read(ephdata, buf);
+    for (i = 0; i < READ_REPORT_RETRY_NUMBER; i++) {
+        ret_val = eph_comms_two_stage_read(ephdata, buf);
+        if (!ret_val) {
+            break;
+        }
+        else {
+            ts_err("read report failed,retry:%d,ret_val:%d", i, ret_val);
+            udelay(READ_REPORT_DELAY);
+        }
+    }
+    if(ret_val) {
+        ts_err("read report finally failed!, ret_val:%d", ret_val);
+    }
 
     return ret_val;
 }

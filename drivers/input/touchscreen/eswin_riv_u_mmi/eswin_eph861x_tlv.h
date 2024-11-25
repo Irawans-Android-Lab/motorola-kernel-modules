@@ -96,6 +96,7 @@
 #define STYLUS_PERIODIC_DATA_TYPE    (7u)
 #define STYLUS_CAPABILITY_DATA_TYPE  (8u)
 #define STYLUS_RELEASE_TYPE          (9u)
+#define PALM_TYPE                    (10u)
 
 #define EVENT_REPORT_TYPE_OFFSET     (4u)
 #define EVENT_REPORT_TYPE_MASK       (0xF0)

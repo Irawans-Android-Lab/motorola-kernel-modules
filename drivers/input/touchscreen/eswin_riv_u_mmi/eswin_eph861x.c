@@ -60,6 +60,7 @@
 /* Touchscreen absolute values */
 #define EPH_MAX_HEIGHT_WIDTH      255u
 
+//#define EPH_ESD_RECOVERY
 
 static int eph_sysfs_mem_access_init(struct eph_data *ephdata);
 static void eph_sysfs_mem_access_remove(struct eph_data *ephdata);
@@ -192,6 +193,7 @@ static void eph_trigger_baseline_work(struct work_struct *work)
 {
     int ret_val = 0;
     struct eph_data *ephdata = container_of(work, struct eph_data, force_baseline_work);
+#if 0
     struct backlight_device *bd = ephdata->bl;
     int brightness = 0;
 
@@ -223,6 +225,11 @@ static void eph_trigger_baseline_work(struct work_struct *work)
     } else {
         dev_info(&ephdata->commsdevice->dev, "no need force baseline\n");
     }
+#else
+    ret_val = eph_trigger_baseline(ephdata);
+    if (ret_val)
+        dev_err(&ephdata->commsdevice->dev, "eph set baseline fail %d\n", ret_val);
+#endif
 }
 
 static int eph_finger_print_enable(struct eph_data *ephdata, bool enable)
@@ -563,7 +570,9 @@ static int eph_input_device_initialize(struct eph_data *ephdata)
     input_set_abs_params(ephdata->inputdev, ABS_MT_TOUCH_MAJOR, 0, (EPH_MAX_HEIGHT_WIDTH*max_resoultion), 0, 0);
     input_set_abs_params(ephdata->inputdev, ABS_MT_TOUCH_MINOR, 0, (EPH_MAX_HEIGHT_WIDTH*max_resoultion), 0, 0);
     input_set_abs_params(ephdata->inputdev, ABS_MT_PRESSURE, 0, 255, 0, 0);
-
+#ifdef CONFIG_ENABLE_ESWIN_PALM_CANCEL
+    input_set_abs_params(ephdata->inputdev, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER, MT_TOOL_PALM, 0, 0);
+#endif
     input_set_drvdata(ephdata->inputdev, ephdata);
 
     dev_dbg(dev, "input_register_device\n");
@@ -692,7 +701,7 @@ void eph_request_fw_cb(const struct firmware *ic_firmware, void *ctx)
         dev_info(dev, "firmware upgraded failed%d\n", ret_val);
     }
 
-    (void)eph_input_device_initialize(ephdata);
+    // (void)eph_input_device_initialize(ephdata);
 
 err:
     release_firmware(ic_firmware);
@@ -886,7 +895,7 @@ static int eph_enter_bootloader(struct eph_data *ephdata)
         ephdata->in_bootloader = true;
         /* Need in_bootloader to be true otherwise the regulators get disabled */
         eph_sysfs_mem_access_remove(ephdata);
-        eph_unregister_input_device(ephdata);
+        //eph_unregister_input_device(ephdata);
     }
 
     dev_info(&ephdata->commsdevice->dev, "Entered bootloader\n");
@@ -986,11 +995,11 @@ int eph_gesture_mode_enable(struct device *dev, u8 gesture_mode)
     int ret_val;
 
     struct eph_data *ephdata = (struct eph_data*)dev_get_drvdata(dev);
-    u8 type = TLV_CONFIG_DATA_WRITE;
+    u8 type = TLV_CONTROL_DATA_WRITE;
     u8 prepayload_len = 4;
     u8 comp_id_low = (u8)450;
     u8 comp_id_high = (u8)(450 > 8);
-    u8 offset = 24;
+    u8 offset = 0;
     u8 data_len = 1;
     volatile u8 data[] = { gesture_mode & 0xf };
     volatile u8 tlv[] = {type, data_len + prepayload_len, 0x00, comp_id_low, comp_id_high, offset, 0x00, data[0]};
@@ -1828,6 +1837,84 @@ static int eph_pinctrl_configure(struct eph_data *ephdata, bool enable)
 
     return 0;
 }
+#if defined EPH_ESD_RECOVERY
+static int send_heartbeat(struct eph_data *ephdata)
+{
+    int ret;
+    mutex_lock(&ephdata->comms_mutex);
+    ret = eph_read_device_information(ephdata);
+    mutex_unlock(&ephdata->comms_mutex);
+    return ret;
+}
+static void heartbeat_work_handler(struct work_struct *work)
+{
+    int ret = 0;
+    struct eph_data *ephdata = container_of(work, struct eph_data, heartbeat_work.work);
+    if(NULL == ephdata)
+    {
+        ts_err("heartbeat_work_handler faield...get no valid ephdata!!!\n");
+        return;
+    }
+
+    ts_info("ic heartbeat work...\n");
+
+    if (ephdata->suspended)
+    {
+        if (ephdata->power_on)
+        {
+            if (ephdata->in_bootloader)
+            {
+                ts_info("system suspend, ic in boot mode!\n");
+                goto ic_reset;
+            }
+            else
+            {
+                // ic in gesture mode or deep mode or idle
+                ret = send_heartbeat(ephdata);
+                if (ret) {
+                    ts_err("suspend, heartbeat fail %d\n", ret);
+                    goto ic_recovery;
+                }
+            }
+        }
+        else
+        {
+            ts_info("system power off do not check heartbeat!\n");
+        }
+
+    }
+    else
+    {
+        if (ephdata->in_bootloader)
+        {
+            /* may loading firmware or setting */
+            ts_info("system active, ic in boot mode!\n");
+        }
+        else
+        {
+            // ic in active or idle mode
+            ret = send_heartbeat(ephdata);
+            if (ret)
+            {
+                ts_err("suspend, heartbeat fail %d\n", ret);
+                goto ic_recovery;
+            }
+        }
+    }
+
+    schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(5000));
+    return;
+ic_recovery:
+    eph_recovery_device(ephdata);
+    schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(3000));
+    return;
+ic_reset:
+    eph_reset_device(ephdata);
+    schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(3000));
+    return;
+}
+
+#endif
 
 #if (ESWIN_EPH861X_SPI)
 static int eph_probe(struct comms_device *commsdevice)
@@ -1860,7 +1947,7 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
     if (commsdevice->dev.of_node && !mmi_device_is_available(commsdevice->dev.of_node))
     {
         dev_err(&commsdevice->dev, "mmi: device not supported\n");
-        return -ENODEV;
+        //return -ENODEV;
     }
 
     ephplatform = eph_platform_data_get(commsdevice);
@@ -2004,7 +2091,10 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
 
     ephdata->lp = false;
     ephdata->irq_wake = false;
-
+#if defined EPH_ESD_RECOVERY
+    INIT_DELAYED_WORK(&ephdata->heartbeat_work, heartbeat_work_handler);
+    schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(5000));
+#endif
 #ifdef CONFIG_INPUT_TOUCHSCREEN_MMI
     dev_info(&commsdevice->dev, "%s: eswin_ts_mmi_dev_register\n", __func__);
     ret_val = eswin_ts_mmi_dev_register(commsdevice);
@@ -2045,7 +2135,9 @@ static void eph_remove(struct comms_device *commsdevice)
 {
     struct eph_data *ephdata = eph_comms_driver_data_get(commsdevice);
     dev_info(&commsdevice->dev, "%s >\n", __func__);
-
+#if defined EPH_ESD_RECOVERY
+    cancel_delayed_work_sync(&ephdata->heartbeat_work);
+#endif
     sysfs_remove_group(&commsdevice->dev.kobj, &eph_fw_attr_group);
     eph_sysfs_mem_access_remove(ephdata);
 

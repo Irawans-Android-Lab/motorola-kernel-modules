@@ -496,6 +496,16 @@ int eph_power_off(struct eph_data *ephdata)
     return ret;
 }
 
+void eph_recovery_device(struct eph_data *ephdata)
+{
+    dev_dbg(&ephdata->commsdevice->dev, "%s gpio is %ld >\n", __func__, ephdata->ephplatform->gpio_reset);
+    eph_power_off(ephdata);
+    usleep_range(6000, 6100);
+    eph_power_on(ephdata);
+
+    return;
+}
+
 int eph_set_report_rate(struct eph_data *ephdata)
 {
     int ret = 0;
