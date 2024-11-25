@@ -273,6 +273,7 @@ static int get_blkdev(struct bk_log *bk)
 
 static void erase_block(struct block_device *blkdev, size_t size, size_t pos)
 {
+	int i;
 	char *buffer;
 	unsigned long start_time = jiffies;
 
@@ -281,6 +282,24 @@ static void erase_block(struct block_device *blkdev, size_t size, size_t pos)
 		pr_err("Failed to alloc %zu memory", size);
 		return;
 	}
+
+	if (!pos)
+		goto erase;
+
+	kernel_read_stub(blkdev, buffer, PAGE_SIZE, pos);
+	for (i = 0; i < PAGE_SIZE; i++) {
+		if (buffer[i] != 0)
+			break;
+	}
+
+	if (i == PAGE_SIZE) {
+		pr_debug("The first page is all 0, takes %u ms \n", jiffies_to_msecs(jiffies - start_time));
+		return;
+	}
+
+	memset(buffer, 0, PAGE_SIZE);
+
+erase:
 	kernel_write_stub(blkdev, buffer, size, pos);
 	vfree(buffer);
 
@@ -302,7 +321,7 @@ static bool update_bio_pos(struct block_device *blkdev, size_t block_size, size_
 	kernel_read_stub(blkdev, buffer, PAGE_SIZE, 0);
 
 	sscanf(buffer, "%d\n", &count);
-	if (count <= 0 || count > cycle) {
+	if (count < 0 || count > cycle) {
 		count = cycle;
 		erase_all = true;
 	}
@@ -342,7 +361,7 @@ static int store_work_thread(void *data)
 			goto out;
 		}
 
-		msleep(100);
+		mdelay(10);
 	}
 
 	update_bio_pos(bk->blkdev, bk->block_size, bk->partition_size, bk->log_cycle, &bk->bio_pos);
