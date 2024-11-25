@@ -1051,3 +1051,50 @@ program_fail:
         release_firmware(fw);
     return -1;
 }
+
+//This func only for debug or test.
+int mtp_erase(struct sc9624 *sc)
+{
+	int ret = 0;
+
+	sc_info("erase chip start\n");
+
+	//op init
+	ret = dig_tm_entry(sc, true);
+	ret |= wait_warmup_done(sc);
+	if (ret) {
+		sc_err("wait_warmup_done error %d\n", ret);
+		goto erase_fail;
+	}
+
+	ret = ate_mode_ctrl(sc, true);
+	ret |= mcu_ctrl(sc, false);
+	ret |= hirc_ctrl(sc, true);
+	ret |= write_amba(sc, 0x4000D008,0x7FFFFFFF);//open clk
+	ret |= iic_mtp_ctrl(sc, true);
+	if (ret) {
+		sc_err("op init fail\n");
+		goto erase_fail;
+	}
+
+	if (!mtp_erase_chip(sc)) {
+		goto erase_fail;
+	}
+
+	if (!mtp_erase_check(sc)) {
+		goto erase_fail;
+	}
+
+	ret = iic_mtp_ctrl(sc, false);
+	ret |= ate_mode_ctrl(sc, false);
+	ret |= iic_send_por(sc);
+	ret |= dig_tm_entry(sc, false);
+	if (ret) {
+		sc_err("op deinit fail\n");
+		goto erase_fail;
+	}
+
+	return 0;
+erase_fail:
+	return -1;
+}

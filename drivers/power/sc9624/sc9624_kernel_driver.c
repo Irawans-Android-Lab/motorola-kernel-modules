@@ -1161,12 +1161,30 @@ static ssize_t wireless_fw_update_store(struct device *dev,
 }
 static DEVICE_ATTR(wireless_fw_update, 0220, NULL, wireless_fw_update_store);
 
+static ssize_t wireless_fw_erase_store(struct device *dev,
+			struct device_attribute *attr, const char *buf, size_t count)
+{
+	bool val;
+	struct sc9624 *sc = dev_get_drvdata(dev);
+
+	if (kstrtobool(buf, &val))
+		return -EINVAL;
+
+	if (val)
+		mtp_erase(sc);
+
+	return count;
+}
+static DEVICE_ATTR(wireless_fw_erase, 0220, NULL, wireless_fw_erase_store);
+
+
 static void sc9624_create_device_node(struct device *dev)
 {
     device_create_file(dev, &dev_attr_registers);
     device_create_file(dev, &dev_attr_reg_addr);
     device_create_file(dev, &dev_attr_reg_data);
     device_create_file(dev, &dev_attr_wireless_fw_update);
+    device_create_file(dev, &dev_attr_wireless_fw_erase);
 }
 
 static const struct wireless_properties sc9624_wls_props = {
