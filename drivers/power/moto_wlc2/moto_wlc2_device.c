@@ -488,6 +488,7 @@ static ssize_t wireless_fw_update_store(struct device *dev,
 {
 	int update = 0;
 	int sys_mode = 0;
+	int chip_id = 0x00;
 	struct moto_wlc *pWlc = dev->driver_data;
 
 	if (IS_ERR_OR_NULL(pWlc) || IS_ERR_OR_NULL(pWlc->wls_dev)) {
@@ -502,7 +503,8 @@ static ssize_t wireless_fw_update_store(struct device *dev,
 	}
 
 	wls_rx_get_sys_mode(pWlc->wls_dev, &sys_mode);
-	if (sys_mode == SYS_MODE_RX) {
+	wls_rx_get_chip_id(pWlc->wls_dev, &chip_id);
+	if (sys_mode == SYS_MODE_RX && chip_id == pWlc->config.chip_id) {
 		wlc_info("wireless_fw_update wls online,forbid fw update\n");
 	} else if (!pWlc->ctl.fw_uploading) {
 		pWlc->ctl.fw_update_force = (update == FORCE_FW_UPDATE ? true : false);
