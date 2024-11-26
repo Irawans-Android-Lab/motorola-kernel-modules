@@ -151,13 +151,13 @@ static void update(struct adap_chg_data *data)
 	if (upper_limit != -1) {
 		/* If no lower limit is defined, we are in Auto Mode */
 		if (lower_limit == -1) {
-			if (data->batt_capacity > (upper_limit + 1)) {
+			if (data->batt_capacity > upper_limit) {
 				suspend_charging(true);
 				stop_charging(true);
-			} else if (data->batt_capacity == (upper_limit + 1)) {
+			} else if (data->batt_capacity == upper_limit) {
 				suspend_charging(false);
 				stop_charging(true);
-			} else if (data->batt_capacity < upper_limit) {
+			} else if (data->batt_capacity < (upper_limit - 1)) {
 				suspend_charging(false);
 				stop_charging(false);
 			}
