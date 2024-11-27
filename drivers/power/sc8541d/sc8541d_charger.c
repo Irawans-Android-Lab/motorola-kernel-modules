@@ -887,6 +887,13 @@ static int mtk_sc8541d_config_mux(struct charger_device *chg_dev,
 	}
 
 	if (typec_mos == MMI_DVCHG_MUX_CLOSE) {
+		if (wls_mos == MMI_DVCHG_MUX_MANUAL_OPEN) {
+			ret = sc8541d_field_write(sc, ACDRV_MANUAL_EN, 1);
+			if (ret) {
+				dev_err(sc->dev, "%s:mmi_mux set MANUAL_EN fail ret=%d", __func__, ret);
+				return ret;
+			}
+		}
 		ret = sc8541d_field_write(sc, ACDRV_EN, 0);
 		if (ret) {
 			dev_err(sc->dev, "%s mmi_mux close typec mos fail ret=%d", __func__, ret);
@@ -938,6 +945,9 @@ static int mtk_sc8541d_config_mux(struct charger_device *chg_dev,
 	ret = regmap_read(sc->regmap, SC8541D_CTRL5_REG, &val);
 	dev_info(sc->dev, "%s:mmi_mux Reg[%02X] = 0x%02X, ret=%d\n",
 			__func__, SC8541D_CTRL5_REG, val, ret);
+
+	dev_info(sc->dev, "%s:ACDRV_MANUAL_EN:%d ACDRV_EN:%d OTG_EN:%d\n",
+			__func__, (val & 0x40) > 0, (val & 0x20) > 0, (val & 0x10) > 0);
 
 	return 0;
 }
