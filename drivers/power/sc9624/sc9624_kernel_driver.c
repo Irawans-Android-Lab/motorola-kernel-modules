@@ -226,7 +226,7 @@ int sc9624_get_frequecy(struct sc9624 *sc, uint16_t *freq)
     return ret;
 }
 
-int sc9624_get_vrect(struct sc9624 *sc, uint16_t *vrect)
+int sc9624_get_vrect(struct sc9624 *sc, uint32_t *vrect)
 {
     int ret;
     uint16_t offset = 0;
@@ -248,7 +248,7 @@ int sc9624_get_vrect(struct sc9624 *sc, uint16_t *vrect)
     return ret;
 }
 
-int sc9624_get_voltage(struct sc9624 *sc, uint16_t *volt)
+int sc9624_get_voltage(struct sc9624 *sc, uint32_t *volt)
 {
     int ret;
     uint16_t offset = 0;
@@ -292,7 +292,7 @@ int sc9624_get_voltage_setting(struct sc9624 *sc, uint32_t *volt)
     return ret;
 }
 
-int sc9624_get_current(struct sc9624 *sc, uint16_t *curr)
+int sc9624_get_current(struct sc9624 *sc, uint32_t *curr)
 {
     int ret;
     uint16_t offset = 0;
@@ -314,7 +314,7 @@ int sc9624_get_current(struct sc9624 *sc, uint16_t *curr)
     return ret;
 }
 
-int sc9624_get_tdie(struct sc9624 *sc, uint16_t *tdie)
+int sc9624_get_tdie(struct sc9624 *sc, uint32_t *tdie)
 {
     int ret;
     uint16_t offset = 0;
@@ -370,7 +370,7 @@ static int sc9624_rx_set_cmd(struct sc9624 *sc, RX_CMD cmd)
     return ret;
 }
 
-static int sc9624_rx_set_Vout(struct sc9624 *sc, uint16_t vout)
+static int sc9624_rx_set_Vout(struct sc9624 *sc, uint32_t vout)
 {
     int ret;
     uint16_t offset = 0;
@@ -458,7 +458,7 @@ int sc9624_rx_set_vout_ocp(struct sc9624 *sc, uint16_t iocp)
     return ret;
 }
 
-int sc9624_rx_set_otp(struct sc9624 *sc, uint16_t otp)
+int sc9624_rx_set_otp(struct sc9624 *sc, uint32_t otp)
 {
     int ret;
     uint16_t offset = 0;
@@ -1280,7 +1280,7 @@ int sc9624_get_rx_irect(struct wireless_device *wls_dev, int *cur)
 {
 	int rt = 0;
 	struct sc9624 *sc = NULL;
-	uint16_t curr = 0;
+	uint32_t curr = 0;
 
 	sc = dev_get_drvdata(&wls_dev->dev);
 	rt = sc9624_get_current(sc, &curr);
@@ -1293,7 +1293,7 @@ int sc9624_get_rx_irect(struct wireless_device *wls_dev, int *cur)
 int sc9624_get_rx_vrect(struct wireless_device *wls_dev, int *voltage)
 {
 	int rt = 0;
-	uint16_t vrect = 0;
+	uint32_t vrect = 0;
 	struct sc9624 *sc = NULL;
 
 	sc = dev_get_drvdata(&wls_dev->dev);
@@ -1307,7 +1307,7 @@ int sc9624_get_rx_vrect(struct wireless_device *wls_dev, int *voltage)
 int sc9624_get_rx_vout(struct wireless_device *wls_dev, int *voltage)
 {
 	int rt = 0;
-	uint16_t vout = 0;
+	uint32_t vout = 0;
 	struct sc9624 *sc = NULL;
 
 	sc = dev_get_drvdata(&wls_dev->dev);
@@ -1334,7 +1334,7 @@ int sc9624_get_rx_vout_setting(struct wireless_device *wls_dev, int *voltage)
 
 bool sc9624_check_ldo_on(struct wireless_device *wls_dev)
 {
-	uint16_t voltage = 0;
+	uint32_t voltage = 0;
 	int rt = 0;
 	struct sc9624 *sc = NULL;
 	SYSMODE sysmode = {0x00};
@@ -1479,7 +1479,7 @@ static int sc9624_charger_get_property(struct power_supply *psy,
 {
     struct sc9624 *sc = power_supply_get_drvdata(psy);
     int ret;
-    uint16_t regval;
+    uint32_t regval;
 
     switch (psp) {
     case POWER_SUPPLY_PROP_ONLINE:
