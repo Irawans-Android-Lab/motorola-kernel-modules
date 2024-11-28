@@ -541,6 +541,7 @@ static const struct file_operations device_fops = {
 #endif
 */
 	.compat_ioctl = device_ioctl,
+	.unlocked_ioctl = device_ioctl,
 	.llseek = device_llseek,
 	.read = device_read,
 	.write = device_write,

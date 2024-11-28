@@ -4667,6 +4667,8 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 	return 0;
 }
 #ifdef CONFIG_OVT_CHARGER_DETECT
+unsigned short ovt_charger_flag = 0;
+
 #if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
 static int32_t ovt_charger_notifier_callback(struct notifier_block *nb, unsigned long val, void *v)
 {
@@ -4686,12 +4688,28 @@ static int32_t ovt_charger_notifier_callback(struct notifier_block *nb, unsigned
 				LOGE(g_tcm_hcd->pdev->dev.parent,"Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", ret);
 				return ret;
 			} else {
-				if (g_tcm_hcd->charger_plugin != prop.intval) {
-					LOGN(g_tcm_hcd->pdev->dev.parent,"g_tcm_hcd->charger_plugin=%d, prop.intval=%d\n",
-							g_tcm_hcd->charger_plugin, prop.intval);
-					ovt_tcm_set_func_charger_connected_en_state(prop.intval);
-					g_tcm_hcd->charger_plugin = prop.intval;
+				//if (g_tcm_hcd->charger_plugin != prop.intval) {
+				LOGN(g_tcm_hcd->pdev->dev.parent,"g_tcm_hcd->charger_plugin=%d, prop.intval=%d\n",
+						g_tcm_hcd->charger_plugin, prop.intval);
+				if (2 == prop.intval) {
+					if (1 == ovt_charger_flag)
+						return 0;
+					LOGN(g_tcm_hcd->pdev->dev.parent,"charger usb in!\n");
+					ovt_tcm_set_func_charger_connected_en_state(1);
+					ovt_charger_flag = 1; //in
+					LOGN(g_tcm_hcd->pdev->dev.parent,"touch enter charger mode!\n");
 				}
+				if (0 == prop.intval) {
+					if (0 == ovt_charger_flag)
+						return 0;
+					LOGN(g_tcm_hcd->pdev->dev.parent,"charger usb out!\n");
+					ovt_tcm_set_func_charger_connected_en_state(0);
+					ovt_charger_flag = 0; //out
+					LOGN(g_tcm_hcd->pdev->dev.parent,"touch exit charger mode!\n");
+				}
+					//ovt_tcm_set_func_charger_connected_en_state(prop.intval);
+					//g_tcm_hcd->charger_plugin = prop.intval;
+				//}
 			}
 		}
 	}
