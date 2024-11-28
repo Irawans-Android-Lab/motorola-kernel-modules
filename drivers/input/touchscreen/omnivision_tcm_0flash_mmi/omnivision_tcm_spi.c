@@ -163,6 +163,16 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		OVT_INFO("irq-gpio get fail, set as -1\n");
 	}
 
+#ifdef OVT_DOUBLE_TAP_CTRL
+	retval = of_property_read_u32(np, "omnivision,supported_gesture_type", &value);
+	if (!retval) {
+		bdata->supported_gesture_type = (uint8_t)value;
+		OVT_INFO("omnivision,supported_gesture_type=%d\n", bdata->supported_gesture_type);
+	}
+	else
+		OVT_INFO("omnivision,supported_gesture_type not set\n");
+#endif
+
 	retval = of_property_read_u32(np, "omnivision,irq-on-state", &value);
 	if (retval < 0)
 		bdata->irq_on_state = 0;

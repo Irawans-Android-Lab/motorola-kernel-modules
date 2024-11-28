@@ -13,7 +13,7 @@ EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/include \
 		-I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/drivers/input/touchscreen/omnivision_tcm_0flash_mmi/include
 
 ifneq ($(filter m y, $(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)),)
-	EXTRA_CFLAGS += -DCONFIG_BOARD_USES_DOUBLE_TAP_CTRL
+	EXTRA_CFLAGS += -DOVT_DOUBLE_TAP_CTRL
 endif
 
 obj-m := omnivision_tcm_0flash_mmi.o
@@ -29,8 +29,8 @@ omnivision_tcm_0flash_mmi-objs += omnivision_tcm_core.o \
 
 
 ifneq ($(filter m y,$(CONFIG_OVT_ENABLE_DOUBLE_TAP)),)
-	EXTRA_CFLAGS += -DOVT_SENSOR_EN
-	KBUILD_EXTRA_SYMBOLS += $(CURDIR)/$(KBUILD_EXTMOD)/../../../sensors/$(GKI_OBJ_MODULE_DIR)/Module.symvers
+#	EXTRA_CFLAGS += -DOVT_SENSOR_EN
+#	KBUILD_EXTRA_SYMBOLS += $(CURDIR)/$(KBUILD_EXTMOD)/../../../sensors/$(GKI_OBJ_MODULE_DIR)/Module.symvers
 endif
 
 ifneq ($(filter m y,$(CONFIG_TP_MTK_CHECK_PANEL)),)

@@ -56,7 +56,7 @@ enum touch_status {
 enum gesture_id {
 	NO_GESTURE_DETECTED = 0,
 	GESTURE_DOUBLE_TAP = 0X01,
-	GESTURE_SINGLE_TAP = 0X1E,
+	GESTURE_SINGLE_TAP = 0x30, //0X1E,
 };
 
 enum touch_report_code {
@@ -732,19 +732,28 @@ static void touch_report(void)
 #if WAKEUP_GESTURE
 	if (tcm_hcd->in_suspend &&
 			 tcm_hcd->wakeup_gesture_enabled) {
+		int keycode;
 
+#ifdef OVT_DOUBLE_TAP_CTRL
 		if (touch_data->gesture_id == GESTURE_DOUBLE_TAP) {
-			input_report_key(touch_hcd->input_dev, KEY_POWER, 1);
-			input_sync(touch_hcd->input_dev);
-			input_report_key(touch_hcd->input_dev, KEY_POWER, 0);
-			input_sync(touch_hcd->input_dev);
-
-		} else if (touch_data->gesture_id == GESTURE_SINGLE_TAP) {
-			input_report_key(touch_hcd->input_dev, KEY_U, 1);
-			input_sync(touch_hcd->input_dev);
-			input_report_key(touch_hcd->input_dev, KEY_U, 0);
-			input_sync(touch_hcd->input_dev);
+			keycode = KEY_F4;
+			OVT_INFO("double tap report KEY_F4\n");
 		}
+		else {
+			keycode = KEY_F1;
+			OVT_INFO("single tap report KEY_F1\n");
+		}
+#else
+		if (touch_data->gesture_id == GESTURE_DOUBLE_TAP)
+			keycode = KEY_POWER;
+		else
+			keycode = KEY_U;
+#endif
+
+		input_report_key(touch_hcd->input_dev, keycode, 1);
+		input_sync(touch_hcd->input_dev);
+		input_report_key(touch_hcd->input_dev, keycode, 0);
+		input_sync(touch_hcd->input_dev);
 	}
 #endif
 
@@ -975,10 +984,17 @@ static int touch_set_input_dev(void)
 #endif
 
 #if WAKEUP_GESTURE
+#ifdef OVT_DOUBLE_TAP_CTRL
+	set_bit(KEY_F1, touch_hcd->input_dev->keybit);
+	set_bit(KEY_F4, touch_hcd->input_dev->keybit);
+	input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_F1);
+	input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_F4);
+#else
 	set_bit(KEY_POWER, touch_hcd->input_dev->keybit);
 	set_bit(KEY_U, touch_hcd->input_dev->keybit);
 	input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_POWER);
 	input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_U);
+#endif
 #endif
 
 	retval = touch_set_input_params();
@@ -1351,6 +1367,55 @@ int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd)
 	return 0;
 }
 
+#ifdef WAKEUP_GESTURE
+int ovt_gesture_suspend(struct ovt_tcm_hcd *tcm_hcd)
+{
+	int retval = 0;
+
+	OVT_FUNC_ENTER();
+	if (tcm_hcd->wakeup_gesture_enabled) {
+		unsigned short gesture_cmd = 0;
+
+		if (!touch_hcd->irq_wake) {
+			enable_irq_wake(tcm_hcd->irq);
+			touch_hcd->irq_wake = true;
+		}
+
+		touch_hcd->suspend_touch = false;
+
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_IN_WAKEUP_GESTURE_MODE, 1);
+		if (retval < 0) {
+			OVT_ERROR("Failed to enable wakeup gesture mode\n");
+			return retval;
+		}
+
+		if(tcm_hcd->wakeup_gesture_enabled == 1) {
+			gesture_cmd = 0x8000;//single tap
+		} else if(tcm_hcd->wakeup_gesture_enabled == 2) {
+			gesture_cmd = 0x0001;//double
+		} else if(tcm_hcd->wakeup_gesture_enabled == 3) {
+			gesture_cmd = 0x8001;//all
+		} else
+			OVT_ERROR("invalid gesture mode:%d\n", tcm_hcd->wakeup_gesture_enabled);
+
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd, 0xFE, gesture_cmd);
+		if (retval < 0)
+			OVT_ERROR("Failed to set gesture_cmd: 0x%hx\n", gesture_cmd);
+		else
+			OVT_INFO("set gesture_cmd: 0x%hx for mode:%d\n", gesture_cmd, tcm_hcd->wakeup_gesture_enabled);
+
+		touch_set_state(TOUCH_LOW_POWER_STATE, TOUCH_PANEL_IDX_PRIMARY);
+		//OVT_INFO("gesture enable mode:%d\n", tcm_hcd->wakeup_gesture_enabled);
+	}
+	else {
+		touch_set_state(TOUCH_DEEP_SLEEP_STATE, TOUCH_PANEL_IDX_PRIMARY);
+		OVT_INFO("gesture disable, touch deep sleep state\n");
+	}
+
+	return retval;
+}
+#endif
+
 int touch_suspend(struct ovt_tcm_hcd *tcm_hcd)
 {
 	if (!touch_hcd)
@@ -1361,14 +1426,10 @@ int touch_suspend(struct ovt_tcm_hcd *tcm_hcd)
 	touch_hcd->suspend_touch = true;
 
 	touch_free_objects();
-	if (tcm_hcd->wakeup_gesture_enabled) {
-		if (!touch_hcd->irq_wake) {
-			enable_irq_wake(tcm_hcd->irq);
-			touch_hcd->irq_wake = true;
-		}
 
-		touch_hcd->suspend_touch = false;
-	}
+#ifdef WAKEUP_GESTURE
+	ovt_gesture_suspend(tcm_hcd);
+#endif
 
 	return 0;
 }
@@ -1400,6 +1461,7 @@ int touch_resume(struct ovt_tcm_hcd *tcm_hcd)
 		}
 	}
 
+	OVT_FUNC_EXIT();
 	return 0;
 }
 

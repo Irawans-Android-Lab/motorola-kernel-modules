@@ -432,11 +432,101 @@ static ssize_t productinfo_show(struct device *dev, struct device_attribute *att
 	return scnprintf(buf, PAGE_SIZE, "%s\n", product_info);
 }
 
+#ifdef OVT_DOUBLE_TAP_CTRL
+static ssize_t gesture_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	const struct ovt_tcm_board_data *bdata = g_tcm_hcd->hw_if->bdata;
+	return scnprintf(buf, PAGE_SIZE, "%02x\n", bdata->supported_gesture_type);
+}
+
+static ssize_t gesture_store(struct device *dev,
+					     struct device_attribute *attr,
+					     const char *buf, size_t count)
+{
+	unsigned int value = 0;
+	int err = 0;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+	//struct ovt_ts_data *ts_data = dev_get_drvdata(dev);
+	//struct input_dev *input_dev = ts_data->input_dev;
+
+	//mutex_lock(&input_dev->mutex);
+	err = sscanf(buf, "%d", &value);
+	if (err < 0) {
+		printk("error: Failed to convert value\n");
+		return -EINVAL;
+	}
+
+	switch (value) {
+		case 0x20:
+			OVT_INFO("single tap disable\n");
+			tcm_hcd->wakeup_gesture_enabled &= 0xFE;
+			break;
+		case 0x21:
+			OVT_INFO("single tap enable\n");
+			tcm_hcd->wakeup_gesture_enabled |= 0x01;
+			break;
+		case 0x30:
+			OVT_INFO("double tap disable\n");
+			tcm_hcd->wakeup_gesture_enabled &= 0xFD;
+			break;
+		case 0x31:
+			OVT_INFO("double tap enable\n");
+			tcm_hcd->wakeup_gesture_enabled |= 0x02;
+			break;
+		default:
+			OVT_INFO("unsupport gesture mode type:0x%x\n", value);
+			break;
+	}
+	//mutex_unlock(&input_dev->mutex);
+
+	OVT_INFO("wakeup_gesture_enabled=%d\n", tcm_hcd->wakeup_gesture_enabled);
+	return count;
+}
+
+static ssize_t gesture_enabled_dbg_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%02x\n", g_tcm_hcd->wakeup_gesture_enabled);
+}
+
+static ssize_t gesture_enabled_dbg_store(struct device *dev,
+					     struct device_attribute *attr,
+					     const char *buf, size_t count)
+{
+	unsigned int value = 0;
+	int err = 0;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+
+	OVT_INFO("enter\n");
+	err = sscanf(buf, "%d", &value);
+	if (err < 0) {
+		OVT_INFO("Failed to convert value\n");
+		return -EINVAL;
+	}
+
+	OVT_INFO("value=%d\n", value);
+	if (value <= 4) {
+		tcm_hcd->wakeup_gesture_enabled = value;
+		OVT_INFO("set wakeup_gesture_enabled: %d\n", tcm_hcd->wakeup_gesture_enabled);
+	}
+	else
+		OVT_INFO("unsupport gesture type%d, skip\n", value);
+
+	OVT_INFO("wakeup_gesture_enabled=%d\n", tcm_hcd->wakeup_gesture_enabled);
+	return count;
+}
+#endif
+
 static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
 	__ATTR_RO(ic_ver),
 	__ATTR_RO(productinfo),
+#ifdef OVT_DOUBLE_TAP_CTRL
+	__ATTR_RW(gesture),
+	__ATTR_RW(gesture_enabled_dbg),
+#endif
 	__ATTR_RW(log_level),
 	__ATTR_NULL
 };
@@ -3577,6 +3667,7 @@ static int ovt_tcm_reset_and_reinit(struct ovt_tcm_hcd *tcm_hcd,
 		tcm_hcd->update_watchdog(tcm_hcd, false);
 #endif
 
+	OVT_FUNC_ENTER();
 	if (hw) {
 		if (bdata->reset_gpio < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,

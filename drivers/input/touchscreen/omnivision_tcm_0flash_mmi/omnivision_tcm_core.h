@@ -62,6 +62,18 @@
 
 extern bool dbg_level_en;
 
+extern struct ovt_tcm_hcd *g_tcm_hcd;
+
+#define MAX_PANEL_IDX 2
+enum touch_panel_id {
+	TOUCH_PANEL_IDX_PRIMARY = 0,
+	TOUCH_PANEL_MAX_IDX,
+};
+enum touch_state {
+	TOUCH_DEEP_SLEEP_STATE = 0,
+	TOUCH_LOW_POWER_STATE,
+};
+
 struct ovt_tcm_board_data {
 	bool x_flip;
 	bool y_flip;
@@ -82,6 +94,9 @@ struct ovt_tcm_board_data {
 	unsigned int ubl_i2c_addr;
 	unsigned int ubl_max_freq;
 	unsigned int ubl_byte_delay_us;
+#ifdef OVT_DOUBLE_TAP_CTRL
+	unsigned int supported_gesture_type;
+#endif
 	unsigned long irq_flags;
 	const char *pwr_reg_name;
 	const char *bus_reg_name;
@@ -607,6 +622,12 @@ struct ovt_tcm_hcd {
 #ifdef CONFIG_OVT_CHARGER_DETECT
     void *charger_detect_data;
 #endif
+ #ifdef OVT_SENSOR_EN
+    //bool wakeable;
+    //enum display_state screen_state;
+    struct mutex state_mutex;
+    struct ovt_sensor_platform_data *sensor_pdata;
+#endif
 	int (*reset)(struct ovt_tcm_hcd *tcm_hcd);
 	int (*reset_n_reinit)(struct ovt_tcm_hcd *tcm_hcd, bool hw, bool update_wd);
 	int (*sleep)(struct ovt_tcm_hcd *tcm_hcd, bool en);
@@ -868,6 +889,7 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 	return (dividend + divisor - 1) / divisor;
 }
 
+extern int touch_set_state(int state, int panel_idx);
 extern int ovt_tcm_set_func_charger_connected_en_state(unsigned short value);
 extern int ovt_tcm_set_func_face_detect_en_state(unsigned short value);
 extern int ovt_tcm_set_func_ear_phone_connected_en_state(unsigned short value);
