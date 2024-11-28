@@ -2833,7 +2833,7 @@ int fg_get_ifc_step(struct gauge_device *gauge_dev, struct mmi_ifc_zone *out, in
 int fg_get_ifc_step_length(struct mmi_fg_chip *mmi, int *out)
 {
 	int ret;
-	u8 databuf[9]= {0};
+	u8 databuf[IFC_NUM_BYTE]= {0};
 
 	ret = ifc_command_read_with_checksum(mmi, FG_MAC_CMD_IFC_STEP_ARRAY3, &databuf[0], IFC_NUM_BYTE);
 	if(ret) {
