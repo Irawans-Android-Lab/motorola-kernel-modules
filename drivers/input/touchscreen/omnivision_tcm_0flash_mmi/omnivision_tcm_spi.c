@@ -32,6 +32,11 @@
 #include <linux/pinctrl/consumer.h>
 #include "omnivision_tcm_core.h"
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+#include <linux/platform_data/spi-mt65xx.h>
+#define CONFIG_OVT_MTK_SPI_TIME
+#endif
+
 static unsigned char *buf;
 
 static unsigned int buf_size;
@@ -47,6 +52,16 @@ static struct platform_device *ovt_tcm_spi_device;
 static struct pinctrl *pinctrl;
 static struct pinctrl_state *pin_spi_mode_default;
 */
+
+#ifdef CONFIG_OVT_MTK_SPI_TIME
+const struct mtk_chip_config st_spi_ctrdata = {
+       .sample_sel = 0,
+       .cs_setuptime = 55,
+       .cs_holdtime = 0,
+       .cs_idletime = 0,
+       .tick_delay = 0,
+};
+#endif
 
 #ifdef OVT_MTK_CHECK_PANEL
 const char *active_panel_name;
@@ -751,8 +766,14 @@ static int ovt_tcm_spi_probe(struct spi_device *spi)
 	hw_if.bus_io = &bus_io;
 
 	spi->bits_per_word = 8;
-	//spi->cs_setup.value = 6;//6 us
+#ifdef CONFIG_OVT_MTK_SPI_TIME
+	spi->controller_data = (void *)&st_spi_ctrdata;
+	OVT_INFO("config cs_setuptime:%d", st_spi_ctrdata.cs_setuptime);
+#else
+	spi->cs_setup.value = 6; //6 us
 	//spi->cs_setup.unit = 0;
+	OVT_INFO("config cs_setup.value:%d", spi->cs_setup.value);
+#endif
 
 	retval = spi_setup(spi);
 	if (retval < 0) {
