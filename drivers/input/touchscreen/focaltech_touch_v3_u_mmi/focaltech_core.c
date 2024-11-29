@@ -67,16 +67,14 @@ extern void fts_mmi_dev_unregister(struct fts_ts_data *ts_data);
 #define TIMEOUT_READ_REG                    1000 /* unit:ms */
 #if FTS_POWER_SOURCE_CUST_EN
 #ifdef CONFIG_FTS_POWER_PMU_CONTROL
-#define FTS_VTG_MIN_UV                      1800000
-#define FTS_VTG_MAX_UV                      1800000
-#define FTS_I2C_VTG_MIN_UV                  3300000
-#define FTS_I2C_VTG_MAX_UV                  3300000
+#define FTS_VTG_MIN_UV                      3300000
+#define FTS_VTG_MAX_UV                      3300000
 #else
 #define FTS_VTG_MIN_UV                      2800000
 #define FTS_VTG_MAX_UV                      3300000
+#endif
 #define FTS_I2C_VTG_MIN_UV                  1800000
 #define FTS_I2C_VTG_MAX_UV                  1800000
-#endif
 #endif
 /*****************************************************************************
 * Global variable or extern global variabls/functions
