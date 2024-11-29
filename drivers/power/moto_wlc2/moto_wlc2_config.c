@@ -93,6 +93,13 @@ int wls_get_bootmode(struct moto_wlc *wlc, struct device *dev)
 	return wlc->config.bootmode;
 }
 
+/* 8 = KERNEL_POWER_OFF_CHARGING_BOOT */
+/* 9 = LOW_POWER_OFF_CHARGING_BOOT */
+bool wls_config_is_charge_only_mode(struct moto_wlc *wlc)
+{
+	return ((wlc->config.bootmode == 8) || (wlc->config.bootmode == 9));
+}
+
 int wls_get_sys_config(struct moto_wlc *wlc, struct device *dev)
 {
 	struct device_node *node = dev->of_node;

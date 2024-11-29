@@ -168,6 +168,13 @@ int wls_device_uisoc_change(struct moto_wlc *wlc, int uisoc)
 	return 0;
 }
 
+int wls_device_init_light_fan(struct moto_wlc *wlc)
+{
+	wlc->ctl.light_level = MMI_DOCK_LIGHT_ON;
+	wlc->ctl.fan_speed = MMI_DOCK_FAN_DEFAULT;
+	return 0;
+}
+
 int wls_device_update_light_fan(struct moto_wlc *wlc)
 {
 	int status = 0;

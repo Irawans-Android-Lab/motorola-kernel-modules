@@ -413,8 +413,10 @@ extern int wls_device_update_light_fan(struct moto_wlc *wlc);
 extern void wls_device_light_fan_work(struct work_struct *work);
 extern int wls_device_uisoc_change(struct moto_wlc *wlc, int uisoc);
 extern void wls_device_offset_detect_work(struct work_struct *work);
+extern int wls_device_init_light_fan(struct moto_wlc *wlc);
 
 extern int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev);
+extern bool wls_config_is_charge_only_mode(struct moto_wlc *wlc);
 
 extern int wls_auth_init(struct moto_wlc *wlc);
 extern int wls_auth_disconnect(struct moto_wlc *wlc);

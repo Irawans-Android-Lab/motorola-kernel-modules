@@ -776,6 +776,9 @@ static int moto_wlc_probe(struct platform_device *pdev)
 	wlc->state = WLC_HW_UNINIT;
 	wls_config_parse_dts(wlc, &pdev->dev);
 
+	if (wls_config_is_charge_only_mode(wlc))
+		wls_device_init_light_fan(wlc);
+
 	if(gpio_is_valid(wlc->wls_control_en)) {
 		rc  = devm_gpio_request_one(&wlc->pdev->dev, wlc->wls_control_en,
 				  GPIOF_OUT_INIT_LOW, "wls_control_en");

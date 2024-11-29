@@ -343,9 +343,15 @@ int wls_auth_decode_fsk_packet(struct moto_wlc *wlc, uint8_t *data, int data_len
 			data[0], data[1], data[2]);
 		wlc_dbg(" WLC_MOTO, NOTIFY_EVENT_WLS_WLC_CHANGE , WLS_WLC_ID %d", auth->wlc_tx_id);
 		wls_auth_wls_set_status(wlc, WLC_TX_ID_CHANGED);
+
 		if (wlc->config.MaxPower <= 15) {
-			wlc_dbg("To ask TX_SN next");
-			wls_auth_set_next_event(auth, MOTOAUTH_EVENT_TX_SN);
+			if (wls_config_is_charge_only_mode(wlc)) {
+				wlc_dbg("To EVENT_DONE next");
+				wls_auth_set_next_event(auth, MOTOAUTH_EVENT_DONE);
+			} else {
+				wlc_dbg("To ask TX_SN next");
+				wls_auth_set_next_event(auth, MOTOAUTH_EVENT_TX_SN);
+			}
 		} else if (tx_id[0] == 0x01 && (tx_id[1] >> 4) == 0x5) {
 			wlc_dbg("To ask TX_CAP next");
 			wls_auth_set_next_event(auth, MOTOAUTH_EVENT_TX_CAP);
