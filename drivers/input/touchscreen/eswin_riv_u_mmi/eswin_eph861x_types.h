@@ -255,6 +255,10 @@ struct eph_data
 
     bool gesture_wakeup_enable;
     u8 gesture_mode;
+    int fod_event;
+    int zerotap_data[1];
+    unsigned long fod_jiffies;
+    atomic_t heartbeat_on;
 
     /* low power mode gesture */
     u8 lp;

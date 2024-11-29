@@ -515,3 +515,14 @@ int eph_set_report_rate(struct eph_data *ephdata)
     return ret;
 }
 
+bool eph_is_fod_resume(struct eph_data *ephdata)
+{
+    unsigned long fod_timeout = msecs_to_jiffies(3000);
+
+    fod_timeout += ephdata->fod_jiffies;
+    if (time_before(jiffies, fod_timeout)) {
+        return true;
+    }
+
+    return false;
+}

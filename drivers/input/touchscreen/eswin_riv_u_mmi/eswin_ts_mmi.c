@@ -332,7 +332,6 @@ static int eswin_ts_firmware_update(struct device *dev, char *fwname)
     GET_ESWIN_DATA(dev);
 
     ret = eph_update_fw(dev, fwname);
-    ret = 0;
     return ret;
 }
 
@@ -408,15 +407,15 @@ static int eswin_ts_mmi_panel_state(struct device *dev,
                 ts_info("enable zero gesture mode cmd 0x%02x\n", gesture_cmd);
             }
             if (gesture_type & TS_MMI_GESTURE_SINGLE) {
-                gesture_cmd |= 1;
+                gesture_cmd |= (1 << 0);
                 ts_info("enable single gesture mode cmd 0x%02x\n", gesture_cmd);
             }
             if (gesture_type & TS_MMI_GESTURE_DOUBLE) {
                 gesture_cmd |= (1 << 1);
                 ts_info("enable double gesture mode cmd 0x%02x\n", gesture_cmd);
             }
-            ephdata->gesture_mode = gesture_cmd;
-            ret = eph_gesture_mode_enable(&ephdata->commsdevice->dev, (u8)gesture_type);
+            ephdata->gesture_mode = gesture_type;
+            ret = eph_gesture_mode_enable(&ephdata->commsdevice->dev, (u8)gesture_cmd);
             if (ret)
             {
                 ts_err("failed to send cmd enter gesture mode!\n");
@@ -481,26 +480,30 @@ static int eswin_ts_mmi_pre_resume(struct device *dev)
 static int eswin_ts_mmi_post_resume(struct device *dev)
 {
     int ret;
-    u8 gesture_type;
 
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
 
+    eph_clear_all_host_touch_slots(ephdata);
+    ret = eph_screen_on_reporting(&ephdata->commsdevice->dev, 1);
+    if (ret)
+        ts_err("set screen_on_reporting fail %d.\n", ret);
+
 #if defined(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)
     if (ephdata->gesture_wakeup_enable) {
-        gesture_type = ephdata->gesture_mode & 0xFE;
-        /* disable gesture */
-        ret = eph_gesture_mode_enable(&ephdata->commsdevice->dev, (u8)gesture_type);
-        if (ret)
-            ts_err("gesture disbale fail %d.\n", ret);
-        //disable_irq_wake(ephdata->chg_irq);
+        disable_irq_wake(ephdata->chg_irq);
         ephdata->gesture_wakeup_enable = 0;
     }
 #endif
     /* open esd */
     //goodix_ts_blocking_notify(NOTIFY_RESUME, NULL);
     /* TODO - grip, report rate change, pocket mode. */
-    schedule_work(&ephdata->force_baseline_work);
+    if(ephdata->zerotap_data[0] == 0) {
+        ts_info("No FOD-DOWN, trigger baseline");
+        schedule_work(&ephdata->force_baseline_work);
+    }
+    ephdata->suspended = false;
+    ts_info("Resume end");
 
     return 0;
 }
@@ -511,26 +514,25 @@ static int eswin_ts_mmi_pre_suspend(struct device *dev)
     GET_ESWIN_DATA(dev);
 
     ts_info("Suspend start");
+    if(!ephdata->gesture_wakeup_enable) {
+        eph_clear_all_host_touch_slots(ephdata);
+    }
     cancel_work_sync(&ephdata->force_baseline_work);
-#if 0
-    atomic_set(&core_data->suspended, 1);
 
-    /*
-     * notify suspend event, inform the esd protector
-     * and charger detector to turn off the work
-     */
-    ts_blocking_notify(NOTIFY_SUSPEND, NULL);
-#endif
     return 0;
 }
 
 static int eswin_ts_mmi_post_suspend(struct device *dev)
 {
+    int ret;
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
 
+    ret = eph_screen_on_reporting(&ephdata->commsdevice->dev, 0);
+    if (ret)
+        ts_err("set screen off reporting fail %d.\n", ret);
     ephdata->suspended = true;
-    eph_clear_all_host_touch_slots(ephdata);
+
     ts_info("Suspend end");
 
     return 0;
@@ -544,9 +546,7 @@ static int eswin_ts_mmi_update_fod_mode(struct device *dev, int mode)
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
 #if 0
-    mutex_lock(&ephdata->comms_mutex);
     ret = eph_fod_mode_enable(&ephdata->commsdevice->dev, ((mode >0) ? 0x01 : 0x00));
-    mutex_unlock(&ephdata->comms_mutex);
 #endif
     ts_info("update_fod_mode %d\n", mode);
 

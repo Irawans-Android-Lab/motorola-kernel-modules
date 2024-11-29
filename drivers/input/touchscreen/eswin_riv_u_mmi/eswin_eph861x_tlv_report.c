@@ -56,6 +56,9 @@
 
 u8 sysfs_report_buf[PAGE_SIZE]={0};
 u8 sysfs_packetised_eng_buf[PAGE_SIZE]={0};
+static u16 stored_touches = 0;
+static u16 prev_stored_touches = 0;
+static struct wakeup_source *gesture_wakelock;
 
 static void eph_recv_touch_report(struct eph_data* ephdata, u8* message);
 
@@ -208,8 +211,8 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
                 struct gesture_event_data event;
                 ts_info("invoke imported report double tap gesture function\n");
                 event.evcode = 4;
-                event.evdata.x = position_x;
-                event.evdata.y = position_y;
+                event.evdata.x = le16_to_cpup((__le16 *)(&position_x));
+                event.evdata.y = le16_to_cpup((__le16 *)(&position_y));
                 /* call class method */
                 ret = ephdata->imports->report_gesture(&event);
             }
@@ -222,8 +225,8 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
                 struct gesture_event_data event;
                 ts_info("invoke imported report single tap gesture function\n");
                 event.evcode = 1;
-                event.evdata.x = position_x;
-                event.evdata.y = position_y;
+                event.evdata.x = le16_to_cpup((__le16 *)(&position_x));
+                event.evdata.y = le16_to_cpup((__le16 *)(&position_y));
                 /* call class method */
                 ret = ephdata->imports->report_gesture(&event);
             }
@@ -244,6 +247,7 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
 #endif
         if (!ret)
         {
+            PM_WAKEUP_EVENT(gesture_wakelock, 5000);
             ts_err("import-report_gesture failed");
         }
         input_report_key(input_dev, gesture, 1);
@@ -314,19 +318,9 @@ void eph_recv_event_report_contianer(struct eph_data *ephdata, u8 *message)
 
 void eph_recv_off_event_report_contianer(struct eph_data *ephdata, u8 *message)
 {
-
-    struct device *dev = &ephdata->commsdevice->dev;
-
-    u8 finger_event_type;
-    u8 gesture_event_type;
-
-    finger_event_type = message[9];
-    gesture_event_type = message[11];
-
-    dev_info(dev,
-            "finger_event_type: %u gesture_event_type: %u",
-            finger_event_type, gesture_event_type);
-
+    struct input_dev *input_dev = ephdata->inputdev;
+    eph_read_report_fod_event(ephdata, message);
+#if 0
     switch (finger_event_type)
     {
         case FINGER_REGION_FINGER_DOWN:
@@ -358,10 +352,107 @@ void eph_recv_off_event_report_contianer(struct eph_data *ephdata, u8 *message)
             dev_dbg(dev, "unexpected gesture type %x\n", finger_event_type);
             break;
     }
+#endif
+    if (ephdata->fod_event) {
+        input_report_key(input_dev, ephdata->fod_event, 1);
+        input_sync(input_dev);
+        input_report_key(input_dev, ephdata->fod_event, 0);
+        input_sync(input_dev);
+        ts_info("report BTN_TRIGGER_HAPPY code(%d)", ephdata->fod_event);
+        ephdata->fod_event = 0;
+    }
 
     return;
 }
 
+void eph_read_report_fod_event(struct eph_data *ephdata, u8 *message)
+{
+    struct device *dev = &ephdata->commsdevice->dev;
+    int ret = 0;
+    static bool last_fod_down = false;
+    struct gesture_event_data event;
+    int fod_down_interval = 0;
+    static unsigned long start = 0;
+    u8 finger_event_type;
+    u8 gesture_event_type;
+
+    finger_event_type = message[9];
+    gesture_event_type = message[11];
+
+    dev_info(dev,
+            "finger_event_type: %u gesture_event_type: %u",
+            finger_event_type, gesture_event_type);
+
+    if (ephdata->suspended)
+    {
+        if (FINGER_REGION_FINGER_DOWN == finger_event_type)
+        {
+            fod_down_interval = (int)jiffies_to_msecs(jiffies - start);
+            event.evcode = 2;
+            event.evdata.x = 0;
+            event.evdata.y = 0;
+            ts_info("Get FOD-DOWN gesture:%d interval:%d", ephdata->zerotap_data[0], fod_down_interval);
+            if (fod_down_interval > 2000)
+                ephdata->zerotap_data[0] = 0;
+
+            if (fod_down_interval > 0 && fod_down_interval < 250 && ephdata->zerotap_data[0])
+            {
+                return;
+            }
+            start = jiffies;
+            ephdata->fod_jiffies = jiffies;
+            if (ephdata->zerotap_data[0] > 6)
+            {
+                ts_info("FOD-DOWN too many times %d", ephdata->zerotap_data[0]);
+            }
+            else
+            {
+                ret = ephdata->imports->report_gesture(&event);
+                ts_info("report fod down event %d", ephdata->zerotap_data[0]);
+                if (!ret)
+                {
+                    ts_err("report_gesture event FOD-DOWN failed");
+                    PM_WAKEUP_EVENT(gesture_wakelock, 3000);
+                }
+                ephdata->zerotap_data[0]++;
+            }
+        }
+        else if (FINGER_REGION_FINGER_UP == finger_event_type)
+        {
+            ts_info("Get FOD-UP gesture");
+            event.evcode = 3;
+            event.evdata.x = 0;
+            event.evdata.y = 0;
+            ret = ephdata->imports->report_gesture(&event);
+            if (!ret)
+            {
+                ts_err("report_gesture event FOD-UP failed");
+                PM_WAKEUP_EVENT(gesture_wakelock, 3000);
+            }
+            ephdata->zerotap_data[0] = 0;
+        }
+    }
+    else
+    {
+        if (FINGER_REGION_FINGER_UP == finger_event_type)
+        {
+            //FTS_INFO("Get FOD-UP normal");
+            ts_info("report BTN_TRIGGER_HAPPY2");
+            ephdata->fod_event = BTN_TRIGGER_HAPPY2;
+            last_fod_down = false;
+        }
+        else if (FINGER_REGION_FINGER_DOWN == finger_event_type)
+        {
+            //FTS_INFO("Get FOD-DOWN normal");
+            if (last_fod_down == false)
+            {
+                ephdata->fod_event = BTN_TRIGGER_HAPPY1;
+                last_fod_down = true;
+                ts_info("report BTN_TRIGGER_HAPPY1");
+            }
+        }
+    }
+}
 
 /* https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt */
 static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
@@ -379,9 +470,6 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
     u8 touch_major_axis = 0;
     u8 touch_minor_axis = 0;
     bool is_active = false;
-    static u16 stored_touches = 0;
-    static u16 prev_stored_touches = 0;
-
 
     prev_stored_touches = stored_touches;
 
@@ -537,11 +625,12 @@ void eph_clear_all_host_touch_slots(struct eph_data *ephdata)
     for (id = 0; id < CONFIG_SUPPORTED_TOUCHES; id++)
     {
         input_mt_slot(ephdata->inputdev, id);
-        input_mt_report_slot_state(ephdata->inputdev, 0, false);
-        input_report_key(ephdata->inputdev, BTN_TOUCH, 0u);
+        input_mt_report_slot_state(ephdata->inputdev, MT_TOOL_FINGER, false);
     }
+    input_report_key(ephdata->inputdev, BTN_TOUCH, 0u);
     input_sync(ephdata->inputdev);
-
+    stored_touches = 0;
+    prev_stored_touches = 0;
     mutex_unlock(&ephdata->inputdev->mutex);
 }
 
@@ -644,5 +733,55 @@ int eph_handle_report(struct eph_data *ephdata, u8 *message)
         ret_val = eph_buffer_report(ephdata, message);
     }
     return ret_val;
+}
+
+int eph_gesture_init(struct eph_data *ephdata)
+{
+    struct input_dev *input_dev = ephdata->inputdev;
+    static bool initialized_sensor;
+
+    ts_info("eph_gesture_init >\n");
+    input_set_capability(input_dev, EV_KEY, KEY_POWER);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_U);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_UP);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_DOWN);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_LEFT);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_RIGHT);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_O);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_E);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_M);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_L);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_W);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_S);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_V);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_Z);
+    input_set_capability(input_dev, EV_KEY, KEY_GESTURE_C);
+
+    __set_bit(KEY_GESTURE_RIGHT, input_dev->keybit);
+    __set_bit(KEY_GESTURE_LEFT, input_dev->keybit);
+    __set_bit(KEY_GESTURE_UP, input_dev->keybit);
+    __set_bit(KEY_GESTURE_DOWN, input_dev->keybit);
+    __set_bit(KEY_GESTURE_U, input_dev->keybit);
+    __set_bit(KEY_GESTURE_O, input_dev->keybit);
+    __set_bit(KEY_GESTURE_E, input_dev->keybit);
+    __set_bit(KEY_GESTURE_M, input_dev->keybit);
+    __set_bit(KEY_GESTURE_W, input_dev->keybit);
+    __set_bit(KEY_GESTURE_L, input_dev->keybit);
+    __set_bit(KEY_GESTURE_S, input_dev->keybit);
+    __set_bit(KEY_GESTURE_V, input_dev->keybit);
+    __set_bit(KEY_GESTURE_C, input_dev->keybit);
+    __set_bit(KEY_GESTURE_Z, input_dev->keybit);
+
+    if (!initialized_sensor) {
+        PM_WAKEUP_REGISTER(&ephdata->commsdevice->dev, gesture_wakelock, "poll-wake-lock");
+        if (!gesture_wakelock) {
+            ts_err("failed to allocate wakeup source\n");
+            return -ENOMEM;
+        }
+        initialized_sensor = true;
+    }
+
+    ts_info("eph_gesture_init <\n");
+    return 0;
 }
 

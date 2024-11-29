@@ -58,13 +58,19 @@
 #define EPH_DEVICE_SETTINGS_FORMAT       "<product>EPH8610</product>"
 
 /* Touchscreen absolute values */
-#define EPH_MAX_HEIGHT_WIDTH      255u
-
-//#define EPH_ESD_RECOVERY
+#define EPH_MAX_HEIGHT_WIDTH                255u
+#define EPH_HOST_REPORTING_TOUCH            1u
+#define EPH_HOST_REPORTING_GESTURE          2u
+#define EPH_ESD_RECOVERY
 
 static int eph_sysfs_mem_access_init(struct eph_data *ephdata);
 static void eph_sysfs_mem_access_remove(struct eph_data *ephdata);
 static int eph_configure_components(struct eph_data *ephdata, const struct firmware *device_settings);
+
+#if defined EPH_ESD_RECOVERY
+void heartbeat_work_start(struct eph_data *ephdata);
+void heartbeat_work_stop(struct eph_data *ephdata);
+#endif
 
 static int eph_check_mem_access_params(struct eph_data *ephdata,
                                        loff_t off,
@@ -235,7 +241,7 @@ static void eph_trigger_baseline_work(struct work_struct *work)
 static int eph_finger_print_enable(struct eph_data *ephdata, bool enable)
 {
     int ret_val;
-    u8 cfg[8] = {TLV_CONTROL_DATA_WRITE, 0x05, 0x00, 0x0B, 0x00, 0x00, 0x00, 0x00};
+    u8 cfg[8] = {TLV_CONTROL_DATA_WRITE, 0x05, 0x00, 0x0B, 0x00, 0x03, 0x00, 0x00};
     u16 length = (sizeof(cfg)/sizeof(cfg[0]));
 
     if (enable)
@@ -518,7 +524,7 @@ static int eph_input_device_initialize(struct eph_data *ephdata)
         dev_err(dev, "allocate device failed %d\n", -ENOMEM);
         return -ENOMEM;
     }
-
+#if 0
     if (ephplatform->input_name)
     {
         ephdata->inputdev->name = ephplatform->input_name;
@@ -527,9 +533,13 @@ static int eph_input_device_initialize(struct eph_data *ephdata)
     {
         ephdata->inputdev->name = "ESWIN EPH861X Touchscreen";
     }
-
+#endif
+    ephdata->inputdev->name = "eswin_ts";
     ephdata->inputdev->phys = ephdata->phys;
     ephdata->inputdev->id.bustype = EPH_COMMS_BUS_TYPE;
+    ephdata->inputdev->id.product = 0xDEAD;
+    ephdata->inputdev->id.vendor = 0xBEEF;
+    ephdata->inputdev->id.version = 10427;
     ephdata->inputdev->dev.parent = dev;
 
 #ifndef INPUT_DEVICE_ALWAYS_OPEN
@@ -546,6 +556,8 @@ static int eph_input_device_initialize(struct eph_data *ephdata)
     input_set_capability(ephdata->inputdev, EV_ABS, ABS_MT_POSITION_X);
     input_set_capability(ephdata->inputdev, EV_ABS, ABS_MT_POSITION_Y);
 
+    input_set_capability(ephdata->inputdev, EV_KEY, BTN_TRIGGER_HAPPY1);
+    input_set_capability(ephdata->inputdev, EV_KEY, BTN_TRIGGER_HAPPY2);
 
     /* direct device, e.g. touchscreen */
     mt_flags |= INPUT_MT_DIRECT;
@@ -578,6 +590,10 @@ static int eph_input_device_initialize(struct eph_data *ephdata)
     dev_dbg(dev, "input_register_device\n");
 
     input_set_capability(ephdata->inputdev, EV_KEY, KEY_WAKEUP);
+    ret_val = eph_gesture_init(ephdata);
+    if (ret_val) {
+        dev_err(dev, "Error %d initial gesture capability\n", ret_val);
+    }
 
     ret_val = input_register_device(ephdata->inputdev);
     if (ret_val)
@@ -933,6 +949,19 @@ static int eph_load_fw(struct device *dev)
     if (ret_val)
     {
         goto release_firmware;
+    }
+
+    eph_get_bin_firmware_version(ephdata, ephdata->ephflash->fw);
+
+    ret_val = eph_firmware_version_compare(ephdata);
+    if (!ret_val)
+    {
+        dev_err(dev, "firmware version same %d\n", ret_val);
+        //goto release_firmware;
+    }
+    else
+    {
+        dev_info(dev, "firmware version different %d\n", ret_val);
     }
 
     ret_val = eph_enter_bootloader(ephdata);
@@ -1440,7 +1469,7 @@ int eph_deepsleep_enable(struct device *dev, int enable)
 {
     int ret = 0;
     struct eph_data *ephdata = (struct eph_data*)dev_get_drvdata(dev);
-    u8 cfg[] = { 0x8, 0x6, 0x0, 0x0, 0x0, 0x16, 0x0, 0x0 };
+    u8 cfg[] = { 0x8, 0x5, 0x0, 0x0, 0x0, 0x16, 0x0, 0x0 };
     u16 length = sizeof(cfg)/sizeof(cfg[0]);
 
     if (enable == 1)
@@ -1453,6 +1482,38 @@ int eph_deepsleep_enable(struct device *dev, int enable)
     mutex_unlock(&ephdata->comms_mutex);
 
     dev_info(&ephdata->commsdevice->dev, "deepsleep %d, %d\n", enable, ret);
+    return ret;
+}
+
+int eph_screen_on_reporting(struct device *dev, int enable)
+{
+    int ret = 0;
+    struct eph_data *ephdata = (struct eph_data*)dev_get_drvdata(dev);
+    u8 cfg[] = { 0x8, 0x6, 0x0, 0xc, 0x0, 0x0, 0x0, 0x0, 0x0 };
+    u16 length = sizeof(cfg)/sizeof(cfg[0]);
+
+    if (enable == 1)
+    {
+        cfg[7] = 0x1;
+        cfg[8] = EPH_HOST_REPORTING_TOUCH;
+#if defined EPH_ESD_RECOVERY
+        heartbeat_work_start(ephdata);
+#endif
+    }
+    else
+    {
+        cfg[7] = 0x0;
+        cfg[8] = EPH_HOST_REPORTING_GESTURE;
+#if defined EPH_ESD_RECOVERY
+        heartbeat_work_stop(ephdata);
+#endif
+    }
+
+    mutex_lock(&ephdata->comms_mutex);
+    ret = eph_write_control_config(ephdata, length, &cfg[0]);
+    mutex_unlock(&ephdata->comms_mutex);
+
+    dev_info(&ephdata->commsdevice->dev, "screen_on %d, %d\n", enable, ret);
     return ret;
 }
 
@@ -1838,6 +1899,28 @@ static int eph_pinctrl_configure(struct eph_data *ephdata, bool enable)
     return 0;
 }
 #if defined EPH_ESD_RECOVERY
+void heartbeat_work_start(struct eph_data *ephdata)
+{
+    struct device *dev = &ephdata->commsdevice->dev;
+
+    if (atomic_read(&ephdata->heartbeat_on)) {
+        dev_info(dev, "heartbeat already on\n");
+        return;
+    }
+
+    atomic_set(&ephdata->heartbeat_on, 1);
+    schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(300));
+
+    return;
+}
+void heartbeat_work_stop(struct eph_data *ephdata)
+{
+    atomic_set(&ephdata->heartbeat_on, 0);
+    cancel_delayed_work(&ephdata->heartbeat_work);
+    flush_delayed_work(&ephdata->heartbeat_work);
+
+    return;
+}
 static int send_heartbeat(struct eph_data *ephdata)
 {
     int ret;
@@ -1857,6 +1940,11 @@ static void heartbeat_work_handler(struct work_struct *work)
     }
 
     ts_info("ic heartbeat work...\n");
+
+    if (!atomic_read(&ephdata->heartbeat_on)) {
+        ts_info("ic heartbeat off\n");
+        return;
+    }
 
     if (ephdata->suspended)
     {
@@ -1910,6 +1998,7 @@ ic_recovery:
     return;
 ic_reset:
     eph_reset_device(ephdata);
+    eph_clear_all_host_touch_slots(ephdata);
     schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(3000));
     return;
 }
@@ -2093,7 +2182,8 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
     ephdata->irq_wake = false;
 #if defined EPH_ESD_RECOVERY
     INIT_DELAYED_WORK(&ephdata->heartbeat_work, heartbeat_work_handler);
-    schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(5000));
+    heartbeat_work_start(ephdata);
+    //schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(5000));
 #endif
 #ifdef CONFIG_INPUT_TOUCHSCREEN_MMI
     dev_info(&commsdevice->dev, "%s: eswin_ts_mmi_dev_register\n", __func__);

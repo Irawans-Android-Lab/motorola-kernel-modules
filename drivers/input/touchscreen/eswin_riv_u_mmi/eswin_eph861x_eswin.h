@@ -33,5 +33,6 @@ extern int eph_power_on(struct eph_data *ephdata);
 extern int eph_power_off(struct eph_data *ephdata);
 extern int eph_set_report_rate(struct eph_data *ephdata);
 extern void eph_recovery_device(struct eph_data *ephdata);
+extern bool eph_is_fod_resume(struct eph_data *ephdata);
 
 #endif /* __LINUX_PLATFORM_DATA_ESWIN_EPH_ESWIN_ */
