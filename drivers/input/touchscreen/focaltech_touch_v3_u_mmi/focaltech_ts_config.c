@@ -29,7 +29,7 @@ struct focaltech_ic_report_rate_config report_rate_config_info = {
 			.command = 1,
 		},
 	}
-#elif defined(PRODUCT_SCOUT)
+#elif defined(PRODUCT_SCOUT) || defined(PRODUCT_CYBERT)
 	.rate_config_count = 2,
 	.refresh_rate_ctrl = 0,
 	.interpolation_ctrl = 1,
