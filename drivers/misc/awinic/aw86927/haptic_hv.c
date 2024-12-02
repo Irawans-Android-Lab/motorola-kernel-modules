@@ -2106,6 +2106,10 @@ static ssize_t activate_store(struct device *dev, struct device_attribute *attr,
 	mutex_lock(&aw_haptic->lock);
 	aw_haptic->state = val;
 	aw_haptic->activate_mode = aw_haptic->info.mode;
+#ifdef CONFIG_MOTO_HAPTIC
+	if (0 == val)
+		aw_haptic->gain = AW_DEFAULT_GAIN;
+#endif
 	mutex_unlock(&aw_haptic->lock);
 	queue_work(aw_haptic->work_queue, &aw_haptic->vibrator_work);
 
@@ -2231,6 +2235,65 @@ static ssize_t gain_store(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
+#ifdef CONFIG_MOTO_HAPTIC
+static ssize_t strength_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	cdev_t *cdev = dev_get_drvdata(dev);
+	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic, vib_dev);
+
+	return snprintf(buf, PAGE_SIZE, "gain = 0x%02X\n", aw_haptic->gain);
+}
+
+static ssize_t strength_store(struct device *dev, struct device_attribute *attr, const char *buf,
+			  size_t count)
+{
+	cdev_t *cdev = dev_get_drvdata(dev);
+	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic, vib_dev);
+	uint32_t val = 0;
+	int rc = 0;
+
+	rc = kstrtouint(buf, 0, &val);
+	if (rc < 0)
+		return rc;
+
+	aw_info("value=0x%02X", val);
+
+	mutex_lock(&aw_haptic->lock);
+
+	switch (val) {
+	case 0:
+		aw_haptic->gain = AW_LIGHT_GAIN;
+		break;
+	case 1:
+		aw_haptic->gain = AW_MEDIUM_GAIN;
+		break;
+	case 2:
+		aw_haptic->gain = AW_STRONG_GAIN;
+		break;
+	default:
+		aw_err("Unsupported strength: %d", val);
+		break;
+	}
+
+	aw_haptic->func->set_gain(aw_haptic, aw_haptic->gain);
+	mutex_unlock(&aw_haptic->lock);
+
+	return count;
+}
+
+static ssize_t rtp_interface_show(struct device *dev,
+        struct device_attribute *attr, char *buf)
+{
+	return 0;
+}
+
+static ssize_t rtp_interface_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+	return count;
+}
+#endif
+
 static ssize_t seq_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	uint8_t i = 0;
@@ -2253,6 +2316,32 @@ static ssize_t seq_store(struct device *dev, struct device_attribute *attr,
 {
 	cdev_t *cdev = dev_get_drvdata(dev);
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic, vib_dev);
+#ifdef CONFIG_MOTO_HAPTIC
+	unsigned int val = 0;
+	int rc = 0;
+
+	rc = kstrtouint(buf, 0, &val);
+	if (rc < 0)
+		return rc;
+
+	val = (val >> 24) & 0xFF;
+	aw_info("%s: seq=%d\n", __func__,val);
+	mutex_lock(&aw_haptic->lock);
+	aw_haptic->duration = 0;
+	if (val == 3) {
+		aw_haptic->seq[0] = 1;
+	} else if (val == 4) {
+		aw_haptic->seq[0] = 3;
+	} else if (val == 5) {
+		aw_haptic->seq[0] = 1;
+	} else if (val == 6) {
+		aw_haptic->seq[0] = 2;
+	} else {
+		aw_haptic->seq[0] = 1;
+	}
+	aw_haptic->func->set_wav_seq(aw_haptic, 0, aw_haptic->seq[0]);
+	mutex_unlock(&aw_haptic->lock);
+#else
 	uint32_t databuf[2] = { 0, 0 };
 
 	if (sscanf(buf, "%x %x", &databuf[0], &databuf[1]) == 2) {
@@ -2267,6 +2356,7 @@ static ssize_t seq_store(struct device *dev, struct device_attribute *attr,
 					     aw_haptic->seq[databuf[0]]);
 		mutex_unlock(&aw_haptic->lock);
 	}
+#endif
 
 	return count;
 }
@@ -3233,6 +3323,10 @@ static DEVICE_ATTR_RW(seq);
 static DEVICE_ATTR_RW(reg);
 static DEVICE_ATTR_RW(vmax);
 static DEVICE_ATTR_RW(gain);
+#ifdef CONFIG_MOTO_HAPTIC
+static DEVICE_ATTR_RW(strength);
+static DEVICE_ATTR_RW(rtp_interface);
+#endif
 static DEVICE_ATTR_RW(loop);
 static DEVICE_ATTR_RW(rtp);
 static DEVICE_ATTR_RW(cali);
@@ -3276,6 +3370,10 @@ static struct attribute *vibrator_attributes[] = {
 	&dev_attr_index.attr,
 	&dev_attr_vmax.attr,
 	&dev_attr_gain.attr,
+#ifdef CONFIG_MOTO_HAPTIC
+	&dev_attr_strength.attr,
+	&dev_attr_rtp_interface.attr,
+#endif
 	&dev_attr_seq.attr,
 	&dev_attr_loop.attr,
 	&dev_attr_reg.attr,

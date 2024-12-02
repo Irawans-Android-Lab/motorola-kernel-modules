@@ -74,6 +74,10 @@
 #define AW_OSC_CALI_ACCURACY			(24)
 #define AW_OSC_CALI_MAX_LENGTH			(5100000)
 #define AW_TRIG_NUM				(3)
+#define AW_DEFAULT_GAIN				(0x80)
+#define AW_STRONG_GAIN				(0x80)
+#define AW_MEDIUM_GAIN				(0x60)
+#define AW_LIGHT_GAIN				(0x40)
 #define AW_RAMDATA_RD_BUFFER_SIZE		(1024)
 #define AW_RAMDATA_WR_BUFFER_SIZE		(2048)
 #define AW_EFFECT_NUMBER			(3)
@@ -87,7 +91,9 @@
 #define AW_READ_BIN_FLEXBALLY
 #define AW_LRA_F0_DEFAULT
 /* #define AW_INPUT_FRAMEWORK */
-/* #define AW_TIKTAP */
+#ifdef CONFIG_MOTO_HAPTIC
+#define AW_TIKTAP
+#endif
 /* #define AW_DOUBLE */
 #define AW_DURATION_DECIDE_WAVEFORM
 /* #define AW_USE_MAXIMUM_F0_CALI_DATA */
