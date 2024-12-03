@@ -173,7 +173,7 @@ static struct reg_default nu2115_reg_init_val[] = {
 	{NU2115_BUSOCP,	    0x06},//0X06:4000mA
 	{NU2115_BUSOCP_ALM,	0x8C},//0X8C:4000mA disable
 	//{NU2115_CON_STAT,	0x00},
-	{NU2115_CTRL_REG,	0x36},//0x36:watchdog disable 5s,600kHz
+	{NU2115_CTRL_REG,	0x26},//0x36:watchdog disable 5s,500kHz
 	{NU2115_CHGCTRL,	0x07},//default
 	{NU2115_INT_STAT,	0x00},//default mean {NU2115_STAT1, 0x0}
 	{NU2115_INT_FLAG,	0x00},//default
