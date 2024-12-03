@@ -212,15 +212,18 @@ int wls_get_bpp_config(struct moto_wlc *wlc, struct device *dev)
 	wlc->config.bpp_icl_max_uA = 1000000;//1000mA
 	wlc->config.bpp_icl_step_uA = 100000;//100mA
 	wlc->config.bpp_step_delay_ms = 100; //100ms
+	wlc->config.bpp_switch_time_ms = 3000; //3000ms
 
 	of_property_read_u32(node, "bpp-icl-min-uA", &wlc->config.bpp_icl_min_uA);
 	of_property_read_u32(node, "bpp-icl-max-uA", &wlc->config.bpp_icl_max_uA);
 	of_property_read_u32(node, "bpp-icl-step-uA", &wlc->config.bpp_icl_step_uA);
 	of_property_read_u32(node, "bpp-step-delay-ms", &wlc->config.bpp_step_delay_ms);
+	of_property_read_u32(node, "bpp-switch-time-ms", &wlc->config.bpp_switch_time_ms);
 
-	pr_info("[%s] bpp icl_min:%duA max:%duA step:%duA delay:%dms\n", __func__,
+	pr_info("[%s] bpp icl_min:%duA max:%duA step:%duA delay:%dms  switch:%dms\n", __func__,
 			wlc->config.bpp_icl_min_uA, wlc->config.bpp_icl_max_uA,
-			wlc->config.bpp_icl_step_uA, wlc->config.bpp_step_delay_ms);
+			wlc->config.bpp_icl_step_uA, wlc->config.bpp_step_delay_ms,
+			wlc->config.bpp_switch_time_ms);
 
 	return 0;
 }
@@ -234,15 +237,18 @@ int wls_get_epp_config(struct moto_wlc *wlc, struct device *dev)
 	wlc->config.epp_icl_max_uA = 1250000;//1250mA
 	wlc->config.epp_icl_step_uA = 100000;//100mA
 	wlc->config.epp_step_delay_ms = 100; //100ms
+	wlc->config.epp_switch_time_ms = 3000; //3000ms
 
 	of_property_read_u32(node, "epp-icl-min-uA", &wlc->config.epp_icl_min_uA);
 	of_property_read_u32(node, "epp-icl-max-uA", &wlc->config.epp_icl_max_uA);
 	of_property_read_u32(node, "epp-icl-step-uA", &wlc->config.epp_icl_step_uA);
 	of_property_read_u32(node, "epp-step-delay-ms", &wlc->config.epp_step_delay_ms);
+	of_property_read_u32(node, "epp-switch-time-ms", &wlc->config.epp_switch_time_ms);
 
-	pr_info("[%s] epp icl_min:%duA max:%duA step:%duA delay:%dms\n", __func__,
+	pr_info("[%s] epp icl_min:%duA max:%duA step:%duA delay:%dms switch:%dms\n", __func__,
 			wlc->config.epp_icl_min_uA, wlc->config.epp_icl_max_uA,
-			wlc->config.epp_icl_step_uA, wlc->config.epp_step_delay_ms);
+			wlc->config.epp_icl_step_uA, wlc->config.epp_step_delay_ms,
+			wlc->config.epp_switch_time_ms);
 
 	return 0;
 }

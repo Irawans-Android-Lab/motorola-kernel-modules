@@ -469,6 +469,106 @@ detect_exit:
 	return;
 }
 
+int wls_device_set_mode_select(struct moto_wlc *wlc, char *str, bool mode)
+{
+	int rt = 0;
+
+	rt = wls_rx_set_mode_select(wlc->wls_dev, mode);
+	wlc_info("[%s] mode:%d rt:%d\n", str, mode, rt);
+
+	return rt;
+}
+
+void wls_device_mode_switch_work(struct work_struct *work)
+{
+	struct moto_wlc *wlc =
+		container_of((struct delayed_work*)work, struct moto_wlc, mode_switch_work);
+	static int pre_mode = 0;
+	int rt = 0;
+	int switch_time = 2000;
+	int op_mode = 0;
+	int mode_sel = -1;
+
+	rt = wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+
+	switch (wlc->ctl.mode_switch)
+	{
+	case WLC_SWITCH_TO_BPP:
+		if (rt == 0 && op_mode == Sys_Op_Mode_EPP) {
+			switch_time = wlc->config.bpp_switch_time_ms;
+			pre_mode = op_mode;
+			wlc->ctl.mode_switch = WLC_SWITCH_RUN;
+			rt = wls_device_set_mode_select(wlc, "switch to BPP", 0);
+		}
+		break;
+	case WLC_SWITCH_TO_EPP:
+		if (rt == 0 && op_mode == Sys_Op_Mode_BPP) {
+			switch_time = wlc->config.epp_switch_time_ms;
+			pre_mode = op_mode;
+			wlc->ctl.mode_switch = WLC_SWITCH_RUN;
+			rt = wls_device_set_mode_select(wlc, "switch to EPP", 1);
+		}
+		break;
+	case WLC_SWITCH_RUN:
+		if (rt < 0) {
+			wlc->ctl.mode_switch = WLC_SWITCH_TIME_OUT;
+			rt = wls_rx_get_mode_select(wlc->wls_dev, &mode_sel);
+			if (rt == 0 && mode_sel == 0) {
+				rt = wls_device_set_mode_select(wlc, "Timeout reset to EPP", 1);
+			}
+		} else if (op_mode == pre_mode) {
+			wlc->ctl.mode_switch = WLC_SWITCH_FAIL;
+		} else {
+			wlc->ctl.mode_switch = WLC_SWITCH_DONE;
+		}
+
+		pr_info("%s op_mode:%d mode_switch:%d rt:%d\n",
+				__func__, op_mode, wlc->ctl.mode_switch, rt);
+
+		break;
+	default:
+		break;
+	}
+
+	pr_info("%s op_mode:%d mode_switch:%d rt:%d\n",
+			__func__, op_mode, wlc->ctl.mode_switch, rt);
+
+	if (wlc->ctl.mode_switch == WLC_SWITCH_RUN) {
+		queue_delayed_work(wlc->wls_wq, &wlc->mode_switch_work, msecs_to_jiffies(switch_time));
+	} else {
+		wlc->ctl.mode_switch = WLC_SWITCH_IDLE;
+	}
+}
+
+int wls_device_start_mode_switch(struct moto_wlc *wlc, char *str, int op_mode)
+{
+	int mode_sel = -1;
+	int rt = 0;
+
+	rt = wls_rx_get_mode_select(wlc->wls_dev, &mode_sel);
+	wlc_info("%s: %s op_mode:%d mode_sel:%d rt:%d\n",
+			__func__, str, op_mode, mode_sel, rt);
+	if (rt < 0) {
+		wlc_err("%s: mode_sel is invalid\n", __func__);
+	} else if ((mode_sel == 0 && op_mode == Sys_Op_Mode_BPP) ||
+				(mode_sel == 1 && op_mode == Sys_Op_Mode_EPP)) {
+		wlc_info("%s: skip change mode_sel\n", __func__);
+	} else if (wlc->ctl.mode_switch == WLC_SWITCH_IDLE) {
+		if (op_mode == Sys_Op_Mode_BPP) {
+			wlc->ctl.mode_switch = WLC_SWITCH_TO_BPP;
+		} else if (op_mode == Sys_Op_Mode_EPP) {
+			wlc->ctl.mode_switch = WLC_SWITCH_TO_EPP;
+		} else {
+			wlc_err("%s: op_mode:%d is invalid\n", __func__, op_mode);
+			return rt;
+		}
+		wlc_info("%s: wlc->mode_switch_work=%p\n", __func__, &wlc->mode_switch_work);
+		queue_delayed_work(wlc->wls_wq, &wlc->mode_switch_work, msecs_to_jiffies(10));
+	}
+
+	return rt;
+}
+
 static ssize_t wireless_fw_version_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int fw_version = 0x00;
@@ -541,7 +641,7 @@ static ssize_t mode_select_store(struct device *dev,
 	}
 
 	pWlc->ctl.mode_select_force = val;
-	ret = wls_rx_set_mode_select(pWlc->wls_dev, val);
+	ret = wls_device_set_mode_select(pWlc, "mode_select_store", val);
 
 	wlc_info("mode_select_store %d, wls_online:%d force:%d ret:%d\n",
 			val , pWlc->wls_online, pWlc->ctl.mode_select_force, ret);
@@ -549,6 +649,30 @@ static ssize_t mode_select_store(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR(mode_select, 0220, NULL, mode_select_store);
+
+static ssize_t mode_switch_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	bool val = 0;
+	int ret = 0;
+	struct moto_wlc *pWlc = dev->driver_data;
+	if (IS_ERR_OR_NULL(pWlc) || IS_ERR_OR_NULL(pWlc->wls_dev)) {
+		wlc_err("%s: chip is invalid\n", __func__);
+		return -ENODEV;
+	}
+	if (kstrtobool(buf, &val)) {
+		wlc_info("%s: val is invalid\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = wls_device_start_mode_switch(pWlc,
+			"mode_switch_store", val? Sys_Op_Mode_EPP : Sys_Op_Mode_BPP);
+
+	wlc_info("%s switch to %s ret:%d\n", __func__, val? "EPP" : "BPP" , ret);
+
+	return count;
+}
+static DEVICE_ATTR(mode_switch, 0220, NULL, mode_switch_store);
 
 static ssize_t show_rx_irect(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -939,6 +1063,7 @@ int wls_device_node_create(struct device *dev)
 	device_create_file(dev, &dev_attr_get_rx_vrect);
 	device_create_file(dev, &dev_attr_get_rx_vout);
 	device_create_file(dev, &dev_attr_mode_select);
+	device_create_file(dev, &dev_attr_mode_switch);
 	device_create_file(dev, &dev_attr_wls_input_current_limit);
 
 	device_create_file(dev, &dev_attr_wlc_fan_speed);
@@ -1021,14 +1146,14 @@ static int factory_test_wls_en(void *input, bool en)
 					msleep(100);
 					wait --;
 				}
-				ret |= wls_rx_set_mode_select(wlc->wls_dev, false);
+				ret |= wls_device_set_mode_select(wlc, "factory_wls_en", false);
 				wait = 50;
 				while (wait > 0 && (wlc_hal_get_vbus(wlc->alg) > 5500000)) {
 					msleep(10);
 					wait --;
 				}
 				ret |= wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_FACTORY_TEST, false);
-				ret |= wls_rx_set_mode_select(wlc->wls_dev, true);
+				ret |= wls_device_set_mode_select(wlc, "factory_wls_en", true);
 				wlc->ctl.factory_wls_en = false;
 			}
 		}

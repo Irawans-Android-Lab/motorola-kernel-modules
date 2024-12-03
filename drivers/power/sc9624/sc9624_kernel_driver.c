@@ -1245,13 +1245,13 @@ int sc9624_rx_get_op_mode(struct wireless_device *wls_dev, int *op_mode)
 	sc = dev_get_drvdata(&wls_dev->dev);
 	rt = sc9624_rx_get_sysmode(sc, &sysmode.value);
 
-	if (sysmode.BPP_MODE) {
-		rt = Sys_Op_Mode_BPP;
-	} else if (sysmode.EPP_MODE) {
-		rt = Sys_Op_Mode_EPP;
+	if (rt == 0 && sysmode.RECEIVER) {
+		if (sysmode.BPP_MODE) {
+			*op_mode = Sys_Op_Mode_BPP;
+		} else if (sysmode.EPP_MODE) {
+			*op_mode = Sys_Op_Mode_EPP;
+		}
 	}
-	if (!IS_ERR_OR_NULL(op_mode))
-		*op_mode = rt ;
 
 	return rt;
 }
@@ -1391,6 +1391,23 @@ int sc9624_set_mode_select(struct wireless_device *wls_dev, bool on)
 	return rt;
 }
 
+int sc9624_get_mode_select(struct wireless_device *wls_dev, int *mode_sel)
+{
+	int rt = -1;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+
+	if (gpio_is_valid(sc->wls_mode_select)) {
+		*mode_sel = gpio_get_value(sc->wls_mode_select);
+		if (*mode_sel >= 0) {
+			rt = 0;
+		}
+	}
+
+	return rt;
+}
+
 int sc9624_set_fw_update(struct wireless_device *wls_dev, bool on)
 {
 	int rt = -1;
@@ -1441,6 +1458,7 @@ static int sc9624_wlc2_init(struct sc9624 *sc)
 	sc->rx_ops.check_ldo_on = sc9624_check_ldo_on;
 	sc->rx_ops.send_ask_packet = sc9624_send_ask_packet;
 	sc->rx_ops.set_mode_select = sc9624_set_mode_select;
+	sc->rx_ops.get_mode_select = sc9624_get_mode_select;
 	sc->rx_ops.set_fw_update = sc9624_set_fw_update;
 
 	sc->wls_dev = wireless_device_register("moto_wlc2",

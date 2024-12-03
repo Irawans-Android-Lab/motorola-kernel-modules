@@ -151,6 +151,16 @@ enum wlc_state_enum {
 	WLC_DONE,
 };
 
+enum wlc_mode_switch_enum {
+	WLC_SWITCH_IDLE = 0,
+	WLC_SWITCH_TO_BPP,
+	WLC_SWITCH_TO_EPP,
+	WLC_SWITCH_RUN,
+	WLC_SWITCH_TIME_OUT,
+	WLC_SWITCH_FAIL,
+	WLC_SWITCH_DONE,
+};
+
 struct wlc_profile {
 	unsigned int vbat;
 	unsigned int vchr;
@@ -183,6 +193,7 @@ struct wireless_ctl
 	int rx_offset_detect_count;
 	int rx_ldo_detect_count;
 	ktime_t rx_start_ktime;
+	enum wlc_mode_switch_enum mode_switch;
 };
 
 struct wireless_data
@@ -222,11 +233,13 @@ struct wireless_config
 	int bpp_icl_max_uA;
 	int bpp_icl_step_uA;
 	int bpp_step_delay_ms;
+	int bpp_switch_time_ms;
 
 	int epp_icl_min_uA;
 	int epp_icl_max_uA;
 	int epp_icl_step_uA;
 	int epp_step_delay_ms;
+	int epp_switch_time_ms;
 
 	int rod_stop_battery_soc;
 	int bootmode;
@@ -352,6 +365,7 @@ struct moto_wlc {
 	struct delayed_work bpp_icl_work;
 	struct delayed_work light_fan_work;
 	struct delayed_work offset_detect_work;
+	struct delayed_work mode_switch_work;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
@@ -414,6 +428,9 @@ extern void wls_device_light_fan_work(struct work_struct *work);
 extern int wls_device_uisoc_change(struct moto_wlc *wlc, int uisoc);
 extern void wls_device_offset_detect_work(struct work_struct *work);
 extern int wls_device_init_light_fan(struct moto_wlc *wlc);
+extern void wls_device_mode_switch_work(struct work_struct *work);
+extern int wls_device_start_mode_switch(struct moto_wlc *wlc, char *str, int op_mode);
+extern int wls_device_set_mode_select(struct moto_wlc *wlc, char *str, bool mode);
 
 extern int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev);
 extern bool wls_config_is_charge_only_mode(struct moto_wlc *wlc);

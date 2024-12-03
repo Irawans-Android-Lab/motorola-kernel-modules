@@ -251,6 +251,10 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 					wls_chg_power_off(wlc);
 					wls_auth_disconnect(wlc);
 					wls_chg_notify_st_changed(wlc, WLC_DISCONNECTED);
+					if (wlc->ctl.mode_switch != WLC_SWITCH_RUN &&
+						!wlc->ctl.mode_select_force &&
+						!wlc->ctl.factory_wls_en)
+						wls_device_set_mode_select(wlc, "wls_det_irq_handler", 1);
 				}
 			}
 			break;
@@ -363,6 +367,11 @@ int wls_chg_get_property(struct power_supply *psy,
 				else {
 					val->intval = 0;
 				}
+			}
+			if (wlc->ctl.mode_switch == WLC_SWITCH_RUN) {
+				pr_info("%s mode switch hook online:1\n", __func__);
+				val->intval = 1;
+				ret = 0;
 			}
 			break;
 
