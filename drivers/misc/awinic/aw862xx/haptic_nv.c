@@ -99,6 +99,10 @@ static char aw_rtp_name[][AW_NAME_MAX] = {
 	{"aw862xx_rtp_City_Lights.bin"},
 	{"aw862xx_rtp_Firefly.bin"},
 	{"aw862xx_rtp_Now_or_Never.bin"},
+	{"aw862xx_rtp_Moto_Retro.bin"},
+	{"aw862xx_rtp_Moto_Original.bin"},
+	{"aw862xx_rtp_Moto_Classic.bin"},
+	{"aw862xx_rtp_New_Hellomoto.bin"},
 };
 
 #ifdef AW_TIKTAP
