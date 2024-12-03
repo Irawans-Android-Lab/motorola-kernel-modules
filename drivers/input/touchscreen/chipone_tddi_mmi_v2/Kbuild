@@ -60,6 +60,10 @@ ifneq ($(filter m y,$(CONFIG_TARGET_BUILD_FACTORY)),)
 	EXTRA_CFLAGS += -DTARGET_BUILD_FACTORY
 endif
 
+ifneq ($(filter m y, $(CONFIG_STOWED_MODE_EN)),)
+	EXTRA_CFLAGS += -DCTS_STOWED_MODE_EN
+endif
+
 ifneq ($(filter m y,$(CONFIG_CTS_LAST_TIME)),)
     EXTRA_CFLAGS += -DCONFIG_CTS_LAST_TIME
 endif

@@ -1593,7 +1593,20 @@ int cts_suspend_device(struct cts_device *cts_dev)
         cts_dev->rtdata.gesture_wakeup_enabled ? "gesture" : "sleep");
 
     buf = cts_dev->rtdata.gesture_wakeup_enabled ? 3 : 2;
+#ifdef CTS_STOWED_MODE_EN
+    if(cts_data->pdata->stowed_get && cts_data->cts_dev.rtdata.gesture_wakeup_enabled)
+    {
+        ret = cts_set_stow_mode(&cts_data->cts_dev, 1);
+        if (ret < 0)
+            cts_info("failed to enable stowed mode when suspend");
+        else
+            cts_info("Enable stowed mode when suspend");
+    }
+    else
+        ret = cts_tcs_set_pwr_mode(cts_dev, buf);
+#else
     ret = cts_tcs_set_pwr_mode(cts_dev, buf);
+#endif
     if (ret) {
         cts_err("Suspend device failed %d", ret);
         return ret;
@@ -2227,6 +2240,41 @@ init_hwdata:
 }
 
 #ifdef CFG_CTS_GESTURE
+
+#ifdef CTS_STOWED_MODE_EN
+int cts_set_stow_mode(struct cts_device *cts_dev, bool stow_mode)
+{
+    int ret = 0;
+    u16 fwid = CTS_DEV_FWID_INVALID;
+    u8 pwr_mode;
+
+    if (!cts_dev->rtdata.gesture_wakeup_enabled) {
+        cts_info("gesture disabled, skip stow check");
+        return 0;
+    }
+
+    if (stow_mode)
+        pwr_mode = 2; //sleep
+    else
+        pwr_mode = 3; //gesture
+
+    ret = cts_tcs_get_fw_id(cts_dev, &fwid);
+    cts_warn("Get firmware id: 0x%02x", fwid);
+    ret = cts_tcs_set_pwr_mode(cts_dev, pwr_mode);
+    if (ret)
+        cts_info("set pwr_mode %d for stow %d fail ret %d", pwr_mode, stow_mode, ret);
+    else {
+        struct chipone_ts_data *cts_data =
+            container_of(cts_dev, struct chipone_ts_data, cts_dev);
+
+        cts_data->pdata->stowed_set = stow_mode;
+        cts_info("set pwr_mode %d for stow %d success", pwr_mode, stow_mode);
+    }
+
+    return ret;
+}
+#endif
+
 void cts_enable_gesture_wakeup(struct cts_device *cts_dev)
 {
     cts_info("Enable gesture wakeup");

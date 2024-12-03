@@ -3293,6 +3293,61 @@ static ssize_t vendor_show(struct device *dev,
     return scnprintf(buf, PAGE_SIZE, "chipone");
 }
 
+#ifdef CTS_STOWED_MODE_EN
+static ssize_t stowed_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+	struct chipone_ts_data *cts_data = dev_get_drvdata(dev);
+	cts_info("Stowed state = %d.\n", cts_data->pdata->stowed_set);
+	return scnprintf(buf, PAGE_SIZE, "0x%d\n", cts_data->pdata->stowed_set);
+}
+
+static ssize_t stowed_store(struct device *dev,
+                                             struct device_attribute *attr,
+                                             const char *buf, size_t size)
+{
+	unsigned long mode = 0;
+	int ret = 0;
+	struct chipone_ts_data *cts_data = dev_get_drvdata(dev);
+	struct cts_device_rtdata *rtdata = &(cts_data->cts_dev.rtdata);
+
+	ret = kstrtoul(buf, 0, &mode);
+	if (ret < 0) {
+		cts_err("error: Failed to convert value");
+		return -EINVAL;
+	}
+
+	cts_lock_device(&cts_data->cts_dev);
+	cts_data->pdata->stowed_get = mode;
+	if(cts_data->pdata->stowed_set == mode)
+	{
+		cts_err("The mode = %lu is same, so not to write\n", mode);
+		ret = size;
+		goto exit;
+	}
+
+	if(rtdata->suspended && rtdata->gesture_wakeup_enabled)
+	{
+		ret = cts_set_stow_mode(&cts_data->cts_dev, mode);
+		if (ret < 0)
+			cts_info("failed to set stowed mode %d", mode);
+		else {
+			cts_dbg("Success to set stowed mode %d\n", mode);
+			ret = size;
+		}
+	}
+	else {
+		cts_info("Skip stowed mode, state suspended:%d, gesture_wakeup_enabled:%d", rtdata->suspended, rtdata->gesture_wakeup_enabled);
+		ret = size;
+		goto exit;
+	}
+
+exit:
+	cts_unlock_device(&cts_data->cts_dev);
+	return ret;
+}
+#endif
+
 /* Attribute: vendor (RO) */
 static ssize_t ic_ver_show(struct device *dev,
         struct device_attribute *attr, char *buf)
@@ -3329,6 +3384,9 @@ static struct device_attribute touchscreen_attributes[] = {
 #ifdef CONFIG_BOARD_USES_DOUBLE_TAP_CTRL
 	__ATTR_RW(gesture),
 	__ATTR_RW(gesture_type_dbg),
+#endif
+#ifdef CTS_STOWED_MODE_EN
+    __ATTR_RW(stowed),
 #endif
 	__ATTR(debug_log_level, S_IRUGO | S_IWUSR | S_IWGRP, debug_log_level_show, debug_log_level_store),
     __ATTR_NULL
