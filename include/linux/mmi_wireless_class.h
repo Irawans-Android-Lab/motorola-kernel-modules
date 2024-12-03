@@ -55,6 +55,7 @@ struct wls_rx_ops {
 	int (*get_op_mode)(struct wireless_device *wls_dev, int *mode);
 	int (*get_sys_mode)(struct wireless_device *wls_dev, int *sys_mode);
 	int (*get_rx_die_temp)(struct wireless_device *wls_dev, int *temp);
+	int (*get_mode_select)(struct wireless_device *wls_dev, int *mode_sel);
 
 	//rx charging info
 	int (*get_rx_neg_power)(struct wireless_device *wls_dev, int *power);
@@ -140,6 +141,7 @@ extern int wls_rx_get_fw_version(struct wireless_device *wls_dev, int *fw_versio
 extern int wls_rx_get_rx_neg_power(struct wireless_device *wls_dev, int *power);
 extern int wls_rx_get_op_mode(struct wireless_device *wls_dev, int *op_mode);
 extern int wls_rx_get_sys_mode(struct wireless_device *wls_dev, int *sys_mode);
+extern int wls_rx_get_mode_select(struct wireless_device *wls_dev, int *mode_sel);
 
 extern int wls_rx_get_rx_irect(struct wireless_device *wls_dev, int *cur);
 extern int wls_rx_get_rx_iout(struct wireless_device *wls_dev, int *cur);
