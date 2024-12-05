@@ -2403,8 +2403,12 @@ static int bq25980_register_chgdev(struct bq25980_device *bq)
 	return bq->chg_dev ? 0 : -EINVAL;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+static int bq25980_probe(struct i2c_client *client)
+#else
 static int bq25980_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
+#endif
 {
 	struct device *dev = &client->dev;
 	struct bq25980_device *bq;
@@ -2412,7 +2416,9 @@ static int bq25980_probe(struct i2c_client *client,
 	const char *sgm41606s_name;
 	int len;
 	int ret;//, irq_gpio, irqn;
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+#endif
 	printk("-------bq25980 driver probe--------\n");
 	bq = devm_kzalloc(dev, sizeof(*bq), GFP_KERNEL);
 	if (!bq) {
