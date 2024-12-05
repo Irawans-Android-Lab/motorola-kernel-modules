@@ -39,6 +39,7 @@
 struct dma_pool *pool_rx;
 struct dma_pool *pool_tx;
 
+bool debug_log_flag = true;
 
 struct tlv_header eph_get_tl_header_info(struct eph_data *ephdata, u8 *message)
 {

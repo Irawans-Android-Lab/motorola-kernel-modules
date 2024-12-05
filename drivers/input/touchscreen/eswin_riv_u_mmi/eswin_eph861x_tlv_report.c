@@ -56,9 +56,9 @@
 
 u8 sysfs_report_buf[PAGE_SIZE]={0};
 u8 sysfs_packetised_eng_buf[PAGE_SIZE]={0};
+static struct wakeup_source *gesture_wakelock;
 static u16 stored_touches = 0;
 static u16 prev_stored_touches = 0;
-static struct wakeup_source *gesture_wakelock;
 
 static void eph_recv_touch_report(struct eph_data* ephdata, u8* message);
 
@@ -89,53 +89,6 @@ const char *get_touch_type_str(u8 touch_type)
 
 static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
 {
-    struct input_dev *input_dev = ephdata->inputdev;
-#if 0
-    struct device *dev = &ephdata->commsdevice->dev;
-    u8 gesture_type = message[1];
-
-    switch (gesture_type) {
-    case GESTURE_TAP:
-    {
-        input_report_key(input_dev, KEY_WAKEUP, 1);
-        input_sync(input_dev);
-        input_report_key(input_dev, KEY_WAKEUP, 0);
-        input_sync(input_dev);
-        break;
-    }
-    case GESTURE_DOUBLE_TAP:
-    {
-        input_report_key(input_dev, KEY_WAKEUP, 1);
-        input_sync(input_dev);
-        input_report_key(input_dev, KEY_WAKEUP, 0);
-        input_sync(input_dev);
-        break;
-    }
-    case GESTURE_SWIPE_LEFT:
-        /* TODO: Implement according to requirement */
-        break;
-    case GESTURE_SWIPE_RIGHT:
-        /* TODO: Implement according to requirement */
-        break;
-    case GESTURE_SWIPE_UP:
-        /* TODO: Implement according to requirement */
-        break;
-    case GESTURE_SWIPE_DOWN:
-        /* TODO: Implement according to requirement */
-        break;
-    case GESTURE_PINCH:
-        /* TODO: Implement according to requirement */
-        break;
-    case GESTURE_STRETCH:
-        /* TODO: Implement according to requirement */
-        break;
-    case GESTURE_UNUSED:
-    default:
-        dev_err(dev, "unexpected gesture type %x\n", gesture_type);
-        break;
-    }
-
-#else
     u8 gesture_id = message[1];
     int gesture;
     int ret = 0;
@@ -164,35 +117,6 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
     case GESTURE_TAP:
         gesture = KEY_GESTURE_F1;
         break;
-#if 0
-    case GESTURE_O:
-        gesture = KEY_GESTURE_O;
-        break;
-    case GESTURE_W:
-        gesture = KEY_GESTURE_W;
-        break;
-    case GESTURE_M:
-        gesture = KEY_GESTURE_M;
-        break;
-    case GESTURE_E:
-        gesture = KEY_GESTURE_E;
-        break;
-    case GESTURE_L:
-        gesture = KEY_GESTURE_L;
-        break;
-    case GESTURE_S:
-        gesture = KEY_GESTURE_S;
-        break;
-    case GESTURE_V:
-        gesture = KEY_GESTURE_V;
-        break;
-    case GESTURE_Z:
-        gesture = KEY_GESTURE_Z;
-        break;
-    case  GESTURE_C:
-        gesture = KEY_GESTURE_C;
-        break;
-#endif
     default:
         gesture = -1;
         break;
@@ -216,8 +140,8 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
                 /* call class method */
                 ret = ephdata->imports->report_gesture(&event);
             }
-	/* report single tap */
         }
+	/* report single tap */
         else if (gesture == KEY_GESTURE_F1)
         {
             if (ephdata->imports && ephdata->imports->report_gesture)
@@ -248,14 +172,10 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
         if (!ret)
         {
             PM_WAKEUP_EVENT(gesture_wakelock, 5000);
-            ts_err("import-report_gesture failed");
-        }
-        input_report_key(input_dev, gesture, 1);
-        input_sync(input_dev);
-        input_report_key(input_dev, gesture, 0);
-        input_sync(input_dev);
+        } else {
+            ts_err("import-report_gesture failed %d\n", ret);
+	    }
     }
-#endif
 }
 
 void eph_recv_event_report_contianer(struct eph_data *ephdata, u8 *message)
@@ -278,15 +198,17 @@ void eph_recv_event_report_contianer(struct eph_data *ephdata, u8 *message)
         event_type = (message[message_offset] & EVENT_REPORT_TYPE_MASK) >> EVENT_REPORT_TYPE_OFFSET;
         event_length = (message[message_offset] & EVENT_REPORT_LENGTH_MASK);
 #ifdef CONFIG_ENABLE_ESWIN_PALM_CANCEL
-        if (PALM_TYPE == event_type)
+        if (SUPPRESSED_TOUCH_TYPE == event_type)
         {
             ephdata->palm_on = true;
             dev_info(dev, "Touch palm on %d", event_type);
         }
 #endif
+#if DEBUG_LOG
         dev_info(dev,
              "report - offset: %u event_type: %u event_length: %u ",
              message_offset, event_type, event_length);
+#endif
         switch (event_type)
         {
 
@@ -320,39 +242,7 @@ void eph_recv_off_event_report_contianer(struct eph_data *ephdata, u8 *message)
 {
     struct input_dev *input_dev = ephdata->inputdev;
     eph_read_report_fod_event(ephdata, message);
-#if 0
-    switch (finger_event_type)
-    {
-        case FINGER_REGION_FINGER_DOWN:
-        {
-            input_report_key(ephdata->inputdev, BTN_TRIGGER_HAPPY1, 1);
-            input_sync(ephdata->inputdev);
-            input_report_key(ephdata->inputdev, BTN_TRIGGER_HAPPY1, 0);
-            input_sync(ephdata->inputdev);
-            dev_dbg(dev, "finger print type %x -- FINGER_REGION_FINGER_DOWN\n", finger_event_type);
-            break;
-        }
-        case FINGER_REGION_FINGER_UP:
-        {
-            input_report_key(ephdata->inputdev, BTN_TRIGGER_HAPPY2, 1);
-            input_sync(ephdata->inputdev);
-            input_report_key(ephdata->inputdev, BTN_TRIGGER_HAPPY2, 0);
-            input_sync(ephdata->inputdev);
-            dev_dbg(dev, "finger print type %x -- FINGER_REGION_FINGER_UP\n", finger_event_type);
-            break;
-        }
-        case FINGER_REGION_HOVER_DOWN:
-            dev_dbg(dev, "finger print type %x -- FINGER_REGION_HOVER_DOWN\n", finger_event_type);
-            break;
-        case FINGER_REGION_HOVER_UP:
-            dev_dbg(dev, "finger print type %x -- FINGER_REGION_HOVER_UP\n", finger_event_type);
-            break;
-        case FINGER_REGION_RESERVED:
-        default:
-            dev_dbg(dev, "unexpected gesture type %x\n", finger_event_type);
-            break;
-    }
-#endif
+
     if (ephdata->fod_event) {
         input_report_key(input_dev, ephdata->fod_event, 1);
         input_sync(input_dev);
@@ -367,22 +257,20 @@ void eph_recv_off_event_report_contianer(struct eph_data *ephdata, u8 *message)
 
 void eph_read_report_fod_event(struct eph_data *ephdata, u8 *message)
 {
-    struct device *dev = &ephdata->commsdevice->dev;
     int ret = 0;
     static bool last_fod_down = false;
     struct gesture_event_data event;
     int fod_down_interval = 0;
     static unsigned long start = 0;
     u8 finger_event_type;
-    u8 gesture_event_type;
 
     finger_event_type = message[9];
+#if DEBUG_LOG
+    u8 gesture_event_type;
     gesture_event_type = message[11];
-
-    dev_info(dev,
-            "finger_event_type: %u gesture_event_type: %u",
+    ts_info("finger_event_type: %u gesture_event_type: %u",
             finger_event_type, gesture_event_type);
-
+#endif
     if (ephdata->suspended)
     {
         if (FINGER_REGION_FINGER_DOWN == finger_event_type)
@@ -436,14 +324,13 @@ void eph_read_report_fod_event(struct eph_data *ephdata, u8 *message)
     {
         if (FINGER_REGION_FINGER_UP == finger_event_type)
         {
-            //FTS_INFO("Get FOD-UP normal");
             ts_info("report BTN_TRIGGER_HAPPY2");
             ephdata->fod_event = BTN_TRIGGER_HAPPY2;
             last_fod_down = false;
         }
         else if (FINGER_REGION_FINGER_DOWN == finger_event_type)
         {
-            //FTS_INFO("Get FOD-DOWN normal");
+            ts_info("Get FOD-DOWN normal");
             if (last_fod_down == false)
             {
                 ephdata->fod_event = BTN_TRIGGER_HAPPY1;
@@ -470,6 +357,7 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
     u8 touch_major_axis = 0;
     u8 touch_minor_axis = 0;
     bool is_active = false;
+    static bool debug_report_touch_down_en = false;
 
     prev_stored_touches = stored_touches;
 
@@ -560,16 +448,20 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
                 "[%u] %s,  RELEASE_TYPE,  ABS_MT_PRESSURE:%d touch_tool_type:%d is_active:%d BTN_TOUCH:%d\n",
                 touch_id_slot,
                 get_touch_type_str(touch_type), touch_pressure, touch_tool_type, is_active, 0);
-
+        debug_report_touch_down_en = true;
         stored_touches &= (~(1 << touch_id_slot));
     }
     else
     {
-        dev_dbg(dev,
-                "[%u] %s POSTITION:(%u, %u) ABS_MT_TOUCH_MAJOR:%d ABS_MT_TOUCH_MINOR:%d ABS_MT_PRESSURE:%d touch_tool_type:%d is_active:%d\n",
-                touch_id_slot,
-                get_touch_type_str(touch_type),
-                position_x, position_y, touch_major_axis, touch_minor_axis, touch_pressure, touch_tool_type, is_active);
+        if (debug_report_touch_down_en) {
+            dev_dbg(dev,
+                    "[%u] %s POSTITION:(%u, %u) ABS_MT_TOUCH_MAJOR:%d ABS_MT_TOUCH_MINOR:%d ABS_MT_PRESSURE:%d touch_tool_type:%d is_active:%d\n",
+                    touch_id_slot,
+                    get_touch_type_str(touch_type),
+                    position_x, position_y, touch_major_axis, touch_minor_axis, touch_pressure, touch_tool_type, is_active);
+            debug_report_touch_down_en = false;
+        }
+
 
         input_mt_report_slot_state(ephdata->inputdev, touch_tool_type, is_active);
 
@@ -594,6 +486,10 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
     if ((stored_touches) && (!prev_stored_touches))
     {
         input_report_key(ephdata->inputdev, BTN_TOUCH, 1);
+#ifdef CONFIG_ESWIN_LAST_TIME
+        ephdata->last_event_time = ktime_get_boottime();
+        ts_info("TOUCH: [%d] logged timestamp\n", touch_id_slot);
+#endif
     }
     else if ((!stored_touches) && (prev_stored_touches))
     {
@@ -606,8 +502,6 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
     return;
 
 }
-
-
 
 void eph_clear_all_host_touch_slots(struct eph_data *ephdata)
 {
@@ -629,11 +523,11 @@ void eph_clear_all_host_touch_slots(struct eph_data *ephdata)
     }
     input_report_key(ephdata->inputdev, BTN_TOUCH, 0u);
     input_sync(ephdata->inputdev);
+
     stored_touches = 0;
     prev_stored_touches = 0;
     mutex_unlock(&ephdata->inputdev->mutex);
 }
-
 
 static void eph_recv_device_state_report(struct eph_data *ephdata, u8 *message)
 {
@@ -651,9 +545,6 @@ static void eph_recv_device_state_report(struct eph_data *ephdata, u8 *message)
                 "Reset completed. STATUS_FLAG:%d COMPONENT_ID:%d\n", device_status_flags, component_id);
     }
 }
-
-
-
 
 bool eph_proc_report(struct eph_data *ephdata, u8 *message)
 {
@@ -722,7 +613,6 @@ int eph_buffer_report(struct eph_data *ephdata, u8 *message)
     return 0;
 }
 
-
 int eph_handle_report(struct eph_data *ephdata, u8 *message)
 {
     bool buffer_report;
@@ -784,4 +674,3 @@ int eph_gesture_init(struct eph_data *ephdata)
     ts_info("eph_gesture_init <\n");
     return 0;
 }
-

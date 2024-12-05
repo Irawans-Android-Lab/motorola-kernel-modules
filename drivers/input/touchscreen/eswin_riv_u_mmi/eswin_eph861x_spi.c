@@ -11,7 +11,6 @@
 
 // uncomment to enable the dev_dbg prints to dmesg
 #define DEBUG
-#define DEBUG_LOG (1u)
 // uncomment to test with input forced open
 //#define INPUT_DEVICE_ALWAYS_OPEN
 #include <linux/types.h>
@@ -39,7 +38,7 @@ u8 spi_tx_dummy_buf[SPI_APP_BUF_SIZE_READ];
 #if DEBUG_LOG
 static void EPH_LOG_BUFFER(struct eph_data *ephdata, u8* data, bool rx_data)
 {
-    dev_info(&ephdata->commsdevice->dev, "[%d] - %02x %02x %02x %02x %02x %02x\n", rx_data, data[0], data[1], data[2], data[3], data[4], data[5]);
+    dev_info(&ephdata->commsdevice->dev, "[%d] - %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", rx_data, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]);
     return;
 }
 #endif

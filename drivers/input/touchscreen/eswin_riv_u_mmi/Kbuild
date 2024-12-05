@@ -24,7 +24,8 @@ eswin_riv_u_mmi-objs := \
 					eswin_eph861x_spi.o \
 					eswin_eph861x_tlv_command.o \
 					eswin_eph861x_tlv_report.o \
-					eswin_eph861x.o
+					eswin_eph861x.o \
+					eswin_ts_config.o
 
 ifneq ($(filter m y, $(CONFIG_DRM_PANEL_EVENT_NOTIFICATIONS)),)
 	EXTRA_CFLAGS += -DCONFIG_DRM_PANEL_EVENT_NOTIFICATIONS
@@ -85,9 +86,9 @@ ifneq ($(filter m y,$(CONFIG_TARGET_BUILD_FACTORY)),)
     EXTRA_CFLAGS += -DGTP_SAVE_IN_CSV
 endif
 
-# ifneq ($(filter m y,$(CONFIG_GTP_LAST_TIME)),)
-#     EXTRA_CFLAGS += -DCONFIG_GTP_LAST_TIME
-# endif
+ ifneq ($(filter m y,$(CONFIG_ESWIN_LAST_TIME)),)
+     EXTRA_CFLAGS += -DCONFIG_ESWIN_LAST_TIME
+ endif
 
 # ifneq ($(filter m y,$(CONFIG_GTP_DDA_STYLUS)),)
 #     EXTRA_CFLAGS += -DCONFIG_GTP_DDA_STYLUS

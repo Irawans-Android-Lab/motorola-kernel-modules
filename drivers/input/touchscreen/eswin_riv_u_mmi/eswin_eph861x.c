@@ -61,7 +61,7 @@
 #define EPH_MAX_HEIGHT_WIDTH                255u
 #define EPH_HOST_REPORTING_TOUCH            1u
 #define EPH_HOST_REPORTING_GESTURE          2u
-#define EPH_ESD_RECOVERY
+//#define EPH_ESD_RECOVERY
 
 static int eph_sysfs_mem_access_init(struct eph_data *ephdata);
 static void eph_sysfs_mem_access_remove(struct eph_data *ephdata);
@@ -166,6 +166,18 @@ static irqreturn_t eph_interrupt(int irq, void *dev_id)
 {
     struct eph_data *ephdata = (struct eph_data *)dev_id;
     struct device *dev = &ephdata->commsdevice->dev;
+#if !defined(ESWIN_SYSTEM_SUSPEND)
+    int ret = 0;
+    if ((ephdata->suspended) && (ephdata->pm_suspend)) {
+        ret = wait_for_completion_timeout(
+                  &ephdata->pm_completion,
+                  msecs_to_jiffies(EPH_TIMEOUT_COMERR_PM));
+        if (!ret) {
+            ts_err("Bus don't resume from pm(deep),timeout,skip irq");
+            return IRQ_HANDLED;
+        }
+    }
+#endif
 
     if (dev == NULL)
         return IRQ_HANDLED;
@@ -423,6 +435,7 @@ static int eph_acquire_irq(struct eph_data *ephdata)
     else
     {
         enable_irq(ephdata->chg_irq);
+        ephdata->irq_enabled = true;
     }
 
 
@@ -883,7 +896,7 @@ static int eph_enter_bootloader(struct eph_data *ephdata)
 
         /* only disable interrupt and unregister if we have not done so before */
         disable_irq(ephdata->chg_irq);
-
+        ephdata->irq_enabled = false;
     }
 
     /* force bootloader regardless whether we are in bootloader already - Always in defined TIC state */
@@ -1157,6 +1170,7 @@ static ssize_t eph_devattr_update_device_settings_store(struct device *dev,
         if (ephplatform->suspend_mode == EPH_SUSPEND_REGULATOR)
         {
             enable_irq(ephdata->chg_irq);
+            ephdata->irq_enabled = true;
             eph_power_on(ephdata);
         }
         else if (ephplatform->suspend_mode == EPH_SUSPEND_DEEP_SLEEP)
@@ -1616,6 +1630,7 @@ static int eph_start(struct eph_data *ephdata)
     {
         case EPH_SUSPEND_REGULATOR:
             enable_irq(ephdata->chg_irq);
+            ephdata->irq_enabled = true;
             #if (ESWIN_EPH861X_I2C)
             eph_power_on(ephdata);
             #endif
@@ -1652,6 +1667,7 @@ static int eph_stop(struct eph_data *ephdata)
     {
         case EPH_SUSPEND_REGULATOR:
             disable_irq(ephdata->chg_irq);
+            ephdata->irq_enabled = false;
             #if (ESWIN_EPH861X_I2C)
             eph_power_off(ephdata);
             #endif
@@ -1938,9 +1954,9 @@ static void heartbeat_work_handler(struct work_struct *work)
         ts_err("heartbeat_work_handler faield...get no valid ephdata!!!\n");
         return;
     }
-
+#if DEBUG_LOG
     ts_info("ic heartbeat work...\n");
-
+#endif
     if (!atomic_read(&ephdata->heartbeat_on)) {
         ts_info("ic heartbeat off\n");
         return;
@@ -2096,6 +2112,10 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
 
     init_completion(&ephdata->chg_completion);
     init_completion(&ephdata->reset_completion);
+#if !defined(ESWIN_SYSTEM_SUSPEND)
+    init_completion(&ephdata->pm_completion);
+    ephdata->pm_suspend = false;
+#endif
 
 
     mutex_init(&ephdata->comms_mutex);
@@ -2123,6 +2143,7 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
 
     /* Need to have IRQ disabled before calling eph_initialize() as it re-enables it */
     disable_irq(ephdata->chg_irq);
+    ephdata->irq_enabled = false;
 
     ret_val = sysfs_create_group(&commsdevice->dev.kobj, &eph_fw_attr_group);
     if (ret_val)
@@ -2331,6 +2352,8 @@ static int eph_dev_enter_normal_mode(struct eph_data *ephdata)
     return ret_val;
 }
 #endif
+
+#if defined(ESWIN_SYSTEM_SUSPEND)
 static int __maybe_unused eph_suspend(struct device *dev)
 {
     struct comms_device *commsdevice = eph_comms_device_get(dev);
@@ -2400,11 +2423,30 @@ static int __maybe_unused eph_resume(struct device *dev)
 
     return 0;
 }
+#else
+static int __maybe_unused eph_suspend(struct device *dev)
+{
+    struct comms_device *commsdevice = eph_comms_device_get(dev);
+    struct eph_data *ephdata = eph_comms_driver_data_get(commsdevice);
 
+    ts_info("system enters into pm_suspend");
+    ephdata->pm_suspend = true;
+    reinit_completion(&ephdata->pm_completion);
+    return 0;
+}
 
-#if defined(ESWIN_SYSTEM_SUSPEND)
-static SIMPLE_DEV_PM_OPS(eph_pm_ops, eph_suspend, eph_resume);
+static int __maybe_unused eph_resume(struct device *dev)
+{
+    struct comms_device *commsdevice = eph_comms_device_get(dev);
+    struct eph_data *ephdata = eph_comms_driver_data_get(commsdevice);
+
+    ts_info("system resumes from pm_suspend");
+    ephdata->pm_suspend = false;
+    complete(&ephdata->pm_completion);
+    return 0;
+}
 #endif
+static SIMPLE_DEV_PM_OPS(eph_pm_ops, eph_suspend, eph_resume);
 
 #ifdef CONFIG_OF // Open Firmware (Device Tree)
 static const struct of_device_id eph_of_match[] =
@@ -2431,9 +2473,8 @@ static struct comms_driver eph_driver =
         .name   = "eswin_eph861x",
         .owner  = THIS_MODULE,
         .of_match_table = of_match_ptr(eph_of_match),
-#if defined(ESWIN_SYSTEM_SUSPEND)
         .pm = &eph_pm_ops,
-#endif
+
     },
 
 };
@@ -2444,4 +2485,3 @@ module_comms_driver(eph_driver);
 MODULE_AUTHOR("chris.ollerenshaw@eswin.com>");
 MODULE_DESCRIPTION("ESWIN EPH861 series Touchscreen driver");
 MODULE_LICENSE("GPL");
-

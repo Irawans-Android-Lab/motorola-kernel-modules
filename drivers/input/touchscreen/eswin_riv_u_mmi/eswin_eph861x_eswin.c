@@ -167,6 +167,41 @@ const struct eph_platform_data *eph_platform_data_get_from_device_tree(struct co
         dev_err(&commsdevice->dev,  "Couldn't read eswin,fw_name: %d\n", ret_val);
     }
 
+    ephplatform->edge_ctrl = of_property_read_bool(devnode,
+                    "eswin,edge-ctrl");
+    if (ephplatform->edge_ctrl)
+        ts_info("support eswin edge mode");
+
+    ephplatform->interpolation_ctrl = of_property_read_bool(devnode,
+                    "eswin,interpolation-ctrl");
+    if (ephplatform->interpolation_ctrl)
+        ts_info("support eswin interpolation mode");
+
+    ephplatform->report_rate_ctrl = of_property_read_bool(devnode,
+                    "eswin,report_rate-ctrl");
+    if (ephplatform->report_rate_ctrl)
+        ts_info("support eswin report rate switch mode");
+
+    ephplatform->sample_ctrl = of_property_read_bool(devnode,
+                    "eswin,sample-ctrl");
+    if (ephplatform->sample_ctrl)
+        ts_info("support eswin sample mode");
+
+    ephplatform->stowed_mode_ctrl = of_property_read_bool(devnode,
+                    "eswin,stowed-mode-ctrl");
+    if (ephplatform->stowed_mode_ctrl)
+        ts_info("Support eswin touch stowed mode");
+
+    ephplatform->sensitivity_ctrl = of_property_read_bool(devnode,
+                    "eswin,sensitivity-ctrl");
+    if (ephplatform->stowed_mode_ctrl)
+        ts_info("Support eswin touch sensitivity control mode");
+
+    ephplatform->stylus_mode_ctrl = of_property_read_bool(devnode,
+                    "eswin,stylus-mode-ctrl");
+    if (ephplatform->stowed_mode_ctrl)
+        ts_info("Support eswin stylus mode");
+
     of_property_read_string(devnode, "eswin,input_name", &ephplatform->input_name);
 
     of_property_read_u32(devnode, "eswin,suspend-mode", &ephplatform->suspend_mode);

@@ -39,6 +39,8 @@
 #define ESWIN_SYSTEM_SUSPEND (1u)
 #endif
 
+#define DEBUG_LOG (0u) // more detail debug log
+
 #if defined(ESWIN_BOARD_FLORAL) // pixel4XL plat
 #include <linux/msm_drm_notify.h>
 #elif defined(ESWIN_BOARD_CLOUDRIPPER) // pixel7Pro plat
@@ -96,6 +98,7 @@
 #define module_comms_driver   module_i2c_driver
 #endif
 
+#define EPH_TIMEOUT_COMERR_PM 700
 
 struct tlv_header {
     u8 type;
@@ -159,6 +162,14 @@ struct eph_platform_data
     unsigned int panel_max_x;
     unsigned int panel_max_y;
     const char *panel_supplier;
+    bool pocket_mode_ctrl;
+    bool edge_ctrl;
+    bool interpolation_ctrl;
+    bool report_rate_ctrl;
+    bool sample_ctrl;
+    bool stowed_mode_ctrl;
+    bool sensitivity_ctrl;
+    bool stylus_mode_ctrl;
 };
 
 struct eph_device_info
@@ -208,6 +219,22 @@ struct eswin_ts_hw_ops {
     int (*suspend)(struct device *dev);
     void (*power_on)(struct eph_data *ephdata);
 };
+struct eswin_ts_mode
+{
+    int film_mode;
+    int leather_mode;
+    int stylus_mode;
+    int report_rate_mode;
+    int interpolation;
+    int sample;
+    int stowed;
+    int pocket_mode;
+    int edge_mode[2];
+#ifdef ESWIN_PALM_SENSOR_EN
+    int palm_detection;
+#endif
+};
+
 #endif
 
 /* Each client has this additional data */
@@ -259,6 +286,7 @@ struct eph_data
     int zerotap_data[1];
     unsigned long fod_jiffies;
     atomic_t heartbeat_on;
+    atomic_t post_suspended;
 
     /* low power mode gesture */
     u8 lp;
@@ -285,11 +313,19 @@ struct eph_data
     struct drm_bridge panel_bridge;
 #endif
 
+#if !defined(ESWIN_SYSTEM_SUSPEND)
+    struct completion pm_completion;
+    bool pm_suspend;
+#endif
+
 #ifdef CONFIG_INPUT_TOUCHSCREEN_MMI
     struct ts_mmi_class_methods *imports;
     struct mutex mmi_lock;
     bool syspended;
     bool charger_mode;
+    struct eswin_ts_mode get_mode;
+    struct eswin_ts_mode set_mode;
+    ktime_t last_event_time;
 #endif
 };
 
