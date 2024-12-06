@@ -979,7 +979,12 @@ int mtp_program(struct sc9624 *sc)
 
     sc_info("image_ver:0x%X fw_ver:0x%X\n", image_ver, fw_ver);
 
-    if (image_ver == fw_ver || ret != 0) {
+    if (ret) {
+        sc_info("iic error, Skip FW update\n");
+        goto program_fail;
+    } else if (sc->fw_update_force) {
+        sc_info("FW update force\n");
+    } else if (image_ver == fw_ver) {
         sc_info("image_ver:0x%X fw_ver:0x%X, Skip FW update\n", image_ver, fw_ver);
         goto program_fail;
     }
