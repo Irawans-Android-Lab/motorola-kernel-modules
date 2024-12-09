@@ -2366,6 +2366,13 @@ static int sc8565_operation_mode_select(struct charger_device *chg_dev, int cp_o
 	return ret;
 }
 
+static int sc8565_operation_get_max_mode(struct charger_device *chg_dev, int *cp_op_mode)
+{
+	int ret = 0;
+
+	*cp_op_mode = CP_4_1_MODE;
+	return ret;
+}
 #if 0
 static const struct charger_ops sc8565_chg_ops = {
 	.enable = sc8565_enable_chg,
@@ -2412,6 +2419,7 @@ static const struct charger_ops sc858x_chg_ops = {
 	 .get_vmos_chg = sc8565_get_vmos_chg,
 #endif
 	.set_cp_operation_mode = sc8565_operation_mode_select,
+	.get_cp_operation_max_mode = sc8565_operation_get_max_mode,
 };
 
 static int sc8565_register_chgdev(struct sc858x_chip *bq)
