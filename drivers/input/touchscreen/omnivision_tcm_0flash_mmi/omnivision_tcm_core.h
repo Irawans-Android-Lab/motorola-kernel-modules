@@ -514,6 +514,14 @@ struct ovt_tcm_features {
 	unsigned char byte_2_reserved:7;
 } __packed;
 
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+enum firmware_image_type {
+	NORMAL_APP_FIRMWARE,
+	TEST_FIRMWARE,
+	LPWG_FIRMWARE,
+};
+#endif
+
 struct ovt_tcm_hcd {
 	pid_t isr_pid;
 	atomic_t command_status;
@@ -542,7 +550,9 @@ struct ovt_tcm_hcd {
 	unsigned int rd_chunk_size;
 	unsigned int wr_chunk_size;
 	unsigned int app_status;
-
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+	unsigned int request_fw_image_id;
+#endif
 	unsigned int func_ear_phone_connected_en;
 	unsigned int func_charger_connected_en;
 	unsigned int func_roate_horizontal_level_en;
@@ -623,6 +633,9 @@ struct ovt_tcm_hcd {
 			struct ovt_tcm_buffer *output);
 	void (*report_touch)(void);
 	void (*update_watchdog)(struct ovt_tcm_hcd *tcm_hcd, bool en);
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+	int (*download_firmware_image_id)(struct ovt_tcm_hcd *tcm_hcd, unsigned int image_id);
+#endif
 };
 
 struct ovt_tcm_module_cb {

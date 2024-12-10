@@ -3044,6 +3044,28 @@ exit:
 	return retval;
 }
 
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+static int ovt_tcm_download_firmware_img_id(struct ovt_tcm_hcd *tcm_hcd, unsigned int firmware_img_id)
+{
+	int retval = 0;
+	tcm_hcd->request_fw_image_id = firmware_img_id;
+	//sw reset
+	tcm_hcd->reset(tcm_hcd);
+
+	msleep(50);
+	//wait hostdownload done
+	retval = ovt_tcm_wait_hdl(tcm_hcd);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to wait for completion of host download\n");
+		return retval;
+	}
+
+	tcm_hcd->request_fw_image_id = 0;
+	return retval;
+}
+#endif
+
 static int ovt_tcm_run_production_test_firmware(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -4961,6 +4983,9 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	tcm_hcd->get_dynamic_config = ovt_tcm_get_dynamic_config;
 	tcm_hcd->set_dynamic_config = ovt_tcm_set_dynamic_config;
 	tcm_hcd->get_data_location = ovt_tcm_get_data_location;
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+	tcm_hcd->download_firmware_image_id  = ovt_tcm_download_firmware_img_id;
+#endif
 
 	tcm_hcd->rd_chunk_size = RD_CHUNK_SIZE;
 	tcm_hcd->wr_chunk_size = WR_CHUNK_SIZE;
@@ -5097,14 +5122,14 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 		}
 	}
 
-#ifdef USE_SYS_SUSPEND_METHOD
+//#ifdef USE_SYS_SUSPEND_METHOD
 /*create /sys/touchscreen */
 	retval = sysfs_create_link(NULL, &tcm_hcd->pdev->dev.kobj,"touchscreen");
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 			"Failed to create /sys/touchscreen link\n");
 	}
-#endif
+//#endif
 
 	tcm_hcd->dynamnic_config_sysfs_dir =
 			kobject_create_and_add(DYNAMIC_CONFIG_SYSFS_DIR_NAME,

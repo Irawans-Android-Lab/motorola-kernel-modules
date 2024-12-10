@@ -43,6 +43,11 @@
 
 #define FW_IMAGE_NAME "hdl_firmware.img"
 
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+#define TEST_FW_IMAGE_NAME "test_hdl_firmware.img"
+#define LPWG_FW_IMAGE_NAME "hdl_firmware.img"
+#endif
+
 #define BOOT_CONFIG_ID "BOOT_CONFIG"
 
 #define F35_APP_CODE_ID "F35_APP_CODE"
@@ -188,6 +193,10 @@ struct zeroflash_hcd {
 	const unsigned char *image;
 	unsigned char *buf;
 	const struct firmware *fw_entry;
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+	const struct firmware *lpwg_fw_entry;
+	const struct firmware *test_fw_entry;
+#endif
 	struct work_struct config_work;
 	struct workqueue_struct *workqueue;
 	struct kobject *sysfs_dir;
@@ -211,6 +220,7 @@ static struct device_attribute *attrs[] = {
 
 static struct zeroflash_hcd *zeroflash_hcd;
 
+#ifndef CONFIG_SUPPORT_MULTI_FIRMWARE
 static int zeroflash_wait_hdl(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -234,6 +244,7 @@ static int zeroflash_wait_hdl(struct ovt_tcm_hcd *tcm_hcd)
 
 	return retval;
 }
+#endif
 
 static ssize_t zeroflash_sysfs_hdl_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
@@ -245,8 +256,14 @@ static ssize_t zeroflash_sysfs_hdl_store(struct device *dev,
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
 
-	if (input && (tcm_hcd->in_hdl_mode)) {
-
+	if (tcm_hcd->in_hdl_mode) {
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+		retval = tcm_hcd->download_firmware_image_id(tcm_hcd, input);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to download_firmware_image_id %d\n", input);
+		}
+#else
 		retval = tcm_hcd->reset(tcm_hcd);
 		if (retval < 0)
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -263,6 +280,7 @@ static ssize_t zeroflash_sysfs_hdl_store(struct device *dev,
 		}
 #endif
 		zeroflash_hcd->image = NULL;
+#endif
 
 	} else {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -527,25 +545,49 @@ static int zeroflash_get_fw_image(void)
 #endif
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
+	const struct firmware *p_fw_entry;
+	unsigned char *p_image_name;
+
+
 #if USE_OMNIVSION_IMG_FILE
-/*add by yating.zhu@tinno.com for select fw start*/
 
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+	if (tcm_hcd->request_fw_image_id == TEST_FIRMWARE) {
+		p_fw_entry = zeroflash_hcd->test_fw_entry;
+		p_image_name = TEST_FW_IMAGE_NAME;
+	} else if (tcm_hcd->request_fw_image_id == LPWG_FIRMWARE) {
+		p_fw_entry = zeroflash_hcd->lpwg_fw_entry;
+		p_image_name = LPWG_FW_IMAGE_NAME;
+	} else
+	{
+		p_fw_entry = zeroflash_hcd->fw_entry;
+		p_image_name = FW_IMAGE_NAME;
+	}
+#else
+	p_fw_entry = zeroflash_hcd->fw_entry;
+	p_image_name = FW_IMAGE_NAME;
+#endif
 
-/*add by yating.zhu@tinno.com for select fw end*/
-	if (zeroflash_hcd->fw_entry != NULL) {
-		release_firmware(zeroflash_hcd->fw_entry);
-		zeroflash_hcd->fw_entry = NULL;
+	if (p_fw_entry != NULL) {
+		release_firmware(p_fw_entry);
+		p_fw_entry = NULL;
 		zeroflash_hcd->image = NULL;
 	}
 
+	/*if (zeroflash_hcd->fw_entry != NULL) {
+		release_firmware(zeroflash_hcd->fw_entry);
+		zeroflash_hcd->fw_entry = NULL;
+		zeroflash_hcd->image = NULL;
+	}*/
+
 	while(retry_cnt--) {
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
-				FW_IMAGE_NAME,
+				p_image_name,
 				tcm_hcd->pdev->dev.parent);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to request %s, retry_cnt:%d\n",
-					FW_IMAGE_NAME, retry_cnt);
+					p_image_name, retry_cnt);
 			if (retry_cnt == 0) {
 				return retval;
 			}
@@ -1446,6 +1488,12 @@ static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)
 #if USE_OMNIVSION_IMG_FILE
 	if (zeroflash_hcd->fw_entry)
 		release_firmware(zeroflash_hcd->fw_entry);
+#ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
+	if (zeroflash_hcd->lpwg_fw_entry)
+		release_firmware(zeroflash_hcd->lpwg_fw_entry);
+	if (zeroflash_hcd->test_fw_entry)
+		release_firmware(zeroflash_hcd->test_fw_entry);
+#endif
 #endif
 	kfree(zeroflash_hcd);
 	zeroflash_hcd = NULL;
