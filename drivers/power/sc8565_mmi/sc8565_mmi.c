@@ -2240,6 +2240,7 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
                 dev_err(bq->dev, "%s:mmi_mux  open wls mux fail ret=%d", __func__, ret);
                 return ret;
             }
+#ifdef CONFIG_MOTO_CHANNEL_SWITCH
         }else if (wls_mos == MMI_DVCHG_MUX_OTG_WLC_OPEN) {
 		//reverse mode
 		if(bq->device_id != CPS2023H_DEVICE_ID  && bq->device_id != CPS2023_DEVICE_ID) {
@@ -2252,6 +2253,7 @@ static int sc858x_config_mux(struct sc858x_chip *bq,
                 dev_err(bq->dev, "%s:mmi_mux  open wls mux fail ret=%d", __func__, ret);
                 return ret;
             }
+#endif
         } else if (wls_mos == MMI_DVCHG_MUX_MANUAL_OPEN) {
             ret = regmap_update_bits(bq->regmap, SC8565_CHRGR_CTRL_1,
                     SC8565_ACDRV_MANUAL, SC8565_ACDRV_MANUAL);
