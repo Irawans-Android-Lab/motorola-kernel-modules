@@ -47,12 +47,9 @@ endif
 #    EXTRA_CFLAGS += -DCONFIG_TOUCHSCREEN_GOODIX_BRL_SPI
 #endif
 
-# ifneq ($(filter m y,$(CONFIG_GTP_FOD)),)
-#     EXTRA_CFLAGS += -DCONFIG_GTP_FOD
-#     eswin_riv_u_mmi-objs += goodix_ts_gesture_fod.o
-# else
-#     eswin_riv_u_mmi-objs += goodix_ts_gesture.o
-# endif
+ifneq ($(filter m y,$(CONFIG_ESWIN_FOD)),)
+     EXTRA_CFLAGS += -DCONFIG_ESWIN_FOD
+endif
 
 # ifneq ($(filter m y,$(CONFIG_GTP_POCKET_MODE)),)
 #     EXTRA_CFLAGS += -DCONFIG_GTP_POCKET_MODE

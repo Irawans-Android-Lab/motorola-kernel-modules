@@ -28,6 +28,7 @@
 #include "eswin_eph861x_types.h"
 #if (ESWIN_EPH861X_SPI)
 #include "eswin_eph861x_spi.h"
+#include "eswin_eph861x_comms.h"
 
 #define TLV_RESERVED_INVALID_TYPE  0xFF
 
@@ -35,13 +36,18 @@
 
 u8 spi_tx_dummy_buf[SPI_APP_BUF_SIZE_READ];
 
-#if DEBUG_LOG
 static void EPH_LOG_BUFFER(struct eph_data *ephdata, u8* data, bool rx_data)
 {
-    dev_info(&ephdata->commsdevice->dev, "[%d] - %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", rx_data, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]);
+    if((!rx_data) && (0x01 != data[0]))
+    {
+        ts_info("[%d] - %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", rx_data, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]);
+    }
+    else
+    {
+        ts_debug("[%d] - %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", rx_data, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]);
+    }
     return;
 }
-#endif
 
 int __eph_spi_read(struct eph_data *ephdata, u16 len, u8 *val)
 {
@@ -76,12 +82,10 @@ int __eph_spi_read(struct eph_data *ephdata, u16 len, u8 *val)
         dev_err(&ephdata->commsdevice->dev, "Error reading from spi (%d)", ret_val);
         return ret_val;
     }
-#if DEBUG_LOG
     else
     {
         EPH_LOG_BUFFER(ephdata, spitr.rx_buf, 1);
     }
-#endif
 
     memcpy(val, ephdata->comms_receive_buf, len);
     return 0;
@@ -118,12 +122,10 @@ int __eph_spi_write(struct eph_data *ephdata, u16 len, const u8 *val)
         dev_err(&ephdata->commsdevice->dev, "Error writing to spi (%d)", ret_val);
         return ret_val;
     }
-#if DEBUG_LOG
     else
     {
         EPH_LOG_BUFFER(ephdata, (u8*)spitr.tx_buf, 0);
     }
-#endif
     return 0;
 }
 

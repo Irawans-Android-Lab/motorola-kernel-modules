@@ -39,8 +39,6 @@
 #define ESWIN_SYSTEM_SUSPEND (1u)
 #endif
 
-#define DEBUG_LOG (0u) // more detail debug log
-
 #if defined(ESWIN_BOARD_FLORAL) // pixel4XL plat
 #include <linux/msm_drm_notify.h>
 #elif defined(ESWIN_BOARD_CLOUDRIPPER) // pixel7Pro plat
@@ -291,7 +289,7 @@ struct eph_data
     /* low power mode gesture */
     u8 lp;
     bool irq_wake;
-    bool irq_enabled;
+    atomic_t irq_enabled;
     int power_on;
     int refresh_rate;
 

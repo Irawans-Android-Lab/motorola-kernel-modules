@@ -17,6 +17,11 @@
 #include <uapi/asm-generic/errno-base.h>
 #include <linux/sysfs.h>
 
+#include <linux/fs.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/uaccess.h>
+
 #include <linux/mutex.h>
 #include <linux/kobject.h>
 #include <linux/kernel.h>
@@ -434,8 +439,7 @@ static int eph_acquire_irq(struct eph_data *ephdata)
     }
     else
     {
-        enable_irq(ephdata->chg_irq);
-        ephdata->irq_enabled = true;
+        eph_irq_enable(ephdata, true);
     }
 
 
@@ -895,8 +899,7 @@ static int eph_enter_bootloader(struct eph_data *ephdata)
         }
 
         /* only disable interrupt and unregister if we have not done so before */
-        disable_irq(ephdata->chg_irq);
-        ephdata->irq_enabled = false;
+        eph_irq_enable(ephdata, false);
     }
 
     /* force bootloader regardless whether we are in bootloader already - Always in defined TIC state */
@@ -1169,8 +1172,7 @@ static ssize_t eph_devattr_update_device_settings_store(struct device *dev,
         dev_info(dev, "ESWIN device was in suspend %d\n", ret_val);
         if (ephplatform->suspend_mode == EPH_SUSPEND_REGULATOR)
         {
-            enable_irq(ephdata->chg_irq);
-            ephdata->irq_enabled = true;
+            eph_irq_enable(ephdata, true);
             eph_power_on(ephdata);
         }
         else if (ephplatform->suspend_mode == EPH_SUSPEND_DEEP_SLEEP)
@@ -1531,6 +1533,35 @@ int eph_screen_on_reporting(struct device *dev, int enable)
     return ret;
 }
 
+/* debug level show */
+static ssize_t eswin_ts_debug_log_show(struct device *dev,
+                       struct device_attribute *attr,
+                       char *buf)
+{
+    int r = 0;
+
+    r = snprintf(buf, PAGE_SIZE, "state:%s\n",
+            debug_log_flag ?
+            "enabled" : "disabled");
+
+    return r;
+}
+
+/* debug level store */
+static ssize_t eswin_ts_debug_log_store(struct device *dev,
+                    struct device_attribute *attr,
+                    const char *buf, size_t count)
+{
+    if (!buf || count <= 0)
+        return -EINVAL;
+
+    if (buf[0] != '0')
+        debug_log_flag = true;
+    else
+        debug_log_flag = false;
+    return count;
+}
+
 /* .attr.name, .attr.mode, .show, .store  */
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, eph_devattr_update_fw_store);
 /* S_IRUGO - read-only attributes  */
@@ -1544,6 +1575,7 @@ static DEVICE_ATTR(read_device_report, S_IRUGO, eph_devattr_device_report_read, 
 static DEVICE_ATTR(reset_device, S_IRUGO, eph_devattr_reset_device, NULL);
 static DEVICE_ATTR(gesture_wakeup, (S_IWUSR|S_IRUGO), eph_devattr_gesture_wakeup_read, eph_devattr_gesture_wakeup_store);
 static DEVICE_ATTR(finger_print_enable, S_IWUSR, NULL, eph_devattr_finger_print_enable);
+static DEVICE_ATTR(debug_log, 0664, eswin_ts_debug_log_show, eswin_ts_debug_log_store);
 
 static struct attribute *eph_fw_attrs[] =
 {
@@ -1577,6 +1609,8 @@ static struct attribute *eph_attrs[] =
     &dev_attr_gesture_wakeup.attr,
     /* FOD enable switch */
     &dev_attr_finger_print_enable.attr,
+
+    &dev_attr_debug_log.attr,
 
     NULL
 };
@@ -1629,8 +1663,7 @@ static int eph_start(struct eph_data *ephdata)
     switch (ephdata->ephplatform->suspend_mode)
     {
         case EPH_SUSPEND_REGULATOR:
-            enable_irq(ephdata->chg_irq);
-            ephdata->irq_enabled = true;
+            eph_irq_enable(ephdata, true);
             #if (ESWIN_EPH861X_I2C)
             eph_power_on(ephdata);
             #endif
@@ -1666,8 +1699,7 @@ static int eph_stop(struct eph_data *ephdata)
     switch (ephdata->ephplatform->suspend_mode)
     {
         case EPH_SUSPEND_REGULATOR:
-            disable_irq(ephdata->chg_irq);
-            ephdata->irq_enabled = false;
+            eph_irq_enable(ephdata, false);
             #if (ESWIN_EPH861X_I2C)
             eph_power_off(ephdata);
             #endif
@@ -1954,9 +1986,9 @@ static void heartbeat_work_handler(struct work_struct *work)
         ts_err("heartbeat_work_handler faield...get no valid ephdata!!!\n");
         return;
     }
-#if DEBUG_LOG
-    ts_info("ic heartbeat work...\n");
-#endif
+
+    ts_debug("ic heartbeat work...\n");
+
     if (!atomic_read(&ephdata->heartbeat_on)) {
         ts_info("ic heartbeat off\n");
         return;
@@ -2018,8 +2050,146 @@ ic_reset:
     schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(3000));
     return;
 }
-
 #endif
+
+// TODO: alloc in ephdata
+u8 tmp_buf[4096];
+
+static int eph_proc_debug_open(struct inode *inode, struct file *file)
+{
+        file->private_data = pde_data(inode);
+        return 0;
+}
+
+static ssize_t eph_proc_debug_read(struct file *file, char __user *usr_buf, size_t count, loff_t *pos)
+{
+    int ret = 0;
+    struct eph_data *ephdata = (struct eph_data *)file->private_data;
+    int msg_len = 0;
+
+    if (!ephdata) {
+        ts_err("debug read get null private data\n");
+        return -EFAULT;
+    }
+
+    if (!ephdata->power_on) {
+        ts_err("debug read get null private data\n");
+        return -EFAULT;
+    }
+
+    ts_debug("proc read count %zu, pos %lld\n", count, *pos);
+
+    synchronize_irq(ephdata->chg_irq);
+
+    mutex_lock(&ephdata->comms_mutex);
+    ret = eph_comms_two_stage_read(ephdata, tmp_buf);
+    mutex_unlock(&ephdata->comms_mutex);
+    if(ret) {
+        msg_len = 0;
+    } else {
+        msg_len = (size_t)((tmp_buf[TLV_LENGTH_FIELD] | ((u16)tmp_buf[TLV_LENGTH_FIELD + 1u] << 8u)) + TLV_HEADER_SIZE);
+    }
+    ts_debug("read %d bytes from ic\n", msg_len);
+    if (msg_len) {
+        ts_info("read: %d %d %d\n", tmp_buf[0], tmp_buf[1], tmp_buf[2]);
+    }
+
+    if(msg_len && !copy_to_user(usr_buf, tmp_buf, msg_len))
+    {
+        ts_debug("success copy message to user!");
+        ret = msg_len;
+    }
+    else
+    {
+        ts_err("Failed Read or copy message to user!");
+        ret = -EFAULT;
+    }
+    memset(tmp_buf, 0, 4096);
+
+    return ret;
+}
+
+static ssize_t eph_proc_debug_write(struct file *file, const char __user *usr_buf, size_t count, loff_t *pos)
+{
+    int ret = 0;
+    struct eph_data *ephdata = (struct eph_data *)file->private_data;
+    if (!ephdata) {
+        ts_err("debug read get null private data\n");
+        return -EFAULT;
+    }
+
+    if (!ephdata->power_on) {
+        ts_err("debug read get null private data\n");
+        return -EFAULT;
+    }
+
+    memset(tmp_buf, 0, 4096);
+
+    if (copy_from_user(tmp_buf, usr_buf, count)) {
+        ts_err("copy data fail\n");
+        return -EFAULT;
+    }
+
+    tmp_buf[4095] = '\0';
+
+    ts_debug("eswin proc write\n");
+
+    mutex_lock(&ephdata->comms_mutex);
+    ret = eph_comms_write(ephdata, count, (u8 *)tmp_buf);
+    mutex_unlock(&ephdata->comms_mutex);
+
+    if (ret) {
+        ts_err("eph proc debug write fail\n");
+    }
+
+    return (ret != 0) ? ret : count;
+}
+
+static ssize_t eph_proc_report_read(struct file *file, char __user *usr_buf, size_t count, loff_t *pos)
+{
+    struct eph_data *ephdata = (struct eph_data *)file->private_data;
+    struct tlv_header tlvheader;
+
+    if (!ephdata) {
+        ts_err("debug read get null private data\n");
+        return -EFAULT;
+    }
+    if (!ephdata->power_on) {
+        ts_err("debug read get null private data\n");
+        return -EFAULT;
+    }
+
+    mutex_lock(&ephdata->sysfs_report_buffer_lock);
+    tlvheader = eph_get_tl_header_info(ephdata, sysfs_report_buf);
+    if (TLV_HEADER_SIZE > tlvheader.length) {
+        tlvheader.length = TLV_HEADER_SIZE;
+        memset(&sysfs_report_buf[0], 0, tlvheader.length);
+    }
+
+    if (copy_to_user(usr_buf, &sysfs_report_buf[0], tlvheader.length)) {
+        ts_err("eph proc report read fail\n");
+        return -EFAULT;
+    }
+    memset(&sysfs_report_buf[0], 0, tlvheader.length);
+
+    if (0 != tlvheader.type) {
+        ts_info("ESWIN proc read buffer. Type: %d, length: %d", tlvheader.type, tlvheader.length);
+    }
+    mutex_unlock(&ephdata->sysfs_report_buffer_lock);
+
+    return (size_t)tlvheader.length;
+}
+
+struct proc_ops eph_debug_ops = {
+    .proc_open = eph_proc_debug_open,
+    .proc_read = eph_proc_debug_read,
+    .proc_write = eph_proc_debug_write,
+};
+
+struct proc_ops eph_report_ops = {
+    .proc_open = eph_proc_debug_open,
+    .proc_read = eph_proc_report_read,
+};
 
 #if (ESWIN_EPH861X_SPI)
 static int eph_probe(struct comms_device *commsdevice)
@@ -2031,6 +2201,7 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
     struct eph_data *ephdata;
     const struct eph_platform_data *ephplatform;
     int ret_val;
+    struct proc_dir_entry *procfs_entry;
 
     dev_dbg(&commsdevice->dev, "%s >>>\n", __func__);
 
@@ -2142,8 +2313,7 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
     }
 
     /* Need to have IRQ disabled before calling eph_initialize() as it re-enables it */
-    disable_irq(ephdata->chg_irq);
-    ephdata->irq_enabled = false;
+    eph_irq_enable(ephdata, false);
 
     ret_val = sysfs_create_group(&commsdevice->dev.kobj, &eph_fw_attr_group);
     if (ret_val)
@@ -2216,6 +2386,16 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
     }
 #endif
 
+    proc_mkdir("eph_ts", NULL);
+    procfs_entry = proc_create_data("eph_ts/eph_debug", 0666, NULL, &eph_debug_ops, ephdata);
+    if (!procfs_entry) {
+        ts_err("eswin create proc fail\n");
+    }
+    procfs_entry = proc_create_data("eph_ts/eph_report", 0666, NULL, &eph_report_ops, ephdata);
+    if (!procfs_entry) {
+        ts_err("eswin create proc fail\n");
+    }
+
     dev_info(&commsdevice->dev, "%s <\n", __func__);
     return 0;
 
@@ -2251,6 +2431,9 @@ static void eph_remove(struct comms_device *commsdevice)
 #endif
     sysfs_remove_group(&commsdevice->dev.kobj, &eph_fw_attr_group);
     eph_sysfs_mem_access_remove(ephdata);
+    remove_proc_entry("eph_ts/eph_debug", NULL);
+    remove_proc_entry("eph_ts/eph_report", NULL);
+    remove_proc_entry("eph_ts", NULL);
 
 #if defined(ESWIN_BOARD_FLORAL)
     msm_drm_unregister_client(&ephdata->notifier);

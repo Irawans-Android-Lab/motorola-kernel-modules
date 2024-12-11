@@ -70,17 +70,17 @@ const char *get_touch_type_str(u8 touch_type)
     switch (touch_type)
     {
         case CONTACT_TYPE:
-            return "Contact touch type";
+            return "Contact";
         case RELEASE_TYPE:
-            return "Release touch type";
+            return "Release";
         case HOVER_TYPE:
-            return "Hover touch type";
+            return "Hover";
         case STYLUS_POSITION_TYPE:
-            return "Pen touch type";
+            return "Pen";
         case GESTURE_TYPE:
-            return "Gesture touch type";
+            return "Gesture";
         case STYLUS_RELEASE_TYPE:
-            return "Pen touch release type";
+            return "Pen release";
         default:
             break;
     }
@@ -97,7 +97,7 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
     position_x = message[2] | ((u16)message[3] << 8);
     position_y = message[4] | ((u16)message[5] << 8);
 
-    ts_info("gesture_id:0x%x", gesture_id);
+    ts_debug("gesture_id:0x%x", gesture_id);
     switch (gesture_id) {
     case GESTURE_SWIPE_LEFT:
         gesture = KEY_GESTURE_LEFT;
@@ -124,7 +124,7 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
     /* report event key */
     if (gesture != -1)
     {
-        ts_info("Gesture Code=%d", gesture);
+        ts_debug("Gesture Code=%d", gesture);
 
 #ifdef CONFIG_BOARD_USES_DOUBLE_TAP_CTRL
         /* report double tap */
@@ -141,7 +141,7 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
                 ret = ephdata->imports->report_gesture(&event);
             }
         }
-	/* report single tap */
+    /* report single tap */
         else if (gesture == KEY_GESTURE_F1)
         {
             if (ephdata->imports && ephdata->imports->report_gesture)
@@ -174,7 +174,7 @@ static void eph_gesture_event_process(struct eph_data *ephdata, u8 *message)
             PM_WAKEUP_EVENT(gesture_wakelock, 5000);
         } else {
             ts_err("import-report_gesture failed %d\n", ret);
-	    }
+        }
     }
 }
 
@@ -204,11 +204,9 @@ void eph_recv_event_report_contianer(struct eph_data *ephdata, u8 *message)
             dev_info(dev, "Touch palm on %d", event_type);
         }
 #endif
-#if DEBUG_LOG
-        dev_info(dev,
-             "report - offset: %u event_type: %u event_length: %u ",
+        ts_debug("report - offset: %u event_type: %u event_length: %u ",
              message_offset, event_type, event_length);
-#endif
+
         switch (event_type)
         {
 
@@ -263,14 +261,13 @@ void eph_read_report_fod_event(struct eph_data *ephdata, u8 *message)
     int fod_down_interval = 0;
     static unsigned long start = 0;
     u8 finger_event_type;
+    u8 gesture_event_type;
 
     finger_event_type = message[9];
-#if DEBUG_LOG
-    u8 gesture_event_type;
     gesture_event_type = message[11];
-    ts_info("finger_event_type: %u gesture_event_type: %u",
+    ts_debug("finger_event_type: %u gesture_event_type: %u",
             finger_event_type, gesture_event_type);
-#endif
+
     if (ephdata->suspended)
     {
         if (FINGER_REGION_FINGER_DOWN == finger_event_type)
@@ -357,7 +354,6 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
     u8 touch_major_axis = 0;
     u8 touch_minor_axis = 0;
     bool is_active = false;
-    static bool debug_report_touch_down_en = false;
 
     prev_stored_touches = stored_touches;
 
@@ -444,24 +440,17 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
         input_mt_report_slot_state(ephdata->inputdev, touch_tool_type, is_active);
         input_report_abs(ephdata->inputdev, ABS_MT_PRESSURE, touch_pressure);
 
-        dev_dbg(dev,
-                "[%u] %s,  RELEASE_TYPE,  ABS_MT_PRESSURE:%d touch_tool_type:%d is_active:%d BTN_TOUCH:%d\n",
+        ts_debug("[%u] %s, PRESSURE:%d TTT:%d IS_ACT:%d BTN_TOUCH:%d\n",
                 touch_id_slot,
                 get_touch_type_str(touch_type), touch_pressure, touch_tool_type, is_active, 0);
-        debug_report_touch_down_en = true;
         stored_touches &= (~(1 << touch_id_slot));
     }
     else
     {
-        if (debug_report_touch_down_en) {
-            dev_dbg(dev,
-                    "[%u] %s POSTITION:(%u, %u) ABS_MT_TOUCH_MAJOR:%d ABS_MT_TOUCH_MINOR:%d ABS_MT_PRESSURE:%d touch_tool_type:%d is_active:%d\n",
+        ts_debug("[%u] %s POS:(%u, %u) MAJOR:%d MINOR:%d PRESSURE:%d TTT:%d IS_ACT:%d\n",
                     touch_id_slot,
                     get_touch_type_str(touch_type),
-                    position_x, position_y, touch_major_axis, touch_minor_axis, touch_pressure, touch_tool_type, is_active);
-            debug_report_touch_down_en = false;
-        }
-
+                    (position_x >> 4), (position_y >> 4), touch_major_axis, touch_minor_axis, touch_pressure, touch_tool_type, is_active);
 
         input_mt_report_slot_state(ephdata->inputdev, touch_tool_type, is_active);
 
@@ -497,6 +486,17 @@ static void eph_recv_touch_report(struct eph_data *ephdata, u8 *message)
     }
     else
     {
+    }
+
+    if (stored_touches ^ prev_stored_touches)
+    {
+        if (!debug_log_flag)
+        {
+            ts_info("[%u] %s POS:(%u, %u) MAJOR:%d MINOR:%d PRESSURE:%d TTT:%d IS_ACT:%d\n",
+                    touch_id_slot,
+                    get_touch_type_str(touch_type),
+                    (position_x >> 4), (position_y >> 4), touch_major_axis, touch_minor_axis, touch_pressure, touch_tool_type, is_active);
+        }
     }
 
     return;

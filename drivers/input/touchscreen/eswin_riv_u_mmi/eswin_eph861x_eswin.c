@@ -63,10 +63,6 @@ int eph_check_firmware_format(struct device *dev, const struct firmware *fw)
     return -EINVAL;
 }
 
-
-
-
-
 int eph_update_file_name(struct device *dev,
                                 char **out_file_name,
                                 const char *in_file_name,
@@ -103,11 +99,8 @@ int eph_update_file_name(struct device *dev,
     return 0;
 }
 
-
-
-
 #ifdef CONFIG_OF // Open Firmware (Device Tree)
-#define PRIM_PANEL_NAME	"mmi,panel_name"
+#define PRIM_PANEL_NAME    "mmi,panel_name"
 const struct eph_platform_data *eph_platform_data_get_from_device_tree(struct comms_device *commsdevice)
 {
     struct eph_platform_data *ephplatform;
@@ -278,7 +271,6 @@ const struct eph_platform_data *eph_platform_data_get_from_device_tree(struct co
 }
 #endif // CONFIG_OF
 
-
 struct eph_platform_data *eph_platform_data_get_default(struct comms_device *commsdevice)
 {
     struct eph_platform_data *ephplatform = (struct eph_platform_data *)devm_kzalloc(&commsdevice->dev, sizeof(struct eph_platform_data), GFP_KERNEL);
@@ -401,7 +393,6 @@ int eph_wait_for_completion(struct eph_data *ephdata,
     }
     return 0;
 }
-
 
 void eph_regulator_enable(struct eph_data *ephdata)
 {
@@ -530,24 +521,15 @@ int eph_power_off(struct eph_data *ephdata)
     }
     return ret;
 }
-
+#define POWER_DELAY_US 1000*500
 void eph_recovery_device(struct eph_data *ephdata)
 {
     dev_dbg(&ephdata->commsdevice->dev, "%s gpio is %ld >\n", __func__, ephdata->ephplatform->gpio_reset);
     eph_power_off(ephdata);
-    usleep_range(6000, 6100);
+    usleep_range(POWER_DELAY_US, (POWER_DELAY_US + 200));
     eph_power_on(ephdata);
 
     return;
-}
-
-int eph_set_report_rate(struct eph_data *ephdata)
-{
-    int ret = 0;
-
-    //TODO: How to switch report rate??
-
-    return ret;
 }
 
 bool eph_is_fod_resume(struct eph_data *ephdata)
@@ -560,4 +542,21 @@ bool eph_is_fod_resume(struct eph_data *ephdata)
     }
 
     return false;
+}
+
+int eph_irq_enable(struct eph_data *ephdata, bool enable)
+{
+    if (enable && !atomic_cmpxchg(&ephdata->irq_enabled, 0, 1)) {
+        enable_irq(ephdata->chg_irq);
+        ts_info("Irq enabled");
+        return 0;
+    }
+
+    if (!enable && atomic_cmpxchg(&ephdata->irq_enabled, 1, 0)) {
+        disable_irq(ephdata->chg_irq);
+        ts_info("Irq disabled");
+        return 0;
+    }
+    ts_info("warnning: irq deepth inbalance!");
+    return 0;
 }

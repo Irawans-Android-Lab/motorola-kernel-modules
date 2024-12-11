@@ -266,12 +266,12 @@ static int eswin_ts_mmi_set_report_rate(struct eph_data *ephdata)
 
     ephdata->get_mode.report_rate_mode = mode;
     if (ephdata->set_mode.report_rate_mode == mode) {
-        ts_debug("The value = %d is same, so not to write", mode);
+        ts_info("The value = %d is same, so not to write", mode);
         return 0;
     }
 
     if (ephdata->power_on == 0) {
-        ts_debug("The touch is in sleep state, restore the value when resume\n");
+        ts_info("The touch is in sleep state, restore the value when resume\n");
         return 0;
     }
 
@@ -356,13 +356,13 @@ static ssize_t eswin_ts_sample_store(struct device *dev,
     mutex_lock(&ephdata->comms_mutex);
     ephdata->get_mode.sample= mode;
     if (ephdata->set_mode.sample == mode) {
-        ts_debug("The value = %lu is same, so not to write", mode);
+        ts_info("The value = %lu is same, so not to write", mode);
         ret = size;
         goto exit;
     }
 
     if (ephdata->power_on == 0) {
-        ts_debug("The touch is in sleep state, restore the value when resume\n");
+        ts_info("The touch is in sleep state, restore the value when resume\n");
         ret = size;
         goto exit;
     }
@@ -415,7 +415,7 @@ static ssize_t eswin_ts_stowed_store(struct device *dev,
     mutex_lock(&ephdata->comms_mutex);
     ephdata->get_mode.stowed = mode;
     if (ephdata->set_mode.stowed == mode) {
-        ts_debug("The value = %lu is same, so not to write", mode);
+        ts_info("The value = %lu is same, so not to write", mode);
         ret = size;
         goto exit;
     }
@@ -542,14 +542,14 @@ static ssize_t eswin_ts_edge_store(struct device *dev,
     mutex_lock(&ephdata->comms_mutex);
     memcpy(ephdata->get_mode.edge_mode, edge_cmd, sizeof(edge_cmd));
     if (!memcmp(ephdata->set_mode.edge_mode, edge_cmd, sizeof(edge_cmd))) {
-        ts_debug("The value (%02x %02x) is same,so not write.\n",
+        ts_info("The value (%02x %02x) is same,so not write.\n",
                     edge_cmd[0], edge_cmd[1]);
         ret = size;
         goto exit;
     }
 
     if (ephdata->power_on == 0) {
-        ts_debug("The touch is in sleep state, restore the value when resume\n");
+        ts_info("The touch is in sleep state, restore the value when resume\n");
         ret = size;
         goto exit;
     }
@@ -814,7 +814,7 @@ static int eswin_ts_mmi_methods_get_drv_irq(struct device *dev, void *idata)
 
     GET_ESWIN_DATA(dev);
     ts_info("eswin_ts_mmi_methods_get_drv_irq");
-    TO_INT(idata) = ephdata->irq_enabled;
+    TO_INT(idata) = atomic_read(&ephdata->irq_enabled);
     return 0;
 }
 
@@ -838,19 +838,14 @@ static int eswin_ts_mmi_methods_get_flashprog(struct device *dev, void *idata)
 
 static int eswin_ts_mmi_methods_drv_irq(struct device *dev, int state)
 {
+    int ret = -ENODEV;
     struct eph_data *ephdata;
     GET_ESWIN_DATA(dev);
 
-    ts_err("%s %d\n", __func__, state);
-    
-    if (ephdata->irq_enabled != (!!state))
-    {
-        state ? enable_irq(ephdata->chg_irq) : disable_irq(ephdata->chg_irq);
-        ephdata->irq_enabled = (!!state);
-        ts_info("%s irq\n", state ? "enable" : "disable");
-    }
+    ts_info("%s %d\n", __func__, state);
+    ret = eph_irq_enable(ephdata, !(!state));
 
-    return 0;
+    return ret;
 }
 
 static int eswin_ts_mmi_methods_power(struct device *dev, int on)
@@ -1152,6 +1147,11 @@ static int eswin_ts_mmi_post_resume(struct device *dev)
         ephdata->gesture_wakeup_enable = 0;
     }
 #endif
+
+    ret = eph_screen_on_reporting(&ephdata->commsdevice->dev, 1);
+    if (ret)
+        ts_err("set screen_on_reporting fail %d.\n", ret);
+
     if(ephdata->zerotap_data[0] == 0) {
         ts_info("No FOD-DOWN, trigger baseline");
         schedule_work(&ephdata->force_baseline_work);
@@ -1246,9 +1246,7 @@ static int eswin_ts_mmi_post_resume(struct device *dev)
     ts_info("Resume end, enable ghost log capture");
 #endif
 #endif//ESWIN_EXTRA_MMI
-    ret = eph_screen_on_reporting(&ephdata->commsdevice->dev, 1);
-    if (ret)
-        ts_err("set screen_on_reporting fail %d.\n", ret);
+
     ephdata->suspended = false;
     ts_info("Resume end");
 
