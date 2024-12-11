@@ -1124,6 +1124,7 @@ static int factory_test_wls_en(void *input, bool en)
 	struct moto_wlc *wlc = NULL;
 	int ret = 0;
 	int wait = 0;
+	int mux_channel = 0;
 
 	wlc = (struct moto_wlc *) input;
 	if (IS_ERR_OR_NULL(wlc)) {
@@ -1132,6 +1133,14 @@ static int factory_test_wls_en(void *input, bool en)
 	}
 
 	if (en) {
+		if (wls_chg_get_mux_channel(&mux_channel)) {
+			wlc_err("%s get mux_channel error\n", __func__);
+			return -1;
+		}
+		if (mux_channel != MMI_MUX_CHANNEL_TYPEC_CHG) {
+			wlc_err("%s mux_channel(%d) is not TYPEC_CHG\n", __func__, mux_channel);
+			return -1;
+		}
 		if (wlc->ctl.factory_wls_en == false) {
 			wlc->ctl.factory_wls_en = true;
 			ret = wls_chg_mmi_mux_chan_set(MMI_MUX_CHANNEL_WLC_FACTORY_TEST, true);

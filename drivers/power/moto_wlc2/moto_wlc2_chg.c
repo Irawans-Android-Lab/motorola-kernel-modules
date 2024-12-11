@@ -66,6 +66,28 @@ int wls_chg_mmi_mux_chan_set(enum mmi_mux_channel channel, bool on)
 	return 0;
 }
 
+int wls_chg_get_mux_channel(int *mux_channel)
+{
+	struct mtk_charger *info = NULL;
+	struct power_supply *chg_psy = NULL;
+
+	chg_psy = power_supply_get_by_name("mtk-master-charger");
+	if (IS_ERR_OR_NULL(chg_psy)) {
+		pr_err("%s Couldn't get chg_psy\n", __func__);
+		return -1;
+	}
+
+	info = (struct mtk_charger *)power_supply_get_drvdata(chg_psy);
+	if (IS_ERR_OR_NULL(info)) {
+		pr_err("%s Couldn't get mtk_charger info\n", __func__);
+		return -1;
+	}
+
+	*mux_channel = info->mmi.mux_channel.chan;
+
+	return 0;
+}
+
 int wls_chg_power_on(struct moto_wlc *wlc)
 {
 	int sys_mode = 0;

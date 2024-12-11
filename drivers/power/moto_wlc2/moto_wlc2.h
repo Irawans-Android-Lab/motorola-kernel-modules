@@ -418,6 +418,7 @@ extern int wls_chg_register_psy(struct moto_wlc *wlc);
 extern int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus);
 extern int wls_chg_notify_st_changed(struct moto_wlc *wlc, int st);
 extern int wls_chg_mmi_mux_chan_set(enum mmi_mux_channel channel, bool on);
+extern int wls_chg_get_mux_channel(int *mux_channel);
 extern void wlc_chg_bpp_mode_icl_work(struct work_struct *work);
 
 extern int wls_device_node_create(struct device *dev);
