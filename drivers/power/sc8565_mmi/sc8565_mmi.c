@@ -1791,7 +1791,6 @@ static int sc858x_register_interrupt(struct sc858x_chip *sc)
 
 /************************psy start**************************************/
 static enum power_supply_property sc858x_charger_props[] = {
-    POWER_SUPPLY_PROP_ONLINE,
     POWER_SUPPLY_PROP_PRESENT,
     POWER_SUPPLY_PROP_VOLTAGE_NOW,
     POWER_SUPPLY_PROP_CURRENT_NOW,
@@ -1812,10 +1811,6 @@ static int sc858x_charger_get_property(struct power_supply *psy,
     int ret;
 
     switch (psp) {
-    case POWER_SUPPLY_PROP_ONLINE:
-        sc858x_check_charge_enabled(sc, &sc->charge_enabled);
-        val->intval = sc->charge_enabled;
-        break;
     case POWER_SUPPLY_PROP_VOLTAGE_NOW:
         ret = sc858x_get_adc_data(sc, ADC_VBUS, &result);
         if (!ret)
@@ -1867,14 +1862,7 @@ static int sc858x_charger_set_property(struct power_supply *psy,
                     enum power_supply_property prop,
                     const union power_supply_propval *val)
 {
-    struct sc858x_chip *sc = power_supply_get_drvdata(psy);
-
     switch (prop) {
-    case POWER_SUPPLY_PROP_ONLINE:
-        sc858x_enable_charge(sc, val->intval);
-        dev_info(sc->dev, "POWER_SUPPLY_PROP_ONLINE: %s\n",
-                val->intval ? "enable" : "disable");
-        break;
     default:
         return -EINVAL;
     }
