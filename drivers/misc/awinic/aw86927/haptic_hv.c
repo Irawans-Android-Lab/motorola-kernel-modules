@@ -1494,12 +1494,12 @@ static long richtap_file_unlocked_ioctl(struct file *filp, unsigned int cmd, uns
 		mutex_lock(&aw_haptic->lock);
 		aw_haptic->func->play_stop(aw_haptic);
 		mutex_unlock(&aw_haptic->lock);
-		if (copy_from_user(aw_haptic->rtp_ptr, (void __user *)arg, RICHTAP_MMAP_BUF_SIZE * RICHTAP_MMAP_BUF_SUM)) {
+		if (copy_from_user(aw_haptic->rtp_ptr, (void __user *)arg, RICHTAP_RTP_BUF_SUM)) {
 			ret = -EFAULT;
 			break;
 		}
 		tmp = *((int*)aw_haptic->rtp_ptr);
-		if (tmp > (RICHTAP_MMAP_BUF_SIZE * RICHTAP_MMAP_BUF_SUM - 4)) {
+		if (tmp > (RICHTAP_RTP_BUF_SUM - 4)) {
 			dev_err(aw_haptic->dev, "rtp mode date len error %d\n", tmp);
 			ret = -EINVAL;
 			break;
