@@ -16,7 +16,7 @@ struct goodix_ic_report_rate_config report_rate_config_info = {
 #if defined(PRODUCT_LI) || defined(PRODUCT_ONELI) || defined(PRODUCT_LYRIQ) \
 	||defined(PRODUCT_EQS) || defined(PRODUCT_RTWO) || defined(PRODUCT_BRONCO) \
 	|| defined(PRODUCT_ZEEKR) || defined(PRODUCT_AION) || defined(PRODUCT_MANAUS) \
-	|| defined(PRODUCT_AITO) || defined(PRODUCT_SCOUT) \
+	|| defined(PRODUCT_AITO) || defined(PRODUCT_SCOUT) || defined(PRODUCT_OULU) \
 	|| defined(PRODUCT_VIENNA) || defined(PRODUCT_CYBERT)
 	.rate_config_count = 2,
 	.refresh_rate_ctrl = 0,
