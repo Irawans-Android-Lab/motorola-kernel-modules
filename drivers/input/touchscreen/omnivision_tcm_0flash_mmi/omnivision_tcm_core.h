@@ -64,6 +64,10 @@ extern bool dbg_level_en;
 
 extern struct ovt_tcm_hcd *g_tcm_hcd;
 
+#ifdef OVT_STOWED_MODE_SUPPORT
+extern int ovt_tcm_sleep(struct ovt_tcm_hcd *tcm_hcd, bool en);
+#endif
+
 #define MAX_PANEL_IDX 2
 enum touch_panel_id {
 	TOUCH_PANEL_IDX_PRIMARY = 0,
@@ -573,6 +577,10 @@ struct ovt_tcm_hcd {
 	unsigned int func_roate_horizontal_level_en;
 	unsigned int func_face_detect_en;
 	unsigned int log_level;
+#ifdef OVT_STOWED_MODE_SUPPORT
+	int set_stowed;
+	int get_stowed;
+#endif
 
 	struct platform_device *pdev;
 	struct regulator *pwr_reg;

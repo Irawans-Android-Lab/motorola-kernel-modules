@@ -14,6 +14,9 @@ EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/include \
 
 ifneq ($(filter m y, $(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)),)
 	EXTRA_CFLAGS += -DOVT_DOUBLE_TAP_CTRL
+ifneq ($(filter m y, $(CONFIG_OVT_STOWED_MODE_SUPPORT)),)
+        EXTRA_CFLAGS += -DOVT_STOWED_MODE_SUPPORT
+endif
 endif
 
 obj-m := omnivision_tcm_0flash_mmi.o

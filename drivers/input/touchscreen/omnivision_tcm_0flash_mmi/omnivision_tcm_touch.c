@@ -1405,6 +1405,17 @@ int ovt_gesture_suspend(struct ovt_tcm_hcd *tcm_hcd)
 			OVT_INFO("set gesture_cmd: 0x%hx for mode:%d\n", gesture_cmd, tcm_hcd->wakeup_gesture_enabled);
 
 		touch_set_state(TOUCH_LOW_POWER_STATE, TOUCH_PANEL_IDX_PRIMARY);
+#ifdef OVT_STOWED_MODE_SUPPORT
+		if (g_tcm_hcd->get_stowed) {
+			retval = ovt_tcm_sleep(tcm_hcd, 1);
+			if (retval < 0)
+				OVT_INFO("fail to enable stowed mode when supsend\n");
+			else {
+				g_tcm_hcd->set_stowed = g_tcm_hcd->get_stowed;
+				OVT_INFO("Enable stowed mode when suspend\n");
+			}
+		}
+#endif
 		//OVT_INFO("gesture enable mode:%d\n", tcm_hcd->wakeup_gesture_enabled);
 	}
 	else {
@@ -1450,6 +1461,10 @@ int touch_resume(struct ovt_tcm_hcd *tcm_hcd)
 			disable_irq_wake(tcm_hcd->irq);
 			touch_hcd->irq_wake = false;
 		}
+
+#ifdef OVT_STOWED_MODE_SUPPORT
+		g_tcm_hcd->set_stowed = 0;
+#endif
 
 		retval = tcm_hcd->set_dynamic_config(tcm_hcd,
 				DC_IN_WAKEUP_GESTURE_MODE,

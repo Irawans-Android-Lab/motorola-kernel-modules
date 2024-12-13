@@ -130,7 +130,7 @@ EXPORT_SYMBOL(ovt_tcm_set_func_face_detect_en_state);
 EXPORT_SYMBOL(ovt_tcm_set_func_ear_phone_connected_en_state);
 EXPORT_SYMBOL(ovt_tcm_set_func_roate_horizontal_level_en_state);
 
-
+int ovt_tcm_sleep(struct ovt_tcm_hcd *tcm_hcd, bool en);
 
 #define dynamic_config_sysfs(c_name, id) \
 static ssize_t ovt_tcm_sysfs_##c_name##_show(struct device *dev, \
@@ -518,6 +518,53 @@ static ssize_t gesture_enabled_dbg_store(struct device *dev,
 }
 #endif
 
+#ifdef OVT_STOWED_MODE_SUPPORT
+static ssize_t stowed_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	int mode = 0;
+	int ret = 0;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+
+	ret = sscanf(buf, "%d", &mode);
+	if (ret < 0) {
+		OVT_INFO("Failed to convert value.\n");
+		return -EINVAL;
+	}
+
+	g_tcm_hcd->get_stowed = mode;
+	if (g_tcm_hcd->set_stowed == mode) {
+		OVT_INFO("Skip same stow value :%d", mode);
+		ret = size;
+		return ret;
+	}
+
+	if (tcm_hcd->in_suspend && tcm_hcd->wakeup_gesture_enabled) {
+		ret = ovt_tcm_sleep(tcm_hcd, mode);
+		if (ret < 0)
+			OVT_INFO("failed to set stowed mode = %d", mode);
+		else {
+			OVT_INFO("Success to set stowed mode %d\n", mode);
+			g_tcm_hcd->set_stowed = g_tcm_hcd->get_stowed;
+			ret = size;
+		}
+	} else {
+		OVT_INFO("Skip stowed mode setting when suspended:%d, wakeable:%d", tcm_hcd->in_suspend,tcm_hcd->wakeup_gesture_enabled);
+		ret = size;
+	}
+
+
+	return ret;
+}
+
+static ssize_t stowed_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	OVT_INFO("Stowed state = %d.\n", g_tcm_hcd->set_stowed);
+	return scnprintf(buf, PAGE_SIZE, "0x%02x", g_tcm_hcd->get_stowed);
+}
+#endif
+
 static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
@@ -526,6 +573,9 @@ static struct device_attribute touchscreen_attributes[] = {
 #ifdef OVT_DOUBLE_TAP_CTRL
 	__ATTR_RW(gesture),
 	__ATTR_RW(gesture_enabled_dbg),
+#endif
+#ifdef OVT_STOWED_MODE_SUPPORT
+	__ATTR_RW(stowed),
 #endif
 	__ATTR_RW(log_level),
 	__ATTR_NULL
@@ -3566,7 +3616,7 @@ exit:
 	return retval;
 }
 
-static int ovt_tcm_sleep(struct ovt_tcm_hcd *tcm_hcd, bool en)
+int ovt_tcm_sleep(struct ovt_tcm_hcd *tcm_hcd, bool en)
 {
 	int retval;
 	unsigned char command;
