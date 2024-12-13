@@ -3868,7 +3868,7 @@ static void haptic_init(struct aw_haptic *aw_haptic)
 	aw_haptic->gun_type = 0xff;
 	aw_haptic->activate_mode = aw_haptic->info.mode;
 	aw_haptic->func->play_mode(aw_haptic, AW_STANDBY_MODE);
-	aw_haptic->func->set_pwm(aw_haptic, AW_PWM_24K);
+	aw_haptic->func->set_pwm(aw_haptic, AW_PWM_12K);
 	/* misc value init */
 	aw_haptic->func->misc_para_init(aw_haptic);
 	aw_haptic->func->set_bst_peak_cur(aw_haptic);
