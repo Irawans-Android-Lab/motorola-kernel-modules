@@ -651,6 +651,7 @@ struct aw_haptic_dts_info {
 	uint8_t trig_cfg[24];
 	uint32_t cont_lra_vrms;
 	bool is_enabled_track_en;
+	bool is_pwm_12k;
 	bool is_enabled_auto_bst;
 	bool is_enabled_i2s;
 	bool is_enabled_one_wire;

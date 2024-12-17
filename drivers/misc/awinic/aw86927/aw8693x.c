@@ -1643,6 +1643,10 @@ static void aw8693x_parse_dt(struct device *dev, struct aw_haptic *aw_haptic,
 						"aw8693x_is_enabled_track_en");
 	aw_info("track en = %d", aw_haptic->info.is_enabled_track_en);
 
+	aw_haptic->info.is_pwm_12k = of_property_read_bool(np,
+						"aw8693x_is_pwm_12k");
+	aw_info("is_pwm_12k = %d", aw_haptic->info.is_pwm_12k);
+
 	aw_haptic->info.is_enabled_auto_bst = of_property_read_bool(np,
 						"aw8693x_is_enabled_auto_bst");
 	aw_info("auto bst = %d", aw_haptic->info.is_enabled_auto_bst);
