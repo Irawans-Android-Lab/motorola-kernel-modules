@@ -532,6 +532,9 @@ static int gsx_gesture_ist(struct goodix_ts_core *cd,
 re_send_ges_cmd:
 #if defined(PRODUCT_MIAMI)
 	if (hw_ops->gesture(cd, 0x80))
+#elif defined(CONFIG_BOARD_USES_DOUBLE_TAP_CTRL)
+	if (goodix_ts_send_cmd(cd, ENTER_GESTURE_MODE_CMD, 6, (cd->gesture_cmd) >> 8,
+		cd->gesture_cmd & 0xFF) < 0)
 #else
 	if (hw_ops->gesture(cd, cd->gesture_type))
 #endif

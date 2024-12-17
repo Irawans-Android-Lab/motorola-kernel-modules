@@ -12,7 +12,6 @@
  */
 
 #include "goodix_ts_mmi.h"
-#include "goodix_ts_core.h"
 #include <linux/delay.h>
 #include <linux/input/mt.h>
 #include "goodix_ts_config.h"
@@ -180,7 +179,7 @@ static int goodix_ts_mmi_extend_attribute_group(struct device *dev, struct attri
 	return 0;
 }
 
-static int goodix_ts_send_cmd(struct goodix_ts_core *core_data,
+int goodix_ts_send_cmd(struct goodix_ts_core *core_data,
 		u8 cmd, u8 len, u8 subCmd, u8 subCmd2)
 {
 	int ret = 0;
@@ -1196,6 +1195,7 @@ static int goodix_ts_mmi_panel_state(struct device *dev,
 		if (ret < 0) {
 			ts_err("Failed to send enable gesture mode\n");
 		}
+		core_data->gesture_cmd = gesture_cmd;
 		ts_info("Send enable gesture mode 0x%04x, 0x%02x\n", gesture_cmd, gesture_type);
 #else
 #if defined(PRODUCT_MIAMI)

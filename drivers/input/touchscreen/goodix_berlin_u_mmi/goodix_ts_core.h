@@ -613,6 +613,7 @@ struct goodix_ts_core {
 #ifdef CONFIG_GTP_LAST_TIME
 	ktime_t last_event_time;
 #endif
+	unsigned short gesture_cmd;
 	atomic_t pm_resume;
 	wait_queue_head_t pm_wq;
 
