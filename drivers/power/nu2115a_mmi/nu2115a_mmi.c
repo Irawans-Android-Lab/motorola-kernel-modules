@@ -1165,7 +1165,7 @@ static int nu2115_set_ibatocp(struct charger_device *chg_dev, u32 uA)
 	return __nu2115_set_bat_ocp(chip, uA);
 }
 
-#if IS_ENABLED(CONFIG_OEM_TURBO_CHARGER)
+
 static int mtk_nu2115_is_vbushigher(struct charger_device *chg_dev, bool *err)
 {
 	struct nu2115 *chip = charger_get_data(chg_dev);
@@ -1178,6 +1178,7 @@ static int mtk_nu2115_is_vbushigher(struct charger_device *chg_dev, bool *err)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_OEM_TURBO_CHARGER)
 static int mtk_nu2115_is_vbat_present(struct charger_device *chg_dev, bool *present)
 {
 	int ret;
@@ -1425,8 +1426,8 @@ static const struct charger_ops nu2115_chg_ops = {
 	.get_adc_accuracy = nu2115_get_adc_accuracy,
 	.is_enable_otg = nu2115_enable_otg,
 	.is_enable_acdrv1 = nu2115_enable_acdrv1,
+	.is_vbushigherr= mtk_nu2115_is_vbushigher,
 #if IS_ENABLED(CONFIG_OEM_TURBO_CHARGER)
-	.is_vbushigher = mtk_nu2115_is_vbushigher,
 	.is_vbat_present = mtk_nu2115_is_vbat_present,
 	.is_vbus_present = mtk_nu2115_is_vbus_present,
 #endif

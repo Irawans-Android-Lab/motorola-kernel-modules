@@ -788,7 +788,6 @@ __maybe_unused static int sc8541_is_vbuslowerr(struct sc8541_chip *sc, bool *err
 	return ret;
 }
 
-#if IS_ENABLED(CONFIG_OEM_TURBO_CHARGER)
 static int sc8541_is_vbushigher(struct sc8541_chip *sc, bool *err)
 {
 	int ret;
@@ -805,41 +804,6 @@ static int sc8541_is_vbushigher(struct sc8541_chip *sc, bool *err)
 
 	return ret;
 }
-
-static int sc8541_is_vbat_present(struct sc8541_chip *sc, bool *present)
-{
-	int ret;
-	int val;
-
-	ret = sc8541_field_read(sc, VBAT_INS_STAT, &val);
-	if (ret < 0) {
-		return ret;
-	}
-
-	dev_info(sc->dev, "%s:%d", __func__, val);
-
-	*present = (bool)val;
-
-	return ret;
-}
-
-static int sc8541_is_vbus_present(struct sc8541_chip *sc, bool *present)
-{
-	int ret;
-	int val;
-
-	ret = sc8541_field_read(sc, VBUS_INS_STAT, &val);
-	if (ret < 0) {
-		return ret;
-	}
-
-	dev_info(sc->dev, "%s:%d", __func__, val);
-
-	*present = (bool)val;
-
-	return ret;
-}
-#endif
 
 __maybe_unused static int sc8541_init_device(struct sc8541_chip *sc)
 {
@@ -1031,28 +995,12 @@ static int mtk_sc8541_is_vbuslowerr(struct charger_device *chg_dev, bool *err)
 	return sc8541_is_vbuslowerr(sc, err);
 }
 
-#if IS_ENABLED(CONFIG_OEM_TURBO_CHARGER)
 static int mtk_sc8541_is_vbushigher(struct charger_device *chg_dev, bool *err)
 {
 	struct sc8541_chip *sc = charger_get_data(chg_dev);
 
 	return sc8541_is_vbushigher(sc, err);
 }
-
-static int mtk_sc8541_is_vbat_present(struct charger_device *chg_dev, bool *present)
-{
-	struct sc8541_chip *sc = charger_get_data(chg_dev);
-
-	return sc8541_is_vbat_present(sc, present);
-}
-
-static int mtk_sc8541_is_vbus_present(struct charger_device *chg_dev, bool *present)
-{
-	struct sc8541_chip *sc = charger_get_data(chg_dev);
-
-	return sc8541_is_vbus_present(sc, present);
-}
-#endif
 
 static int mtk_sc8541_set_vbatovp_alarm(struct charger_device *chg_dev, u32 uV)
 {
@@ -1298,11 +1246,7 @@ static const struct charger_ops sc8541_chg_ops = {
 	.is_vbuslowerr = mtk_sc8541_is_vbuslowerr,
 	.is_enable_otg = NULL,
 	.is_enable_acdrv1 = NULL,
-#if IS_ENABLED(CONFIG_OEM_TURBO_CHARGER)
-	.is_vbushigher = mtk_sc8541_is_vbushigher,
-	.is_vbat_present = mtk_sc8541_is_vbat_present,
-	.is_vbus_present = mtk_sc8541_is_vbus_present,
-#endif
+	.is_vbushigherr = mtk_sc8541_is_vbushigher,
 	.set_vbatovp_alarm = mtk_sc8541_set_vbatovp_alarm,
 	.reset_vbatovp_alarm = mtk_sc8541_reset_vbatovp_alarm,
 	.set_vbusovp_alarm = mtk_sc8541_set_vbusovp_alarm,
