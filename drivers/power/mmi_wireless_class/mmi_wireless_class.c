@@ -74,6 +74,7 @@ WLS_RX_GET(op_mode, int *a);
 WLS_RX_GET(sys_mode, int *a);
 WLS_RX_GET(rx_die_temp, int *a);
 WLS_RX_GET(mode_select, int *a);
+WLS_RX_GET(fw_update_status, int *a);
 
 WLS_RX_GET(rx_irect, int *a);
 WLS_RX_GET(rx_iout, int *a);

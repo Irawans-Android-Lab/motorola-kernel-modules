@@ -31,6 +31,23 @@ struct wls_event_msg
 	uint8_t data[32];
 };
 
+typedef enum
+{
+	WLS_FW_UPDATE_IDLE = 0,
+	WLS_FW_UPDATE_START,
+	WLS_FW_UPDATE_SKIP,
+	WLS_FW_UPDATE_SUCCESS,
+	WLS_FW_UPDATE_ERR,
+	WLS_FW_UPDATE_ERR_ALLOC,
+	WLS_FW_UPDATE_ERR_BIN,
+	WLS_FW_UPDATE_ERR_SIZE,
+	WLS_FW_UPDATE_ERR_I2C,
+	WLS_FW_UPDATE_ERR_CRC,
+	WLS_FW_UPDATE_ERR_ERASE,
+	WLS_FW_UPDATE_ERR_WRITE,
+	WLS_FW_UPDATE_MAX
+} WLS_FW_UPDATE_T;
+
 typedef enum {
 	Sys_Op_Mode_AC_Missing = 0,
 	Sys_Op_Mode_BPP = 0x1,
@@ -56,6 +73,7 @@ struct wls_rx_ops {
 	int (*get_sys_mode)(struct wireless_device *wls_dev, int *sys_mode);
 	int (*get_rx_die_temp)(struct wireless_device *wls_dev, int *temp);
 	int (*get_mode_select)(struct wireless_device *wls_dev, int *mode_sel);
+	int (*get_fw_update_status)(struct wireless_device *wls_dev, int *status);
 
 	//rx charging info
 	int (*get_rx_neg_power)(struct wireless_device *wls_dev, int *power);
@@ -142,6 +160,7 @@ extern int wls_rx_get_rx_neg_power(struct wireless_device *wls_dev, int *power);
 extern int wls_rx_get_op_mode(struct wireless_device *wls_dev, int *op_mode);
 extern int wls_rx_get_sys_mode(struct wireless_device *wls_dev, int *sys_mode);
 extern int wls_rx_get_mode_select(struct wireless_device *wls_dev, int *mode_sel);
+extern int wls_rx_get_fw_update_status(struct wireless_device *wls_dev, int *status);
 
 extern int wls_rx_get_rx_irect(struct wireless_device *wls_dev, int *cur);
 extern int wls_rx_get_rx_iout(struct wireless_device *wls_dev, int *cur);
