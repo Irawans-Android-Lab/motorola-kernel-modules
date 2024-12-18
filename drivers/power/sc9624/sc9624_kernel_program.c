@@ -953,6 +953,7 @@ int mtp_program(struct sc9624 *sc)
     firmware_buf = kzalloc(MTP_SIZE, GFP_KERNEL);  // 32K buffer
     if (IS_ERR_OR_NULL(firmware_buf)) {
         sc_err("Error:firmware buf alloc failed,Exit.\n");
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_ALLOC;
         return -1;
     }
     memset(firmware_buf, 0x00, MTP_SIZE);
@@ -961,9 +962,11 @@ int mtp_program(struct sc9624 *sc)
     ret = firmware_request_nowarn(&fw, sc->wls_fw_name , sc->dev);
     if (IS_ERR_OR_NULL(fw) || ret != 0) {
         sc_err("Error:firmware get error %d\n", ret);
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_BIN;
         goto program_fail;
     } else if (fw->size > MTP_SIZE) {
         sc_info("Error:firmware size(%lu) is larger then MTP_SIZE(%d).\n", fw->size, MTP_SIZE);
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_SIZE;
         goto program_fail;
     } else {
         memcpy(firmware_buf, fw->data, fw->size);
@@ -981,11 +984,13 @@ int mtp_program(struct sc9624 *sc)
 
     if (ret) {
         sc_info("iic error, Skip FW update\n");
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_I2C;
         goto program_fail;
     } else if (sc->fw_update_force) {
         sc_info("FW update force\n");
     } else if (image_ver == fw_ver) {
         sc_info("image_ver:0x%X fw_ver:0x%X, Skip FW update\n", image_ver, fw_ver);
+        sc->fw_update_status = WLS_FW_UPDATE_SKIP;
         goto program_fail;
     }
 
@@ -993,12 +998,14 @@ int mtp_program(struct sc9624 *sc)
     firmware_length = firmware_length + (MTP_SECTOR - (firmware_length % MTP_SECTOR));
 
     sc_info("program start\n");
+    sc->fw_update_status = WLS_FW_UPDATE_START;
     sc->fw_program = true;
     //op init
     ret = dig_tm_entry(sc, true);
     ret |= wait_warmup_done(sc);
     if (ret) {
         sc_err("wait_warmup_done error %d\n", ret);
+        sc->fw_update_status = WLS_FW_UPDATE_ERR;
 		goto program_fail;
     }
 
@@ -1009,26 +1016,32 @@ int mtp_program(struct sc9624 *sc)
     ret |= iic_mtp_ctrl(sc, true);
     if (ret) {
         sc_err("op init fail\n");
+        sc->fw_update_status = WLS_FW_UPDATE_ERR;
         goto program_fail;
     }
 
     if (!mtp_erase_chip(sc)) {
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_ERASE;
         goto program_fail;
     }
 
     if (!mtp_erase_check(sc)) {
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_ERASE;
         goto program_fail;
     }
 
     if (!mtp_write(sc, firmware_buf, firmware_length)) {
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_WRITE;
         goto program_fail;
     }
 
     if (!mtp_crc_check(sc, MARGIN1, crc_start, &crc_stop, firmware_buf, firmware_length)) {
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_CRC;
         goto program_fail;
     }
 
     if (!mtp_crc_check(sc, MARGIN3, crc_stop, &crc_start, firmware_buf, firmware_length)) {
+        sc->fw_update_status = WLS_FW_UPDATE_ERR_CRC;
         goto program_fail;
     }
 
@@ -1038,10 +1051,12 @@ int mtp_program(struct sc9624 *sc)
     ret |= dig_tm_entry(sc, false);
     if (ret) {
         sc_err("op deinit fail\n");
+        sc->fw_update_status = WLS_FW_UPDATE_ERR;
         goto program_fail;
     }
 
     sc_info("program successful\n");
+    sc->fw_update_status = WLS_FW_UPDATE_SUCCESS;
     kfree(firmware_buf);
     sc->fw_program = false;
     if (fw != NULL)

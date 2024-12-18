@@ -181,6 +181,7 @@ struct wireless_ctl
 	bool factory_wls_en;
 	bool fw_update_force;
 	bool fw_uploading;
+	int fw_update_retry_cnt;
 
 	int icl_target; //uA
 	int cc_target; //uA

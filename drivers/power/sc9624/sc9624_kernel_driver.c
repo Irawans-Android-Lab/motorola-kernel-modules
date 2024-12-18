@@ -1423,6 +1423,17 @@ int sc9624_set_fw_update(struct wireless_device *wls_dev, bool on)
 	return rt;
 }
 
+int sc9624_get_fw_update_status(struct wireless_device *wls_dev, int *status)
+{
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	*status = sc->fw_update_status;
+	sc_info(" status:%d\n", *status);
+
+	return 0;
+}
+
 int sc9624_send_event(struct sc9624 *sc, struct wls_event_msg *msg)
 {
 	int rt = -1;
@@ -1460,6 +1471,7 @@ static int sc9624_wlc2_init(struct sc9624 *sc)
 	sc->rx_ops.set_mode_select = sc9624_set_mode_select;
 	sc->rx_ops.get_mode_select = sc9624_get_mode_select;
 	sc->rx_ops.set_fw_update = sc9624_set_fw_update;
+	sc->rx_ops.get_fw_update_status = sc9624_get_fw_update_status;
 
 	sc->wls_dev = wireless_device_register("moto_wlc2",
 							&sc->client->dev, (void*)sc,

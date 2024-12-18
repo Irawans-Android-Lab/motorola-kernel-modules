@@ -99,6 +99,7 @@ void wls_device_fw_update_work(struct work_struct *work)
 	int vbus = 0;
 	int soc = 0;
 	bool boost_flag = false;
+	int status = WLS_FW_UPDATE_IDLE;
 
 	if (IS_ERR_OR_NULL(wlc)) {
 		wlc_err("can't get wlc\n");
@@ -157,6 +158,17 @@ fw_update_exit:
 
 	wlc->ctl.fw_uploading = false;
 	wls_device_pm_set_awake(wlc, false);
+
+	wls_rx_get_fw_update_status(wlc->wls_dev,&status);
+	if (status != WLS_FW_UPDATE_IDLE &&
+		status != WLS_FW_UPDATE_SKIP &&
+		status != WLS_FW_UPDATE_SUCCESS &&
+		wlc->ctl.fw_update_retry_cnt < 2) {
+		wlc->ctl.fw_update_retry_cnt ++;
+		wlc_info("%s fw_update_retry_cnt=%d\n", __func__, wlc->ctl.fw_update_retry_cnt);
+		queue_delayed_work(wlc->wls_wq,
+				&wlc->fw_update_work, msecs_to_jiffies(1000));
+	}
 }
 
 int wls_device_uisoc_change(struct moto_wlc *wlc, int uisoc)
@@ -609,6 +621,7 @@ static ssize_t wireless_fw_update_store(struct device *dev,
 		return -EINVAL;
 	}
 
+	pWlc->ctl.fw_update_retry_cnt = 0;
 	wls_rx_get_sys_mode(pWlc->wls_dev, &sys_mode);
 	wls_rx_get_chip_id(pWlc->wls_dev, &chip_id);
 	if (sys_mode == SYS_MODE_RX && chip_id == pWlc->config.chip_id) {

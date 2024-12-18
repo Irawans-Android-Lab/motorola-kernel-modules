@@ -512,6 +512,7 @@ struct sc9624 {
     int work_mode;
     bool fw_program;
     bool fw_update_force;
+    int fw_update_status;
 
     struct sc9624_config config;
 
