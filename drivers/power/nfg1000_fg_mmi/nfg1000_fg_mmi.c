@@ -220,9 +220,10 @@ struct mmi_fg_chip {
 	int batt_temp;
 	int batt_curr;
 
-	int batt_cyclecnt;	/* cycle count */	
-	int force_update;	
+	int batt_cyclecnt;	/* cycle count */
+	int force_update;
 	bool support_ifc;
+	bool enable_user_upgrade_batt;
 	/* debug */
 	int skip_reads;
 	int skip_writes;
@@ -3247,6 +3248,8 @@ static int mmi_parse_dt(struct mmi_fg_chip *mmi_fg)
 
 	mmi_fg->support_ifc =of_property_read_bool(np, "nfg,support_ifc");
 
+	mmi_fg->enable_user_upgrade_batt =of_property_read_bool(np, "nfg,enable_user_upgrade_batt");
+
 	return 0;
 }
 
@@ -3337,7 +3340,8 @@ static int mmi_fg_probe(struct i2c_client *client,
 
 	INIT_DELAYED_WORK(&mmi->fg_FUpgrade_dwork, nfg1000_force_upgrade_func);
 	INIT_DELAYED_WORK(&mmi->fg_upgrade_dwork, nfg1000_upgrade_func);
-	if (mmi->fake_battery == false && is_atm_mode() == true) {
+	if (mmi->fake_battery == false &&
+		(is_atm_mode() == true || mmi->enable_user_upgrade_batt)) {
 		queue_delayed_work(system_long_wq, &mmi->fg_FUpgrade_dwork , msecs_to_jiffies(queue_delayed_work_time));
 		queue_delayed_work(system_long_wq, &mmi->fg_upgrade_dwork , msecs_to_jiffies(queue_delayed_work_time));
 	}
