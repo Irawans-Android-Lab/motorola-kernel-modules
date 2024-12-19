@@ -1264,14 +1264,15 @@ int sc9624_rx_get_sys_mode(struct wireless_device *wls_dev, int *sys_mode)
 	sc = dev_get_drvdata(&wls_dev->dev);
 
 	rt = sc9624_rx_get_sysmode(sc, &sysmode.value);
-	if (sysmode.RECEIVER) {
-		rt = SYS_MODE_RX;
-	} else if (sysmode.TRANSMITTER) {
-		rt = SYS_MODE_TX;
+	if (rt) {
+		return rt;
 	}
 
-	if (!IS_ERR_OR_NULL(sys_mode))
-		*sys_mode = rt;
+	if (sysmode.RECEIVER) {
+		*sys_mode = SYS_MODE_RX;
+	} else if (sysmode.TRANSMITTER) {
+		*sys_mode = SYS_MODE_TX;
+	}
 
 	return rt;
 }

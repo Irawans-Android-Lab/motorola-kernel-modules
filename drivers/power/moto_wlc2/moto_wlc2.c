@@ -657,6 +657,7 @@ int _wlc_set_prop(struct chg_alg_device *alg,
 	case ALG_WLC_TX_MODE:
 		break;
 	case ALG_NOTIFY_OTG_PLUGIN:
+		wls_chg_notify_otg_plugin(wlc, !!value);
 		break;
 	default:
 		break;

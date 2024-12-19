@@ -486,7 +486,7 @@ int wls_device_set_mode_select(struct moto_wlc *wlc, char *str, bool mode)
 	int rt = 0;
 
 	rt = wls_rx_set_mode_select(wlc->wls_dev, mode);
-	wlc_info("[%s] mode:%d rt:%d\n", str, mode, rt);
+	wlc_info("%s: %s mode:%d rt:%d\n", __func__, str, mode, rt);
 
 	return rt;
 }

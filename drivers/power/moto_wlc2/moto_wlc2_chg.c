@@ -498,3 +498,49 @@ int wls_chg_register_psy(struct moto_wlc *wlc)
 
 	return 0;
 }
+
+int wls_chg_notify_otg_plugin(struct moto_wlc *wlc, bool on)
+{
+	int wait = 0;
+	int rt = 0;
+	int op_mode = Sys_Op_Mode_INVALID;
+	int sys_mode = 0;
+
+	pr_info("%s on:%d\n", __func__, on);
+	if (on) {
+		rt = wls_rx_get_sys_mode(wlc->wls_dev, &sys_mode);
+		pr_info("%s sys_mode:%d rt:%d\n", __func__, sys_mode, rt);
+		if (rt != 0 || sys_mode != SYS_MODE_RX) {
+			return 0;
+		}
+
+		rt = wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+		pr_info("%s op_mode:%d rt:%d\n", __func__, op_mode, rt);
+		if (rt == 0 &&
+			(op_mode == Sys_Op_Mode_EPP || wlc_hal_get_vbus(wlc->alg) > 5500000)) {
+			if (gpio_is_valid(wlc->wls_control_en)) {
+				gpio_set_value(wlc->wls_control_en, 1); //1 disable wls, 0 enable wls
+				pr_info("%s disable wls, set inhibit:%d\n",
+					__func__, gpio_get_value(wlc->wls_control_en));
+			} else {
+				wait = 50;
+				while (wait > 0 && wlc->auth.hs_st == AUTH_HS_UNKONWN) {
+					msleep(100);
+					wait --;
+				}
+				wlc->ctl.mode_select_force = true;
+				rt = wls_device_set_mode_select(wlc, "otg_plugin", 0);
+			}
+			wait = 50;
+			while (wait > 0 && (wlc_hal_get_vbus(wlc->alg) > 5500000)) {
+				msleep(10);
+				wait --;
+			}
+			if (wlc->ctl.mode_select_force)
+				wlc->ctl.mode_select_force = false;
+			pr_info("%s vbus:%d\n", __func__, wlc_hal_get_vbus(wlc->alg));
+		}
+	}
+
+	return rt;
+}
