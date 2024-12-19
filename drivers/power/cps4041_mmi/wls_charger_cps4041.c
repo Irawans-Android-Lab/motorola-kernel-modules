@@ -2062,7 +2062,7 @@ static enum power_supply_property cps_wls_chrg_props[] = {
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_POWER_NOW,
-	POWER_SUPPLY_PROP_USB_TYPE,
+	POWER_SUPPLY_PROP_CHARGE_TYPE,
 };
 
 static int cps_wls_chrg_property_is_writeable(struct power_supply *psy,
@@ -2092,7 +2092,7 @@ static int cps_wls_chrg_get_property(struct power_supply *psy,
 			val->intval = chip->wl_psd.type;
 			break;
 
-		case POWER_SUPPLY_PROP_USB_TYPE:
+		case POWER_SUPPLY_PROP_CHARGE_TYPE:
 			if (chip->mode_type == Sys_Op_Mode_BPP)
 				val->intval = POWER_SUPPLY_USB_TYPE_WLC_BPP;
 			else if (chip->mode_type == Sys_Op_Mode_EPP)

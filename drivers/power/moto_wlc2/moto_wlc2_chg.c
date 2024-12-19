@@ -356,7 +356,7 @@ enum power_supply_property wls_chg_props[] = {
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_POWER_NOW,
-	POWER_SUPPLY_PROP_USB_TYPE,
+	POWER_SUPPLY_PROP_CHARGE_TYPE,
 };
 
 int wls_chg_get_property(struct power_supply *psy,
@@ -402,7 +402,7 @@ int wls_chg_get_property(struct power_supply *psy,
 			val->intval = wlc->wls_psd.type;
 			break;
 
-		case POWER_SUPPLY_PROP_USB_TYPE:
+		case POWER_SUPPLY_PROP_CHARGE_TYPE:
 			if (wlc->data.mode_type == Sys_Op_Mode_BPP)
 				val->intval = POWER_SUPPLY_USB_TYPE_WLC_BPP;
 			else if (wlc->data.mode_type == Sys_Op_Mode_EPP)
