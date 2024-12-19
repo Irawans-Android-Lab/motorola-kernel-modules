@@ -754,7 +754,7 @@ erase_check_fail:
 static bool mtp_write(struct sc9624 *sc, uint8_t *buf, uint32_t buf_len)
 {
     int ret;
-    int i, timeout;
+    int i, j, timeout;
     SC9624_mtp_st_e mtp_st;
 
     sc_info("mtp write start\n");
@@ -768,60 +768,74 @@ static bool mtp_write(struct sc9624 *sc, uint8_t *buf, uint32_t buf_len)
     ret |= mtp_iic_cfg(sc);
     ret |= mtp_cp_vol_set(sc, CP_VOL_106);
     ret |= mtp_op_time_set(sc, WRITE_OP_TIME);
-    ret |= mtp_addr_set(sc, MAIN_BKS, MTP_START_ADDR);
+   // ret |= mtp_addr_set(sc, MAIN_BKS, MTP_START_ADDR);
     ret |= mtp_mode_set(sc, MTP_WV_MODE);
     ret |= mtp_write_unlock(sc, true);
-    ret |= mtp_opnum_set(sc, (buf_len >> 4) - 1);
-    ret |= mtp_bist_ctrl(sc, true);
-    ret |= bist_start_ctrl(sc, true);
+   // ret |= mtp_opnum_set(sc, (buf_len >> 4) - 1);
+   // ret |= mtp_bist_ctrl(sc, true);
+   // ret |= bist_start_ctrl(sc, true);
     if (ret) {
         sc_err("mtp write init fail\n");
         goto mtp_write_fail;
     }
 
-    for (i = 0; i < buf_len; i += 16) {
-        //wait wr_avb
-        for (timeout = 0; timeout < 100; timeout++) {
+    // write twice
+    for(j = 0; j < 2; j++){
+        ret |= mtp_addr_set(sc, MAIN_BKS, MTP_START_ADDR);
+        ret |= mtp_opnum_set(sc, (buf_len >> 4) - 1);
+        ret |= mtp_bist_ctrl(sc, true);
+        ret |= bist_start_ctrl(sc, true);
+        if (ret) {
+            sc_err("mtp set addr fail\n");
+            goto mtp_write_fail;
+        }
+
+        for (i = 0; i < buf_len; i += 16) {
+            //wait wr_avb
+            for (timeout = 0; timeout < 100; timeout++) {
+                ret = sc9624_read_byte(sc, SC9624_MTP_ST, &mtp_st.value);
+                if (ret) {
+                    sc_err("read 0xFFAD fail\n");
+                    goto mtp_write_fail;
+                }
+
+                if (mtp_st.wr_avb) {
+                    break;
+                }
+
+                if (timeout > 90) {
+                    sc_err("mtp write wait wr avb timeout\n");
+                    goto mtp_write_fail;
+                }
+
+                msleep(10);
+            }
+
+            if (write_pdin(sc, buf + i, 16)) {
+                sc_err("mtp write pdin fail\n");
+                goto mtp_write_fail;
+            }
+        }
+
+        for (timeout = 0; timeout < 10; timeout++) {
             ret = sc9624_read_byte(sc, SC9624_MTP_ST, &mtp_st.value);
             if (ret) {
                 sc_err("read 0xFFAD fail\n");
                 goto mtp_write_fail;
             }
 
-            if (mtp_st.wr_avb) {
+            if (!mtp_st.mtp_busy) {
                 break;
             }
 
-            if (timeout > 90) {
-                sc_err("mtp write wait wr avb timeout\n");
-                goto mtp_write_fail;
+            if (mtp_st.mtp_fail || timeout > 8) {
+                sc_err("mtp write fail or timeout\n");
+            //  goto mtp_write_fail;
             }
-
             msleep(10);
         }
-
-        if (write_pdin(sc, buf + i, 16)) {
-            sc_err("mtp write pdin fail\n");
-            goto mtp_write_fail;
-        }
-    }
-
-    for (timeout = 0; timeout < 10; timeout++) {
-        ret = sc9624_read_byte(sc, SC9624_MTP_ST, &mtp_st.value);
-        if (ret) {
-            sc_err("read 0xFFAD fail\n");
-            goto mtp_write_fail;
-        }
-
-        if (!mtp_st.mtp_busy) {
-            break;
-        }
-
-        if (mtp_st.mtp_fail || timeout > 8) {
-            sc_err("mtp write fail or timeout\n");
-            goto mtp_write_fail;
-        }
-        msleep(10);
+        ret |= bist_start_ctrl(sc, false);
+        ret |= mtp_bist_ctrl(sc, false);
     }
 
     ret = mtp_write_unlock(sc, false);
