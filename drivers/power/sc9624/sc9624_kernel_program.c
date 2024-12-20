@@ -935,6 +935,129 @@ mtp_crc_check_fail:
     return false;
 }
 
+int mtp_chip_crc_check(struct sc9624 *sc, uint32_t mtp_len)
+{
+    int ret = 0;
+    int i = 0;
+    int timeout = 0;
+    uint32_t r_crc = 0;
+    SC9624_mtp_st_e mtp_st;
+    uint32_t crc_127 = 0xFFFFFFFF;
+
+    sc_info("MTP chip CRC check start mtp_len:%d sector:%d\n",
+            mtp_len, mtp_len % MTP_SECTOR);
+
+    if (mtp_len == 0 || (mtp_len % MTP_SECTOR)) {
+        sc_err("SC962x firmware check size failed!\n");
+        ret = -1;
+        return ret;
+    }
+
+    ret |= dig_tm_entry(sc, true);
+    ret |= wait_warmup_done(sc);
+    if (ret) {
+        sc_err("wait_warmup_done error %d\n", ret);
+        goto mtp_crc_check_end;
+    }
+    ret = ate_mode_ctrl(sc, true);
+    ret |= mcu_ctrl(sc, false);
+    ret |= hirc_ctrl(sc, true);
+
+    ret |= write_amba(sc, 0x4000D008,0x7FFFFFFF);//open clk
+    ret |= write_amba(sc, 0x4000A000,0x1F08);//open mldo
+    ret |= iic_mtp_ctrl(sc, true);
+    if (ret) {
+        sc_err("init fail\n");
+        goto mtp_crc_check_end;
+    }
+
+    ret = mtp_power_ctrl(sc, true);
+    ret |= mtp_set_margin(sc, MARGIN1);
+    ret |= mtp_iic_cfg(sc);
+    ret |= mtp_addr_set(sc, MAIN_BKS, MTP_START_ADDR);
+    ret |= mtp_mode_set(sc, MTP_CRC_MODE);
+    ret |= mtp_opnum_set(sc, (mtp_len >> 4) - 1);
+    ret |= mtp_bist_ctrl(sc, true);
+    ret |= bist_start_ctrl(sc, true);
+    if (ret) {
+        sc_err("mtp crc check init fail\n");
+        goto mtp_crc_check_end;
+    }
+    for (i = 0; i < (mtp_len / MTP_SECTOR); i++) {
+        for (timeout = 0;; timeout++) {
+            ret = sc9624_read_byte(sc, SC9624_MTP_ST, &mtp_st.value);
+            if (ret) {
+                sc_err("read 0xFFAD fail\n");
+                goto mtp_crc_check_end;
+            }
+
+            if (mtp_st.rd_avb) {
+                break;
+            }
+
+            if (timeout > 1000) {
+                ret = -1;
+                sc_err("mtp crc check timeout\n");
+                goto mtp_crc_check_end;
+            }
+            msleep(1);//1ms
+        }
+
+        if (!read_sector_crc(sc, &r_crc)) {
+            ret = -1;
+            sc_err("mtp crc check read crc fail\n");
+            goto mtp_crc_check_end;
+        }
+
+        if (i < mtp_len / MTP_SECTOR - 1) {
+            crc_127 = sc9624_func_crc32(r_crc, crc_127);
+            sc_info("mtp r_crc:0x%08X crc_127:0x%08X\n", r_crc, crc_127);
+        } else {
+            crc_127 = sc9624_func_crc32(crc_127, 0);
+            sc_info("mtp r_crc:0x%08X crc_127:0x%08X\n", r_crc, crc_127);
+            if (r_crc != crc_127) {
+                ret = -1;
+                sc_err("mtp crc Error\n");
+                goto mtp_crc_check_end;
+            }
+        }
+    }
+
+mtp_crc_check_end:
+    ret |= mtp_mode_set(sc, MTP_CLR_MODE);
+    ret |= mtp_power_ctrl(sc, false);
+    ret |= bist_start_ctrl(sc, false);
+    ret |= mtp_bist_ctrl(sc, false);
+
+    ret |= iic_mtp_ctrl(sc, false);
+    ret |= ate_mode_ctrl(sc, false);
+    ret |= iic_send_por(sc);
+    ret |= dig_tm_entry(sc, false);
+
+    if (ret) {
+        sc_err("MTP CRC chip check failed");
+    } else {
+        sc_info("MTP CRC chip check successfully");
+    }
+
+    return ret;
+}
+
+int sc9624_get_fw_size(struct sc9624 *sc, uint32_t *fw_size)
+{
+    int ret = 0;
+    uint16_t offset = 0;
+
+    OFFSET(RXCustType, FirmwareSize, offset);
+    ret = sc9624_read_block(sc, offset, (uint8_t *)fw_size,
+            (uint8_t)sizeof(((RXCustType *)0)->FirmwareSize));
+    if (ret) {
+        sc_err("sc9624 get FirmwareSize fail\n");
+    }
+
+    return ret;
+}
+
 int sc962x_get_image_fm_ver(const uint8_t *firmware, int len, uint32_t *image_ver)
 {
     if (len < 0x200) {
@@ -960,6 +1083,7 @@ int mtp_program(struct sc9624 *sc)
     const struct firmware *fw = NULL;
     uint32_t image_ver = 0;
     uint32_t fw_ver = -1;
+    uint32_t fw_size = 0;
 
     sc_info("load firmware %s\n", sc->wls_fw_name);
 
@@ -1003,9 +1127,18 @@ int mtp_program(struct sc9624 *sc)
     } else if (sc->fw_update_force) {
         sc_info("FW update force\n");
     } else if (image_ver == fw_ver) {
-        sc_info("image_ver:0x%X fw_ver:0x%X, Skip FW update\n", image_ver, fw_ver);
-        sc->fw_update_status = WLS_FW_UPDATE_SKIP;
-        goto program_fail;
+        ret = sc9624_get_fw_size(sc, &fw_size);
+        if (fw_size > 32*1024) {
+            sc_err("SC9624 firmware check length failed!! fw_size=%d\n", fw_size); //need update FW
+        } else {
+            if (mtp_chip_crc_check(sc, fw_size) < 0) {
+                sc_err("SC9624 firmware crc check failed!!"); //need update FW
+            } else {
+                sc_info("image_ver:0x%X fw_ver:0x%X, Skip FW update\n", image_ver, fw_ver);
+                sc->fw_update_status = WLS_FW_UPDATE_SKIP;
+                goto program_fail;
+            }
+        }
     }
 
     //sector alignment
@@ -1027,6 +1160,7 @@ int mtp_program(struct sc9624 *sc)
     ret |= mcu_ctrl(sc, false);
     ret |= hirc_ctrl(sc, true);
     ret |= write_amba(sc, 0x4000D008,0x7FFFFFFF);//open clk
+    ret |= write_amba(sc, 0x4000A000,0x1F08);//open mldo
     ret |= iic_mtp_ctrl(sc, true);
     if (ret) {
         sc_err("op init fail\n");
@@ -1105,6 +1239,7 @@ int mtp_erase(struct sc9624 *sc)
 	ret |= mcu_ctrl(sc, false);
 	ret |= hirc_ctrl(sc, true);
 	ret |= write_amba(sc, 0x4000D008,0x7FFFFFFF);//open clk
+	ret |= write_amba(sc, 0x4000A000,0x1F08);//open mldo
 	ret |= iic_mtp_ctrl(sc, true);
 	if (ret) {
 		sc_err("op init fail\n");
