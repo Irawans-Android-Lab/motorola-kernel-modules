@@ -983,7 +983,7 @@ static const struct charger_properties sc8541d_chg_props = {
     .alias_name = "sc8541d_chg",
 };
 
-static int sc8541d_set_present(struct sc8541d_chip *sc, bool present)
+__maybe_unused static int sc8541d_set_present(struct sc8541d_chip *sc, bool present)
 {
     int ret = 0;
 
@@ -995,14 +995,11 @@ static int sc8541d_set_present(struct sc8541d_chip *sc, bool present)
 }
 
 static enum power_supply_property sc8541d_charger_props[] = {
-    POWER_SUPPLY_PROP_PRESENT,
-    POWER_SUPPLY_PROP_ONLINE,
     POWER_SUPPLY_PROP_VOLTAGE_NOW,
     POWER_SUPPLY_PROP_CURRENT_NOW,
     POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
     POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE,
     POWER_SUPPLY_PROP_TEMP,
-    POWER_SUPPLY_PROP_CHARGE_TYPE,
 };
 
 static int sc8541d_charger_get_property(struct power_supply *psy,
@@ -1014,13 +1011,6 @@ static int sc8541d_charger_get_property(struct power_supply *psy,
     int ret;
 
     switch (psp) {
-    case POWER_SUPPLY_PROP_ONLINE:
-        sc8541d_check_charge_enabled(sc, &sc->charge_enabled);
-        val->intval = sc->charge_enabled;
-        break;
-    case POWER_SUPPLY_PROP_PRESENT:
-        val->intval = sc->usb_present;
-        break;
     case POWER_SUPPLY_PROP_VOLTAGE_NOW:
         ret = sc8541d_get_adc_data(sc, ADC_VBAT, &result);
         if (!ret)
@@ -1064,17 +1054,9 @@ static int sc8541d_charger_set_property(struct power_supply *psy,
                     enum power_supply_property prop,
                     const union power_supply_propval *val)
 {
-    struct sc8541d_chip *sc = power_supply_get_drvdata(psy);
 
     switch (prop) {
-    case POWER_SUPPLY_PROP_ONLINE:
-        sc8541d_enable_charge(sc, !!val->intval);
-        dev_info(sc->dev, "POWER_SUPPLY_PROP_CHARGING_ENABLED: %s\n",
-                val->intval ? "enable" : "disable");
-        break;
-    case POWER_SUPPLY_PROP_PRESENT:
-        sc8541d_set_present(sc, !!val->intval);
-        break;
+
     default:
         return -EINVAL;
     }
@@ -1089,7 +1071,7 @@ static int sc8541d_psy_register(struct sc8541d_chip *sc)
     sc->psy_cfg.of_node = sc->dev->of_node;
 
     sc->psy_desc.name = sc8541d_psy_name[sc->role];
-    sc->psy_desc.type = POWER_SUPPLY_TYPE_MAINS;
+    sc->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
     sc->psy_desc.properties = sc8541d_charger_props;
     sc->psy_desc.num_properties = ARRAY_SIZE(sc8541d_charger_props);
     sc->psy_desc.get_property = sc8541d_charger_get_property;
