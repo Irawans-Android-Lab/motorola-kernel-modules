@@ -1953,7 +1953,11 @@ static int bq25980_is_vbushigherr(struct charger_device *chg_dev, bool *err)
 
 		*err = !!(val & SGM41606S_VBUS_ERRPRHI_STAT);
 	} else {
-		*err = 0;
+		tmp = regmap_read(bq->regmap, BQ25980_STAT5, &val);
+		if (tmp)
+			return tmp;
+
+		*err = !!(val & BQ25980_VBUS_ERRPRHI_STAT);
 	}
 
 	return 0;
@@ -2017,9 +2021,6 @@ static int sc8541_config_mux(struct bq25980_device *bq,
 {
 	int ret;
 	unsigned int val;
-
-	if (bq->mmi_disable_mux)
-		return 0;
 
 	 if (typec_mos != MMI_DVCHG_MUX_OTG_OPEN && wls_mos != MMI_DVCHG_MUX_OTG_OPEN) {
             ret = regmap_update_bits(bq->regmap, BQ25980_CHRGR_CTRL_2,
@@ -2192,6 +2193,9 @@ static int bq25980_config_mux(struct charger_device *chg_dev,
 	int ret;
 	unsigned int val;
 	struct bq25980_device *bq  = charger_get_data(chg_dev);
+
+	if (bq->mmi_disable_mux)
+		return 0;
 
 	if (bq->part_no == SC8541_PART_NO)
 		return sc8541_config_mux(bq, typec_mos, wls_mos);

@@ -214,6 +214,8 @@
 
 #define BQ25980_SWITCHING_STAT       BIT(6)
 
+#define BQ25980_VBUS_ERRPRHI_STAT    BIT(4)
+
 //SC8545
 #define SC8541_CTRL6_REG            0x40
 
