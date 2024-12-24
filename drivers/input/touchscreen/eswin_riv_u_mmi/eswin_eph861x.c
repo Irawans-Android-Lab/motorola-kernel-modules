@@ -770,12 +770,25 @@ static int eph_initialize(struct eph_data *ephdata)
                  ephdata->ephdeviceinfo.application_version_major, ephdata->ephdeviceinfo.application_version_minor,
                  ephdata->ephdeviceinfo.bootloader_version, ephdata->ephdeviceinfo.protocol_version, ephdata->ephdeviceinfo.crc);
 
-        if ((0 == ret_val) && ((ephdata->ephdeviceinfo.application_version_major != 0) || (ephdata->ephdeviceinfo.application_version_minor != 0)))
+        if ((0 == ret_val) )
         {
-
-            /* sucessfully read from device info and confirmed in application mode */
-            ephdata->in_bootloader = false;
-            break;
+            if((ephdata->ephdeviceinfo.application_version_major != 0) || (ephdata->ephdeviceinfo.application_version_minor != 0))
+            {
+                /* sucessfully read from device info and confirmed in application mode */
+                ts_info("Identify device in application mode");
+                ephdata->in_bootloader = false;
+                break;
+            }
+            else if(ephdata->ephdeviceinfo.variant_id == 0xF0)
+            {
+                ts_info("Identify device in bootloader mode");
+                ephdata->in_bootloader = true;
+                break;
+            }
+            else
+            {
+                ts_err("Invalid device info!");
+            }
         }
 
         /* Failed to read the device information - try bootloader */
@@ -885,7 +898,6 @@ static int eph_enter_bootloader(struct eph_data *ephdata)
 
     dev_dbg(&ephdata->commsdevice->dev, "%s >\n", __func__);
 
-
     if (!ephdata->in_bootloader)
     {
         if (ephdata->suspended)
@@ -894,42 +906,43 @@ static int eph_enter_bootloader(struct eph_data *ephdata)
             {
                 eph_power_on(ephdata);
             }
-
             ephdata->suspended = false;
         }
 
         /* only disable interrupt and unregister if we have not done so before */
         eph_irq_enable(ephdata, false);
-    }
 
-    /* force bootloader regardless whether we are in bootloader already - Always in defined TIC state */
-    /* Force device into bootloader mode using chg line held low while toggle reset */
-    ret_val = eph_chg_force_bootloader(ephdata);
+        /* Force device into bootloader mode using chg line held low while toggle reset */
+        ret_val = eph_chg_force_bootloader(ephdata);
 
-    if (ret_val)
-    {
-        /* failed to enter bootloader correctly - restore CHG */
-        (void)eph_bootloader_release_chg(ephdata);
-        return ret_val;
-    }
+        if (ret_val)
+        {
+            /* failed to enter bootloader correctly - restore CHG */
+            (void)eph_bootloader_release_chg(ephdata);
+            return ret_val;
+        }
 
+        ret_val = eph_comms_specific_bootloader_checks(ephdata);
+        if (ret_val)
+        {
+            /* failed to enter bootloader correctly - restore CHG */
+            (void)eph_bootloader_release_chg(ephdata);
+            return ret_val;
+        }
 
-    ret_val = eph_comms_specific_bootloader_checks(ephdata);
-    if (ret_val)
-    {
-        /* failed to enter bootloader correctly - restore CHG */
-        (void)eph_bootloader_release_chg(ephdata);
-        return ret_val;
-    }
-
-    if (!ephdata->in_bootloader)
-    {
         ephdata->in_bootloader = true;
-        /* Need in_bootloader to be true otherwise the regulators get disabled */
-        eph_sysfs_mem_access_remove(ephdata);
-        //eph_unregister_input_device(ephdata);
+    }
+    else
+    {
+        /* device already in bootloader mode, reset device to get intial bootloader feedback message */
+        ts_info("device already in bootloader mode, reset");
+        /* disable irq to avoid 0x50 report readed by irq */
+        eph_irq_enable(ephdata, false);
+        eph_reset_device(ephdata);
+        msleep(EPH_FW_RESET_TIME);
     }
 
+    eph_sysfs_mem_access_remove(ephdata);
     dev_info(&ephdata->commsdevice->dev, "Entered bootloader\n");
 
     return 0;
