@@ -1168,6 +1168,7 @@ __maybe_unused static int sc858x_enable_charge(struct sc858x_chip *sc, bool en)
         if (!value) {
             dev_info(sc->dev,"%s:enable fail \r\n", __func__);
             sc858x_dump_reg(sc);
+	     ret = -EINVAL;
         } else {
             dev_info(sc->dev,"%s:enable success \r\n", __func__);
         }
@@ -2070,7 +2071,7 @@ static void sc8565_create_device_node(struct device *dev)
 
 static int sc8565_enable_chg(struct charger_device *chg_dev, bool en)
 {
-	int ret;
+	int ret = 0;
 	struct sc858x_chip *bq = charger_get_data(chg_dev);
 	if (!bq) {
 		pr_err("sc8565 chip not valid\n");
@@ -2081,7 +2082,7 @@ static int sc8565_enable_chg(struct charger_device *chg_dev, bool en)
 	ret = sc858x_enable_charge(bq, en);
 	if (ret) {
 		dev_err(bq->dev, "%s enbale fail%d\n", __func__, en);
-		return ret;
+		return -EINVAL;
 	}
 
 	return 0;
