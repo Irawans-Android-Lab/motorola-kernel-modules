@@ -55,6 +55,11 @@ ifeq ($(findstring factory,$(TARGET_PRODUCT)),factory)
 	KERNEL_CFLAGS += CONFIG_TARGET_BUILD_FACTORY=y
 endif
 
+ifeq ($(CONFIG_CHIPONE_LOG_CAPTURE),true)
+        KERNEL_CFLAGS += CONFIG_CHIPONE_LOG_CAPTURE=y
+        KBUILD_OPTIONS += CONFIG_CHIPONE_LOG_CAPTURE=y
+endif
+
 
 include $(CLEAR_VARS)
 ifneq ($(BOARD_USES_DOUBLE_TAP),)
