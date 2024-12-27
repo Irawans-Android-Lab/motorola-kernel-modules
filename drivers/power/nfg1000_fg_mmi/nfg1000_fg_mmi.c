@@ -183,6 +183,11 @@ static const unsigned char *device2str[] = {
 	"nfg1000",
 };
 
+struct battid_map {
+	const char *battid;
+	const char *batt_profile_ver;
+};
+
 struct mmi_fg_chip {
 	struct device *dev;
 	struct i2c_client *client;
@@ -233,10 +238,8 @@ struct mmi_fg_chip {
 
 	int mcu_auth_code;
 
-	const char **batt_serialnum_arry;
 	int battid_cnt;
-	u16 *batt_version_arry;
-	int batt_version_cnt;
+	struct battid_map *battid_table;
 
 	u8 *fw_version;
 	u8 *fw_data;
@@ -797,9 +800,10 @@ static bool nfg1000_ota_program_check_batt_params_version(struct mmi_fg_chip *di
 	bool upgrade_status = false;
 	u8 dataflash_read[32] = {0};
 	u16 fg_param_version = 0xFFFF;
+	u16 batt_profile_ver = 0xFFFF;
 	char batt_params_bin_name[50] = {0};
 	const char *dev_sn = NULL;
-	int i;
+	int i, ret;
 
 	if(nfg1000_ota_unseal(di))
 	{
@@ -825,11 +829,12 @@ static bool nfg1000_ota_program_check_batt_params_version(struct mmi_fg_chip *di
 		fg_print_buf("The batt_serialnum from FG", dataflash_read, 13);
 	}
 
-	if (dev_sn && di->battid_cnt !=0 && di->batt_version_cnt != 0) {
+	if (dev_sn && di->battid_cnt != 0) {
 		for (i = 0; i < di->battid_cnt; i++) {
-			if ((strnstr(dev_sn, di->batt_serialnum_arry[i], 32)) &&
-			    (fg_param_version < di->batt_version_arry[i]))  {
-				sprintf(batt_params_bin_name, "NFG1000A_battery_parameter_%s.bin",di->batt_serialnum_arry[i]);
+			ret = kstrtou16(di->battid_table[i].batt_profile_ver, 0, &batt_profile_ver);
+			if (!ret && (strnstr(dev_sn, di->battid_table[i].battid, 10)) &&
+			    (fg_param_version < batt_profile_ver))  {
+				sprintf(batt_params_bin_name, "NFG1000A_battery_parameter_%s.bin",di->battid_table[i].battid);
 				mmi_info("Need to upgrading battery parameters: %s", batt_params_bin_name);
 				upgrade_status = true;
 				break;
@@ -2461,9 +2466,11 @@ int fg_get_batt_id(struct gauge_device *gauge_dev, char* battidmap)
 	struct mmi_fg_chip *fg = dev_get_drvdata(&gauge_dev->dev);
 	int i, count = 0;
 
+	if (!fg->battid_table)
+		return count;
 	count += sprintf(battidmap, "%x", fg->battid_cnt);
 	for (i = 0; i < fg->battid_cnt; i++) {
-		count += sprintf(battidmap + count, "%s",fg->batt_serialnum_arry[i]);
+		count += sprintf(battidmap + count, "%s",fg->battid_table[i].battid);
 	}
 
 	return count;
@@ -3196,7 +3203,7 @@ static int mmi_parse_dt(struct mmi_fg_chip *mmi_fg)
 	int byte_len;
 	int rc;
 	int count;
-	int i;
+	int rtn = 0;
 
 	rc = of_property_read_u32(np , "uirbat_pull_up_r_full", &mmi_fg->rbat_pull_up_r);
 	if (rc < 0) {
@@ -3208,41 +3215,40 @@ static int mmi_parse_dt(struct mmi_fg_chip *mmi_fg)
 		mmi_fg->fw_version= (u8 *)devm_kzalloc(&mmi_fg->client->dev, byte_len, GFP_KERNEL);
 		if (mmi_fg->fw_version == NULL) {
 			mmi_err(" devm_kzalloc fail,exit parse dts");
-			return -ENOMEM;
+			rtn = -ENOMEM;
 		}
-		rc = of_property_read_u8_array(np,
-			"latest_fw_version", mmi_fg->fw_version, byte_len / sizeof(u8));
-		if (rc < 0) {
-			mmi_err("Couldn't read mmi fw version = %d\n", rc);
-			return -ENOMEM;
-		}
-	}
-
-	count = of_property_count_strings(np, "batt_serialnums");
-	if (count > 0) {
-		mmi_info("battid_cnt=%d", count);
-		mmi_fg->battid_cnt = count;
-		mmi_fg->batt_serialnum_arry = devm_kzalloc(&mmi_fg->client->dev, count * sizeof(char *), GFP_KERNEL);
-		if (mmi_fg->batt_serialnum_arry) {
-			for (i = 0; i < mmi_fg->battid_cnt; i++) {
-				rc = of_property_read_string_index(np, "batt_serialnums", i,
-								    &mmi_fg->batt_serialnum_arry[i]);
-				if (rc < 0)
-					mmi_fg->battid_cnt = 0;
-				else
-					mmi_info("support serialnum[%d](%s)\n", i, mmi_fg->batt_serialnum_arry[i]);
+		if (!rtn) {
+			rc = of_property_read_u8_array(np,
+				"latest_fw_version", mmi_fg->fw_version, byte_len / sizeof(u8));
+			if (rc < 0) {
+				mmi_err("Couldn't read mmi fw version = %d\n", rc);
 			}
 		}
 	}
-	count = of_property_count_u16_elems(np, "batt_versions");
+
+	count = of_property_count_strings(np, "mmi,batt-ids-map");
 	if (count > 0) {
-		mmi_info("batt_version_cnt=%d", count);
-		mmi_fg->batt_version_cnt = count;
-		mmi_fg->batt_version_arry = devm_kzalloc(&mmi_fg->client->dev, count * sizeof(u16), GFP_KERNEL);
-		rc = of_property_read_u16_array(np, "batt_versions", mmi_fg->batt_version_arry, count);
-		if (rc < 0) {
-			mmi_info("of_property_read_u16_array fail err:%d", rc);
-			mmi_fg->batt_version_cnt = 0;
+		if (count % 2) {
+			mmi_err("%s Invalid profile-ids-map in DT, rc=%d\n", __func__, count);
+			rtn = -EINVAL;
+		}
+		if (!rtn) {
+			mmi_fg->battid_table = devm_kmalloc_array(&mmi_fg->client->dev, count / 2,
+							sizeof(struct battid_map), GFP_KERNEL);
+			if (!mmi_fg->battid_table)
+				rtn = -ENOMEM;
+			if (!rtn) {
+				rc = of_property_read_string_array(np, "mmi,batt-ids-map",
+								(const char **)mmi_fg->battid_table, count);
+				if (rc < 0) {
+					mmi_err("%s Failed to get batt-ids-list, rc=%d\n", __func__, rc);
+					devm_kfree(&mmi_fg->client->dev, mmi_fg->battid_table);
+					rtn = -EINVAL;
+				}
+				else {
+					mmi_fg->battid_cnt = count / 2;
+				}
+			}
 		}
 	}
 
@@ -3250,7 +3256,7 @@ static int mmi_parse_dt(struct mmi_fg_chip *mmi_fg)
 
 	mmi_fg->enable_user_upgrade_batt =of_property_read_bool(np, "nfg,enable_user_upgrade_batt");
 
-	return 0;
+	return rtn;
 }
 
 static int mmi_fg_probe(struct i2c_client *client,
