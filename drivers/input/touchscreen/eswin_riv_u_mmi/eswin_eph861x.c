@@ -66,7 +66,7 @@
 #define EPH_MAX_HEIGHT_WIDTH                255u
 #define EPH_HOST_REPORTING_TOUCH            1u
 #define EPH_HOST_REPORTING_GESTURE          2u
-//#define EPH_ESD_RECOVERY
+#define EPH_ESD_RECOVERY
 
 static int eph_sysfs_mem_access_init(struct eph_data *ephdata);
 static void eph_sysfs_mem_access_remove(struct eph_data *ephdata);
@@ -2055,6 +2055,7 @@ static void heartbeat_work_handler(struct work_struct *work)
     return;
 ic_recovery:
     eph_recovery_device(ephdata);
+    eph_clear_all_host_touch_slots(ephdata);
     schedule_delayed_work(&ephdata->heartbeat_work, msecs_to_jiffies(3000));
     return;
 ic_reset:
@@ -2219,6 +2220,10 @@ static int eph_probe(struct comms_device *commsdevice, const struct comms_device
     dev_dbg(&commsdevice->dev, "%s >>>\n", __func__);
 
     /* init spi_device */
+    struct spi_delay d;
+    d.value = 100;
+    d.unit = SPI_DELAY_UNIT_USECS;
+    commsdevice->cs_setup        = d;
     commsdevice->mode            = SPI_MODE_3;
     commsdevice->bits_per_word   = 8;
     commsdevice->chip_select = 0;
