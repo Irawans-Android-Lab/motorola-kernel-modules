@@ -5437,6 +5437,7 @@ err_create_run_kthread:
 	OVT_INFO("err_create_run_kthread\n");
 #endif
 
+	mtk_disp_notifier_unregister(&tcm_hcd->fb_notifier);
 #ifndef USE_SYS_SUSPEND_METHOD
 #ifdef CONFIG_DRMV
 	if (active_panel)
@@ -5566,6 +5567,7 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 	kthread_stop(tcm_hcd->notifier_thread);
 #endif
 
+	mtk_disp_notifier_unregister(&tcm_hcd->fb_notifier);
 #ifndef USE_SYS_SUSPEND_METHOD
 #ifdef CONFIG_DRMV
 	if (active_panel)
