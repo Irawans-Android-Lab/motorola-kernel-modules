@@ -75,6 +75,8 @@ WLS_RX_GET(sys_mode, int *a);
 WLS_RX_GET(rx_die_temp, int *a);
 WLS_RX_GET(mode_select, int *a);
 WLS_RX_GET(fw_update_status, int *a);
+WLS_RX_GET(ce, int *a);
+WLS_RX_GET(mcode, uint16_t *a);
 
 WLS_RX_GET(rx_irect, int *a);
 WLS_RX_GET(rx_iout, int *a);
@@ -85,6 +87,7 @@ WLS_RX_GET(rx_vout_setting, int *a);
 WLS_RX_SET(irq_enable, bool a);
 WLS_RX_SET(mode_select, bool a);
 WLS_RX_SET(fw_update, bool a);
+WLS_RX_SET(mc_det, bool a);
 
 WLS_RX_CHECK(ldo_on);
 

@@ -74,6 +74,8 @@ struct wls_rx_ops {
 	int (*get_rx_die_temp)(struct wireless_device *wls_dev, int *temp);
 	int (*get_mode_select)(struct wireless_device *wls_dev, int *mode_sel);
 	int (*get_fw_update_status)(struct wireless_device *wls_dev, int *status);
+	int (*get_ce)(struct wireless_device *wls_dev, int *ce);
+	int (*get_mcode)(struct wireless_device *wls_dev, uint16_t *mcode);
 
 	//rx charging info
 	int (*get_rx_neg_power)(struct wireless_device *wls_dev, int *power);
@@ -87,6 +89,7 @@ struct wls_rx_ops {
 	int (*set_irq_enable)(struct wireless_device *wls_dev, bool en);
 	int (*set_mode_select)(struct wireless_device *wls_dev, bool on);
 	int (*set_fw_update)(struct wireless_device *wls_dev, bool force);
+	int (*set_mc_det)(struct wireless_device *wls_dev, bool on);
 
 	bool (*check_ldo_on)(struct wireless_device *wls_dev);
 	bool (*check_rx_power_on)(struct wireless_device *wls_dev);
@@ -161,6 +164,8 @@ extern int wls_rx_get_op_mode(struct wireless_device *wls_dev, int *op_mode);
 extern int wls_rx_get_sys_mode(struct wireless_device *wls_dev, int *sys_mode);
 extern int wls_rx_get_mode_select(struct wireless_device *wls_dev, int *mode_sel);
 extern int wls_rx_get_fw_update_status(struct wireless_device *wls_dev, int *status);
+extern int wls_rx_get_ce(struct wireless_device *wls_dev, int *ce);
+extern int wls_rx_get_mcode(struct wireless_device *wls_dev, uint16_t *mcode);
 
 extern int wls_rx_get_rx_irect(struct wireless_device *wls_dev, int *cur);
 extern int wls_rx_get_rx_iout(struct wireless_device *wls_dev, int *cur);
@@ -171,6 +176,7 @@ extern int wls_rx_get_rx_vout_setting(struct wireless_device *wls_dev, int *volt
 extern int wls_rx_set_irq_enable(struct wireless_device *wls_dev, bool en);
 extern int wls_rx_set_mode_select(struct wireless_device *wls_dev, bool on);
 extern int wls_rx_set_fw_update(struct wireless_device *wls_dev, bool force);
+extern int wls_rx_set_mc_det(struct wireless_device *wls_dev, bool on);
 
 extern bool wls_rx_check_ldo_on(struct wireless_device *wls_dev);
 
