@@ -354,6 +354,42 @@ static int sc9624_get_nego_power(struct sc9624 *sc, uint32_t *power)
     return ret;
 }
 
+int sc9624_get_rx_ce(struct sc9624 *sc, int *ce)
+{
+	int ret = -1;
+	uint16_t offset = 0;
+	PTpktType pkt = {0x00};
+
+	OFFSET(RXCustType, PTPkt, offset);
+	ret = sc9624_read_block(sc, offset, (uint8_t *)&pkt,
+			(uint8_t)sizeof(((RXCustType *)0)->PTPkt));
+	if (ret) {
+		sc_err(" fail, ret:%d\n", ret);
+	} else {
+		*ce = (int) pkt.cep;
+	}
+
+	return ret;
+}
+
+int sc9624_get_tx_mcode(struct sc9624 *sc, uint16_t *mcode)
+{
+	int ret = -1;
+	uint16_t offset = 0;
+	TxInfoType info = {0x00};
+
+	OFFSET(RXCustType, TxInfo, offset);
+	ret = sc9624_read_block(sc, offset, (uint8_t *)&info,
+			(uint8_t)sizeof(((RXCustType *)0)->TxInfo));
+	if (ret) {
+		sc_err(" fail, ret:%d\n", ret);
+	} else {
+		*mcode = (int) info.mcode;
+	}
+
+	return ret;
+}
+
 //-------------------sc9624 RX interface-------------------
 static int sc9624_rx_set_cmd(struct sc9624 *sc, RX_CMD cmd)
 {
@@ -1409,6 +1445,41 @@ int sc9624_get_mode_select(struct wireless_device *wls_dev, int *mode_sel)
 	return rt;
 }
 
+int sc9624_get_ce(struct wireless_device *wls_dev, int *ce)
+{
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+
+	return sc9624_get_rx_ce(sc, ce);
+}
+
+int sc9624_get_txinfo_mcode(struct wireless_device *wls_dev, uint16_t *mcode)
+{
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+
+	return sc9624_get_tx_mcode(sc, mcode);
+}
+
+int sc9624_set_mc_det(struct wireless_device *wls_dev, bool on)
+{
+	int rt = -1;
+	struct sc9624 *sc = NULL;
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+
+	if (gpio_is_valid(sc->wls_mc_det)) {
+		gpio_set_value(sc->wls_mc_det, on);
+		rt = 0;
+	}
+
+	sc_info("status:%d rt:%d\n", on, rt);
+
+	return rt;
+}
+
 int sc9624_set_fw_update(struct wireless_device *wls_dev, bool on)
 {
 	int rt = -1;
@@ -1473,6 +1544,9 @@ static int sc9624_wlc2_init(struct sc9624 *sc)
 	sc->rx_ops.get_mode_select = sc9624_get_mode_select;
 	sc->rx_ops.set_fw_update = sc9624_set_fw_update;
 	sc->rx_ops.get_fw_update_status = sc9624_get_fw_update_status;
+	sc->rx_ops.set_mc_det = sc9624_set_mc_det;
+	sc->rx_ops.get_ce = sc9624_get_ce;
+	sc->rx_ops.get_mcode = sc9624_get_txinfo_mcode;
 
 	sc->wls_dev = wireless_device_register("moto_wlc2",
 							&sc->client->dev, (void*)sc,
@@ -1663,6 +1737,11 @@ static int sc9624_parse_dt(struct sc9624 *sc, struct device *dev)
         sc_info("set wls_mode_select(%d) high level\n", sc->wls_mode_select);
     } else {
         sc_info("wls_mode_select(%d) is invalid\n", sc->wls_mode_select);
+    }
+
+    sc->wls_mc_det = of_get_named_gpio(np, "wls-mc-det", 0);
+    if (!gpio_is_valid(sc->wls_mc_det)) {
+        sc_info("wls_mc_det(%d) is invalid\n", sc->wls_mc_det);
     }
 
     of_property_read_string(np, "wireless-fw-name", &sc->wls_fw_name);

@@ -219,7 +219,7 @@ typedef struct {
 } SSPktType;
 
 typedef struct {
-    uint8_t cep;
+    int8_t cep;
     uint8_t rsv;
     uint8_t rpp;
 } PTpktType;
@@ -523,6 +523,7 @@ struct sc9624 {
     uint32_t reg_data;
     const char *wls_fw_name;
     int wls_mode_select;
+    int wls_mc_det;
     SYSMODE sys_mode;
     struct wireless_device *wls_dev;
     struct wls_rx_ops rx_ops;
