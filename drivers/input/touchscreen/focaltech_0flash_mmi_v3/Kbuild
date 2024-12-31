@@ -108,6 +108,7 @@ ifneq ($(filter m y, $(CONFIG_FOCALTECH_LOG_CAPTURE)),)
 	focaltech_0flash_mmi_v3-objs += focaltech_test_ini.o
 	focaltech_0flash_mmi_v3-objs += focaltech_test_ft8057s.o
 	focaltech_0flash_mmi_v3-objs += focaltech_test_ft8722.o
+	focaltech_0flash_mmi_v3-objs += focaltech_test_ft8725.o
 endif
 
 ifneq ($(filter m y,$(CONFIG_FTS_LAST_TIME)),)

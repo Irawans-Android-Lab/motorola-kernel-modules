@@ -45,8 +45,9 @@
 struct fts_test *fts_ftest;
 
 struct test_funcs *test_func_list[] = {
-    &test_func_ft8722,
+	&test_func_ft8722,
 	&test_func_ft8057,
+	&test_func_ft8725,
 };
 
 struct ft_tp_data_dump {
@@ -2208,7 +2209,9 @@ static ssize_t fts_test_store(
 
     mutex_lock(&input_dev->mutex);
     fts_irq_disable();
+#if FTS_ESDCHECK_EN
     fts_esdcheck_switch(ts_data, DISABLE);
+#endif
 
     ret = fts_enter_test_environment(1);
     if (ret < 0) {
@@ -2221,7 +2224,9 @@ static ssize_t fts_test_store(
         FTS_ERROR("enter normal environment fail");
     }
 
+#if FTS_ESDCHECK_EN
     fts_esdcheck_switch(ts_data, ENABLE);
+#endif
     fts_irq_enable();
     mutex_unlock(&input_dev->mutex);
 
@@ -2380,7 +2385,9 @@ int tp_data_dump_capture ()
 	u8 tx_num = 0;
 	u8 rx_num = 0;
 	int row = 0, col = 0;
+#if FTS_ESDCHECK_EN
 	struct fts_ts_data *ts_data = fts_data;
+#endif
 	FTS_TEST_FUNC_ENTER();
 	if (ft_tp_data_dump_p->rawdata || ft_tp_data_dump_p->diffdata) {
 		FTS_TEST_ERROR("rawdata and diffdata not free!");
@@ -2493,7 +2500,9 @@ static int tp_data_dump_proc_open (struct inode* inode, struct file* file)
 	int ret = 0;
 	u8 tx_num = 0;
 	u8 rx_num = 0;
+#if FTS_ESDCHECK_EN
 	struct fts_ts_data *ts_data = fts_data;
+#endif
 	FTS_TEST_FUNC_ENTER();
 	if (ft_tp_data_dump_p->rawdata || ft_tp_data_dump_p->diffdata) {
 		FTS_TEST_ERROR("rawdata and diffdata not free!");

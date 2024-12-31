@@ -602,6 +602,7 @@ enum csv_itemcode_sc {
 *****************************************************************************/
 extern struct test_funcs test_func_ft8722;
 extern struct test_funcs test_func_ft8057;
+extern struct test_funcs test_func_ft8725;
 
 extern struct fts_test *fts_ftest;
 
