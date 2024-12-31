@@ -329,6 +329,16 @@ int wls_get_auto_config(struct moto_wlc *wlc, struct device *dev)
 	return 0;
 }
 
+int wls_get_mc_config(struct moto_wlc *wlc, struct device *dev)
+{
+	struct device_node *node = dev->of_node;
+
+	wlc->config.mc_support = of_property_read_bool(node, "wlc-mc-support");
+	pr_info("[%s] Magnetic cover support %d\n", __func__, wlc->config.mc_support);
+
+	return 0;
+}
+
 int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev)
 {
 	struct device_node *node = dev->of_node;
@@ -360,6 +370,8 @@ int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev)
 	wls_get_auto_config(wlc, dev);
 
 	wls_get_offset_detect_config(wlc, dev);
+
+	wls_get_mc_config(wlc, dev);
 
 	return 0;
 }

@@ -805,6 +805,7 @@ static int moto_wlc_probe(struct platform_device *pdev)
 	wlc->wls_wq = create_singlethread_workqueue("wls_workqueue");
 	INIT_DELAYED_WORK(&wlc->fw_update_work, wls_device_fw_update_work);
 	INIT_DELAYED_WORK(&wlc->bpp_icl_work, wlc_chg_bpp_mode_icl_work);
+	INIT_DELAYED_WORK(&wlc->mc_icl_work, wlc_chg_mc_icl_work);
 	INIT_DELAYED_WORK(&wlc->light_fan_work, wls_device_light_fan_work);
 	INIT_DELAYED_WORK(&wlc->mode_switch_work, wls_device_mode_switch_work);
 	if (wlc->config.enable_rx_offset_detect) {

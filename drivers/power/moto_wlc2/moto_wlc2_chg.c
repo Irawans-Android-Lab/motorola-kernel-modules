@@ -106,7 +106,9 @@ int wls_chg_power_on(struct moto_wlc *wlc)
 		}
 	}
 
-	if (wlc->ctl.enable_rod) {
+	if (wlc->config.mc_support && wlc->ctl.mc_status) {
+		wlc_info("%s skip offset_detect_work\n", __func__);
+	} else if (wlc->ctl.enable_rod) {
 		wlc->ctl.rod_stop = false;
 		wlc->ctl.rx_ldo_detect_count = 0;
 		pr_info("%s start offset_detect_work\n", __func__);
@@ -153,32 +155,77 @@ int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus)
 	wlc_info("%s start icl=%d vbus=%d mode_type:%d\n",
 			__func__, *icl, *vbus, wlc->data.mode_type);
 
-	if (wlc->data.mode_type == Sys_Op_Mode_BPP) {
-		*icl = wlc->config.bpp_icl_max_uA;
-		*vbus = 5000;
-		wlc->data.vbus_select = *vbus;
-		if (!wlc->ctl.bpp_icl_done) {
-			return -1;
-		}
-	} else if (wlc->data.mode_type == Sys_Op_Mode_EPP) {
+	if (wlc->config.mc_support && wlc->ctl.mc_status) {
 		wls_rx_get_rx_neg_power(wlc->wls_dev, &wls_power);
-		if (wls_power >= WLS_RX_CAP_15W) {
-			*icl = wlc->config.epp_icl_max_uA;
-			*vbus = 12000;
-		} else if (wls_power >= WLS_RX_CAP_10W) {
-			*icl = 1000000;
-			*vbus = 9000;
-		} else if (wls_power >= WLS_RX_CAP_7W) {
-			*icl = 850000;
-			*vbus = 9000;
-		} else if (wls_power >= WLS_RX_CAP_5W) {
-			*icl = 1000000;
+		if (wlc->data.moto_stand || wlc->data.mcode == MOTO_TX_MCODE) {
+			if (wls_power == WLS_RX_CAP_15W) {
+				*icl = wlc->config.epp_icl_max_uA;
+				*vbus = 12000;
+			} else if (wls_power == WLS_RX_CAP_10W) {
+				*icl = 850000;
+				*vbus = 12000;
+			} else if (wls_power == WLS_RX_CAP_5W) {
+				*icl = 1000000;
+				*vbus = 5000;
+			}
+		} else if (wlc->data.mode_type == Sys_Op_Mode_BPP) {
 			*vbus = 5000;
-		} else {
-			*icl = 1000000;
-			*vbus = 5000;
+			if (wlc->ctl.mc_icl_state == MC_ICL_RUN) {
+				return -1;
+			} else {
+				*icl = wlc->ctl.mc_icl_max_uA;
+			}
+		} else if (wlc->data.mode_type == Sys_Op_Mode_EPP) {
+			if (wls_power == WLS_RX_CAP_15W) {
+				*vbus = 12000;
+				if (wlc->ctl.mc_icl_state == MC_ICL_RUN) {
+					return -1;
+				} else {
+					*icl = wlc->ctl.mc_icl_max_uA;
+				}
+			} else if (wls_power >= WLS_RX_CAP_10W) {
+				*icl = 900000;
+				*vbus = 9000;
+			} else if (wls_power >= WLS_RX_CAP_7W) {
+				*icl = 700000;
+				*vbus = 9000;
+			} else if (wls_power >= WLS_RX_CAP_5W) {
+				*icl = 1000000;
+				*vbus = 5000;
+			} else {
+				*icl = 1000000;
+				*vbus = 5000;
+			}
 		}
 		wlc->data.vbus_select = *vbus;
+	} else {
+		if (wlc->data.mode_type == Sys_Op_Mode_BPP) {
+			*icl = wlc->config.bpp_icl_max_uA;
+			*vbus = 5000;
+			wlc->data.vbus_select = *vbus;
+			if (!wlc->ctl.bpp_icl_done) {
+				return -1;
+			}
+		} else if (wlc->data.mode_type == Sys_Op_Mode_EPP) {
+			wls_rx_get_rx_neg_power(wlc->wls_dev, &wls_power);
+			if (wls_power >= WLS_RX_CAP_15W) {
+				*icl = wlc->config.epp_icl_max_uA;
+				*vbus = 12000;
+			} else if (wls_power >= WLS_RX_CAP_10W) {
+				*icl = 1000000;
+				*vbus = 9000;
+			} else if (wls_power >= WLS_RX_CAP_7W) {
+				*icl = 850000;
+				*vbus = 9000;
+			} else if (wls_power >= WLS_RX_CAP_5W) {
+				*icl = 1000000;
+				*vbus = 5000;
+			} else {
+				*icl = 1000000;
+				*vbus = 5000;
+			}
+			wlc->data.vbus_select = *vbus;
+		}
 	}
 
 	if (wlc->ctl.input_current_max != 0 &&
@@ -188,6 +235,22 @@ int wls_chg_current_select(struct moto_wlc *wlc, int *icl, int *vbus)
 	wlc_info("%s icl=%d vbus=%d epp_icl_max_uA=%d input_current_max=%d\n",
 			__func__, *icl, *vbus, wlc->config.epp_icl_max_uA,wlc->ctl.input_current_max);
 	return 0;
+}
+
+int wlc_chg_start_mc_icl_work(struct moto_wlc *wlc, int op_mode)
+{
+	int rt = 0;
+
+	if (op_mode == Sys_Op_Mode_EPP) {
+		wlc->ctl.mc_icl_max_uA = WLS_MC_EPP_ICL_DEFAULT;
+		wlc_hal_set_input_current(wlc->alg, CHG1, wlc->ctl.mc_icl_max_uA);
+		wlc_hal_set_charging_current(wlc->alg, CHG1, wlc->wireless_charger_max_current);
+	}
+	wlc->ctl.ce_det_count = 0;
+	wlc->ctl.mc_icl_state = MC_ICL_RUN;
+	rt = queue_delayed_work(wlc->wls_wq, &wlc->mc_icl_work, msecs_to_jiffies(0));
+
+	return rt;
 }
 
 void wlc_chg_bpp_mode_icl_work(struct work_struct *work)
@@ -202,10 +265,17 @@ void wlc_chg_bpp_mode_icl_work(struct work_struct *work)
 	int i = 0;
 	int op_mode = 0;
 	int rt = 0;
+	int step_delay_ms = 0;
 
 	if (IS_ERR_OR_NULL(wlc)) {
 		wlc_err("%s wlc is err or null\n", __func__);
 		return;
+	}
+
+	if (wlc->config.mc_support && wlc->ctl.mc_status) {
+		step_delay_ms = WLS_MC_BPP_ICL_STEP_DELAY;
+	} else {
+		step_delay_ms = wlc->config.bpp_step_delay_ms;
 	}
 
 	wlc_hal_set_input_current(wlc->alg, CHG1, wlc->config.bpp_icl_min_uA);
@@ -218,7 +288,7 @@ void wlc_chg_bpp_mode_icl_work(struct work_struct *work)
 		wls_icl_max = wlc->ctl.input_current_max;
 	}
 	wlc_info("%s wls_icl_max=%dmA step=%dmA delay_ms=%dms\n",
-		__func__, wls_icl_max, wlc->config.bpp_icl_step_uA / 1000, wlc->config.bpp_step_delay_ms);
+		__func__, wls_icl_max, wlc->config.bpp_icl_step_uA / 1000, step_delay_ms);
 
 	for (i = 0; i < retry; i++) {
 		if (wls_icl < wlc->config.bpp_icl_min_uA / 1000) {
@@ -231,7 +301,7 @@ void wlc_chg_bpp_mode_icl_work(struct work_struct *work)
 			if (rt < 0 || op_mode != Sys_Op_Mode_BPP)
 				break;
 			wlc_hal_set_input_current(wlc->alg, CHG1, wls_icl * 1000);
-			msleep(wlc->config.bpp_step_delay_ms + i * 100);
+			msleep(step_delay_ms + i * 100);
 
 			wls_rx_get_rx_iout(wlc->wls_dev, &wls_current_now);
 			wls_rx_get_rx_vout(wlc->wls_dev, &wls_voltage_now);
@@ -247,7 +317,115 @@ void wlc_chg_bpp_mode_icl_work(struct work_struct *work)
 		}
 	}
 
+	wlc->ctl.mc_icl_max_uA = wlc->config.bpp_icl_max_uA;
+
+	if (wlc->config.mc_support && wlc->ctl.mc_status) {
+		rt = wls_rx_get_rx_iout(wlc->wls_dev, &wls_current_now);
+		wlc_info("%s wls_current_now:%d rt:%d\n", __func__, wls_current_now, rt);
+		if (rt == 0 && wls_current_now <= WLS_MC_BPP_ICL_THRESHOLD) {
+			wlc_info("%s moto_stand:%d\n", __func__, wlc->data.moto_stand);
+			if (!wlc->data.moto_stand) //BPP can't get mcode
+				wlc_chg_start_mc_icl_work(wlc, Sys_Op_Mode_BPP);
+		}
+	}
+
 	wlc->ctl.bpp_icl_done = true;
+}
+
+void wlc_chg_mc_icl_work(struct work_struct *work)
+{
+	struct moto_wlc *wlc =
+		container_of((struct delayed_work*)work, struct moto_wlc, mc_icl_work);
+	int ce = 0;
+	int rt = 0;
+	int rx_irect = 0;
+	int op_mode = 0;
+	static int det_count = 0;
+
+	if (IS_ERR_OR_NULL(wlc)) {
+		wlc_err("%s wlc is err or null\n", __func__);
+		return;
+	}
+
+	if (wlc->ctl.ce_det_count == 0) {
+		det_count = 0;
+	}
+
+	if (det_count >= WLS_MC_DET_CNT_MAX) {
+		wlc_info("%s timeout, exit\n", __func__);
+		goto mc_icl_exit;
+	}
+
+	rt = wls_rx_get_ce(wlc->wls_dev, &ce);
+	if (rt < 0) {
+		wlc_err("%s get ce err, exit\n", __func__);
+		goto mc_icl_exit;
+	}
+
+	det_count ++;
+	if (ce <= 2) {
+		wlc->ctl.ce_det_count ++ ;
+	}
+
+	rt = wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+	wlc_info("[%s] det_count:%d op_mode:%d ce:%d ce_det_count:%d rt:%d\n",
+			__func__, det_count, op_mode, ce, wlc->ctl.ce_det_count, rt);
+	if (rt < 0) {
+		wlc_err("%s get op_mode err, exit\n", __func__);
+		goto mc_icl_exit;
+	} else if (op_mode == Sys_Op_Mode_BPP) {
+		if (wlc->ctl.ce_det_count >= 50) {
+			rt = wls_rx_get_rx_irect(wlc->wls_dev, &rx_irect);
+			wlc_info("%s rx_irect:%dmA rt:%d\n", __func__, rx_irect, rt);
+			if (rt < 0) {
+				wlc_err("%s get rx_irect err, exit\n", __func__);
+				goto mc_icl_exit;
+			}
+			rx_irect = rx_irect / 100 * 100;
+			if (rx_irect >= WLS_BPP_ICL_MIN_MA + 200) {
+				wlc->ctl.mc_icl_max_uA = (rx_irect - 200) * 1000;
+			} else {
+				wlc->ctl.mc_icl_max_uA = WLS_BPP_ICL_MIN_MA * 1000; //300 mA
+			}
+			wlc_info("%s rx_irect:%d mc_icl_max_uA:%d\n",
+						__func__, rx_irect, wlc->ctl.mc_icl_max_uA);
+			while (wlc->ctl.mc_icl_max_uA < wlc->config.bpp_icl_max_uA) {
+				rt = wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+				if (rt < 0) {
+					wlc_err("%s get op_mode failed, rt:%d\n", __func__, rt);
+					goto mc_icl_exit;
+				}
+				wlc->ctl.mc_icl_max_uA = wlc->ctl.mc_icl_max_uA + WLS_MC_ICL_STEP;
+				wlc_hal_set_input_current(wlc->alg, CHG1, wlc->ctl.mc_icl_max_uA);
+				msleep(WLS_MC_BPP_ICL_STEP_DELAY);
+				wlc_info("%s BPP set mc_icl_max_uA:%d\n", __func__, wlc->ctl.mc_icl_max_uA);
+			}
+			goto mc_icl_exit;
+		}
+	} else if (op_mode == Sys_Op_Mode_EPP) {
+		if (det_count == (WLS_MC_DET_CNT_MAX / 2) || det_count == WLS_MC_DET_CNT_MAX) {
+			if (wlc->ctl.ce_det_count >= 25) {
+				wlc->ctl.mc_icl_max_uA = wlc->ctl.mc_icl_max_uA + WLS_MC_ICL_STEP;
+				wlc_hal_set_input_current(wlc->alg, CHG1, wlc->ctl.mc_icl_max_uA);
+				wlc_info("%s EPP set mc_icl_max_uA:%d\n",
+							__func__, wlc->ctl.mc_icl_max_uA);
+			}
+			wlc->ctl.ce_det_count = 1;
+			if (det_count == WLS_MC_DET_CNT_MAX)
+				goto mc_icl_exit;
+		}
+	}
+
+	if (wlc->ctl.mc_icl_state == MC_ICL_RUN) {
+		queue_delayed_work(wlc->wls_wq, &wlc->mc_icl_work, msecs_to_jiffies(1000));
+	}
+
+	return;
+
+mc_icl_exit:
+	wlc->ctl.mc_icl_state = MC_ICL_DONE;
+	wlc->ctl.ce_det_count = 0;
+	det_count = 0;
 }
 
 
@@ -255,6 +433,7 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 {
 	struct moto_wlc *wlc = NULL;
 	int op_mode = 0;
+	int rt = 0;
 
 	wlc = (struct moto_wlc *)wls_dev->driver_data;
 
@@ -270,6 +449,9 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 			if (msg->len == 1) {
 				if (msg->data[0] == 0) {
 					wlc->ctl.bpp_icl_done = false;
+					wlc->ctl.mc_icl_state = MC_ICL_IDLE;
+					wlc->ctl.ce_det_count = 0;
+					wlc->data.mcode = 0x00;
 					wls_chg_power_off(wlc);
 					wls_auth_disconnect(wlc);
 					wls_chg_notify_st_changed(wlc, WLC_DISCONNECTED);
@@ -284,6 +466,15 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 			wls_chg_power_on(wlc);
 			break;
 		case WLS_EVENT_RX_NEGO_POWER_READY:
+			rt = wls_rx_get_rx_neg_power(wlc->wls_dev, &wlc->data.wlc_power);
+			rt |= wls_rx_get_mcode(wlc->wls_dev, &wlc->data.mcode);
+			wlc_info("%s power:%d mcode:0x%04X rt:%d\n",
+						__func__, wlc->data.wlc_power, wlc->data.mcode, rt);
+			if (rt == 0 && wlc->config.mc_support &&
+				wlc->ctl.mc_status && wlc->data.mcode != MOTO_TX_MCODE &&
+				wlc->data.wlc_power == WLS_RX_CAP_15W) {
+				wlc_chg_start_mc_icl_work(wlc, Sys_Op_Mode_EPP);
+			}
 			if (!IS_ERR_OR_NULL(wlc))
 				wls_chg_notify_st_changed(wlc, WLC_TX_POWER_CHANGED);
 			break;

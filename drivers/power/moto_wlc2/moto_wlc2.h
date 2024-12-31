@@ -31,6 +31,12 @@
 #define WLS_EPP_ROD_THRESHOLD_10V 9000 /*mV*/
 #define WLS_EPP_ROD_THRESHOLD_9V 7800 /*mV*/
 
+#define WLS_MC_DET_CNT_MAX (60) /*60*/
+#define WLS_MC_BPP_ICL_STEP_DELAY 500 /*500ms*/
+#define WLS_MC_BPP_ICL_THRESHOLD 800 /*800mA*/
+#define WLS_MC_EPP_ICL_DEFAULT 900000 /*900mA*/
+#define WLS_MC_ICL_STEP 100000 /*100mA*/
+
 #define QI_ASK_CMD_ADJUST_FOD (0x06)
 #define QI_ASK_CMD_TXID (0x3F)
 #define QI_ASK_CMD_QFOD (0x48)
@@ -44,6 +50,7 @@
 
 #define MOTO_15W_TX_ID (353)
 #define MOTO_50W_TX_ID (337)
+#define MOTO_TX_MCODE (0x004F)
 
 #define WLS_RX_CAP_15W 15
 #define WLS_RX_CAP_10W 10
@@ -161,6 +168,12 @@ enum wlc_mode_switch_enum {
 	WLC_SWITCH_DONE,
 };
 
+enum mc_icl_state_enum {
+	MC_ICL_IDLE = 0,
+	MC_ICL_RUN,
+	MC_ICL_DONE,
+};
+
 struct wlc_profile {
 	unsigned int vbat;
 	unsigned int vchr;
@@ -171,6 +184,7 @@ struct wireless_ctl
 	bool tx_mode;
 	bool bpp_icl_done;
 	bool epp_icl_done;
+	bool mc_icl_done;
 	bool set_icl_done;
 	bool rx_vout_change_done;
 	bool rx_offset;
@@ -178,6 +192,7 @@ struct wireless_ctl
 	bool enable_rod;
 	bool rod_stop;
 	bool rx_ldo_on;
+	bool mc_status;
 	bool factory_wls_en;
 	bool fw_update_force;
 	bool fw_uploading;
@@ -195,11 +210,15 @@ struct wireless_ctl
 	int rx_ldo_detect_count;
 	ktime_t rx_start_ktime;
 	enum wlc_mode_switch_enum mode_switch;
+	int ce_det_count;
+	int mc_icl_state;
+	int mc_icl_max_uA;
 };
 
 struct wireless_data
 {
 	bool moto_stand;
+	uint16_t mcode;
 	int uisoc;
 	int chip_id;
 	int rx_irect;
@@ -262,6 +281,8 @@ struct wireless_config
 	int enable_wls_auto_stop;
 	int wls_auto_stop_overtemp;
 	int wls_auto_stop_undertemp;
+
+	bool mc_support;
 };
 
 struct wireless_auth
@@ -364,6 +385,7 @@ struct moto_wlc {
 	struct workqueue_struct *wls_wq;
 	struct delayed_work fw_update_work;
 	struct delayed_work bpp_icl_work;
+	struct delayed_work mc_icl_work;
 	struct delayed_work light_fan_work;
 	struct delayed_work offset_detect_work;
 	struct delayed_work mode_switch_work;
@@ -422,6 +444,7 @@ extern int wls_chg_mmi_mux_chan_set(enum mmi_mux_channel channel, bool on);
 extern int wls_chg_get_mux_channel(int *mux_channel);
 extern void wlc_chg_bpp_mode_icl_work(struct work_struct *work);
 extern int wls_chg_notify_otg_plugin(struct moto_wlc *wlc, bool on);
+extern void wlc_chg_mc_icl_work(struct work_struct *work);
 
 extern int wls_device_node_create(struct device *dev);
 extern void wls_device_fw_update_work(struct work_struct *work);

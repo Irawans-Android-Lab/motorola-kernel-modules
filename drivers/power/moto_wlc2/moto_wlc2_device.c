@@ -1055,6 +1055,54 @@ static ssize_t store_offset_detect_enable(struct device *dev,
 }
 static DEVICE_ATTR(offset_detect_enable, 0664, show_offset_detect_enable, store_offset_detect_enable);
 
+static ssize_t show_mc_status(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct moto_wlc *pWlc = dev->driver_data;
+
+	if (IS_ERR_OR_NULL(pWlc)) {
+		wlc_err("%s: chip not valid\n", __func__);
+		return -ENODEV;
+	}
+
+	if (!pWlc->config.mc_support) {
+		wlc_err("%s: Magnetic cover not support\n", __func__);
+		return -ENODEV;
+	}
+
+	return sprintf(buf, "%d\n", pWlc->ctl.mc_status);
+}
+
+static ssize_t store_mc_status(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int tmp = 0;
+	struct moto_wlc *pWlc = dev->driver_data;
+
+	if (IS_ERR_OR_NULL(pWlc)) {
+		wlc_err("%s: chip not valid\n", __func__);
+		return -ENODEV;
+	}
+
+	if (!pWlc->config.mc_support) {
+		wlc_err("%s: Magnetic cover not support\n", __func__);
+		return -ENODEV;
+	}
+
+	tmp = simple_strtoul(buf, NULL, 0);
+	pWlc->ctl.mc_status = (tmp == 0? false: true);
+
+	//have Magnetic cover mc_status:true -> md_det:0
+	//have no Magnetic cover mc_status:false -> md_det:1
+	if (0 != wls_rx_set_mc_det(pWlc->wls_dev, !pWlc->ctl.mc_status)) {
+		wlc_err("%s: mc_det set failed\n", __func__);
+		return -ENODEV;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(mc_status, 0664, show_mc_status, store_mc_status);
+
 int wls_device_node_create(struct device *dev)
 {
 	if (IS_ERR_OR_NULL(dev)) {
@@ -1085,6 +1133,7 @@ int wls_device_node_create(struct device *dev)
 	device_create_file(dev, &dev_attr_wlc_tx_type);
 	device_create_file(dev, &dev_attr_wlc_st_changed);
 	device_create_file(dev, &dev_attr_offset_detect_enable);
+	device_create_file(dev, &dev_attr_mc_status);
 
 //-----------------------MOTO WLC2.0-------------------
 	device_create_file(dev, &dev_attr_wlc_tx_capability);
