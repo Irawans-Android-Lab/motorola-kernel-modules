@@ -1031,6 +1031,8 @@ void stk_report_sar_data(struct stk_data* stk)
         else if(stk->last_nearby[mapping_phase[i]] & (1))
         {
             nf_flag = STK_SAR_NEAR_BY_DIST_0;
+            if( (stk->dist1_en!=0) && ((stk->dist1_en & (1 << mapping_phase[i])) == 0))
+                nf_flag = STK_SAR_NEAR_BY_DIST_1;
         }
         else
         {
@@ -1047,7 +1049,9 @@ void stk_report_sar_data(struct stk_data* stk)
 
 void stk501xx_parse_dt(struct stk_data* stk, struct device *dev)
 {
+#if defined STK_INTERRUPT_MODE || defined STK_VALUE_BY_DTS
     int ret;
+#endif
     int i;
     int rxio_map[][2] = STK_RXIO_MAP;
 #ifdef STK_INTERRUPT_MODE
@@ -1304,54 +1308,108 @@ void stk501xx_parse_dt(struct stk_data* stk, struct device *dev)
     }
 
     //TEMP_COMPENSATION config
-    ret = of_property_read_u32_array(dev->of_node,"tc_config_a", (u32*)&(stk->pdata->tc_config_a[0]), 3);
+    ret = of_property_read_u32_array(dev->of_node,"tc_config_a", (u32*)&(stk->pdata->tc_config_a[0]), 6);
     if (ret == 0)
     {
         // Success
-        STK_LOG("tc_config_a  temp_delta=%d, map_ph=%d, meas_ph=%d", stk->pdata->tc_config_a[0], stk->pdata->tc_config_a[1], stk->pdata->tc_config_a[2]);
+        STK_LOG("tc_config_a  temp_delta=%d, map_ph=%d, meas_ph=%d, base_reinit_ph_1 = %d, base_reinit_ph_2 = %d, base_reinit_ph_3 = %d",
+            stk->pdata->tc_config_a[0], stk->pdata->tc_config_a[1], stk->pdata->tc_config_a[2], stk->pdata->tc_config_a[3], stk->pdata->tc_config_a[4], stk->pdata->tc_config_a[5]);
         stk->tc_config_a.delta_temp_thd    = stk->pdata->tc_config_a[0];
         stk->tc_config_a.mapping_ref_phase = stk->pdata->tc_config_a[1];
         stk->tc_config_a.major_phase       = stk->pdata->tc_config_a[2];
+        stk->tc_config_a.reinit_phase[0]       = stk->pdata->tc_config_a[3];
+        stk->tc_config_a.reinit_phase[1]       = stk->pdata->tc_config_a[4];
+        stk->tc_config_a.reinit_phase[2]       = stk->pdata->tc_config_a[5];
         stk->tc_config_a.mapping_ref_phase_reg = MAPING_REF_PHASE(stk->tc_config_a.mapping_ref_phase);
-        stk->tc_config_a.mapping_ref_phase_reg = DELTA_DES_CTRL_VAL(stk->tc_config_a.major_phase);
     }
     else
     {
         STK_ERR("Failed to read property 'tc_config_a'");
     }
 
-    ret = of_property_read_u32_array(dev->of_node,"tc_config_b", (u32*)&(stk->pdata->tc_config_b[0]), 3);
+    ret = of_property_read_u32_array(dev->of_node,"tc_config_b", (u32*)&(stk->pdata->tc_config_b[0]), 6);
     if (ret == 0)
     {
         // Success
-        STK_LOG("tc_config_b  temp_delta=%d, map_ph=%d, meas_ph=%d", stk->pdata->tc_config_b[0], stk->pdata->tc_config_b[1], stk->pdata->tc_config_b[2]);
+        STK_LOG("tc_config_b  temp_delta=%d, map_ph=%d, meas_ph=%d, base_reinit_ph_1 = %d, base_reinit_ph_2 = %d, base_reinit_ph_3 = %d",
+            stk->pdata->tc_config_b[0], stk->pdata->tc_config_b[1], stk->pdata->tc_config_b[2], stk->pdata->tc_config_b[3], stk->pdata->tc_config_b[4], stk->pdata->tc_config_b[5]);
         stk->tc_config_b.delta_temp_thd    = stk->pdata->tc_config_b[0];
         stk->tc_config_b.mapping_ref_phase = stk->pdata->tc_config_b[1];
         stk->tc_config_b.major_phase       = stk->pdata->tc_config_b[2];
+        stk->tc_config_b.reinit_phase[0]       = stk->pdata->tc_config_b[3];
+        stk->tc_config_b.reinit_phase[1]       = stk->pdata->tc_config_b[4];
+        stk->tc_config_b.reinit_phase[2]       = stk->pdata->tc_config_b[5];
         stk->tc_config_b.mapping_ref_phase_reg = MAPING_REF_PHASE(stk->tc_config_b.mapping_ref_phase);
-        stk->tc_config_b.mapping_ref_phase_reg = DELTA_DES_CTRL_VAL(stk->tc_config_b.major_phase);
     }
     else
     {
         STK_ERR("Failed to read property 'tc_config_b'");
     }
 
-    ret = of_property_read_u32_array(dev->of_node,"tc_config_c", (u32*)&(stk->pdata->tc_config_c[0]), 3);
+    ret = of_property_read_u32_array(dev->of_node,"tc_config_c", (u32*)&(stk->pdata->tc_config_c[0]), 6);
     if (ret == 0)
     {
         // Success
-        STK_LOG("tc_config_c  temp_delta=%d, map_ph=%d, meas_ph=%d", stk->pdata->tc_config_c[0], stk->pdata->tc_config_c[1], stk->pdata->tc_config_c[2]);
+        STK_LOG("tc_config_c  temp_delta=%d, map_ph=%d, meas_ph=%d, base_reinit_ph_1 = %d, base_reinit_ph_2 = %d, base_reinit_ph_3 = %d",
+            stk->pdata->tc_config_c[0], stk->pdata->tc_config_c[1], stk->pdata->tc_config_c[2], stk->pdata->tc_config_c[3], stk->pdata->tc_config_c[4], stk->pdata->tc_config_c[5]);
         stk->tc_config_c.delta_temp_thd    = stk->pdata->tc_config_c[0];
         stk->tc_config_c.mapping_ref_phase = stk->pdata->tc_config_c[1];
         stk->tc_config_c.major_phase       = stk->pdata->tc_config_c[2];
+        stk->tc_config_c.reinit_phase[0]       = stk->pdata->tc_config_c[3];
+        stk->tc_config_c.reinit_phase[1]       = stk->pdata->tc_config_c[4];
+        stk->tc_config_c.reinit_phase[2]       = stk->pdata->tc_config_c[5];
         stk->tc_config_c.mapping_ref_phase_reg = MAPING_REF_PHASE(stk->tc_config_c.mapping_ref_phase);
-        stk->tc_config_c.mapping_ref_phase_reg = DELTA_DES_CTRL_VAL(stk->tc_config_c.major_phase);
     }
     else
     {
         STK_ERR("Failed to read property 'tc_config_c'");
     }
 
+    //TEMP_COMPENSATION delta des config
+    ret = of_property_read_u32_array(dev->of_node,"tc_ctrl_des_a", (u32*)&(stk->pdata->tc_ctrl_des_a[0]), 3);
+    if (ret == 0)
+    {
+        // Success
+        STK_LOG("tc_ctrl_des_a  delta_ctrl_thd=%d, delta_deb_clr=%d, delta_deb_set=%d",
+            stk->pdata->tc_ctrl_des_a[0], stk->pdata->tc_ctrl_des_a[1], stk->pdata->tc_ctrl_des_a[2]);
+
+        stk->tc_config_a.delta_des_val = DELTA_DES_CTRL_VAL(stk->pdata->tc_ctrl_des_a[0], stk->pdata->tc_ctrl_des_a[1],
+                                                            stk->pdata->tc_ctrl_des_a[2], stk->tc_config_a.major_phase);
+    }
+    else
+    {
+        STK_ERR("Failed to read property 'tc_ctrl_des_a'");
+    }
+
+    ret = of_property_read_u32_array(dev->of_node,"tc_ctrl_des_b", (u32*)&(stk->pdata->tc_ctrl_des_b[0]), 3);
+    if (ret == 0)
+    {
+        // Success
+        STK_LOG("tc_ctrl_des_b  delta_ctrl_thd=%d, delta_deb_clr=%d, delta_deb_set=%d",
+            stk->pdata->tc_ctrl_des_b[0], stk->pdata->tc_ctrl_des_b[1], stk->pdata->tc_ctrl_des_b[2]);
+
+        stk->tc_config_b.delta_des_val = DELTA_DES_CTRL_VAL(stk->pdata->tc_ctrl_des_b[0], stk->pdata->tc_ctrl_des_b[1],
+                                                            stk->pdata->tc_ctrl_des_b[2], stk->tc_config_b.major_phase);
+    }
+    else
+    {
+        STK_ERR("Failed to read property 'tc_ctrl_des_b'");
+    }
+
+    ret = of_property_read_u32_array(dev->of_node,"tc_ctrl_des_c", (u32*)&(stk->pdata->tc_ctrl_des_c[0]), 3);
+    if (ret == 0)
+    {
+        // Success
+        STK_LOG("tc_ctrl_des_c  delta_ctrl_thd=%d, delta_deb_clr=%d, delta_deb_set=%d",
+            stk->pdata->tc_ctrl_des_c[0], stk->pdata->tc_ctrl_des_c[1], stk->pdata->tc_ctrl_des_c[2]);
+
+        stk->tc_config_c.delta_des_val = DELTA_DES_CTRL_VAL(stk->pdata->tc_ctrl_des_c[0], stk->pdata->tc_ctrl_des_c[1],
+                                                            stk->pdata->tc_ctrl_des_c[2], stk->tc_config_c.major_phase);
+    }
+    else
+    {
+        STK_ERR("Failed to read property 'tc_ctrl_des_c'");
+    }
 
     // RXIO map
     ret = of_property_read_u32_array(dev->of_node, "rxio_map", (u32*)&(stk->pdata->rxio_map[0]), sizeof(struct stk501xx_rxio_map)*8/sizeof(uint32_t));

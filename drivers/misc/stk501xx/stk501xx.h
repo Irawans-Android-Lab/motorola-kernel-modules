@@ -712,27 +712,37 @@ typedef void (*STK_REPORT_CB)(struct stk_data *);
         uint32_t delta_temp_thd;
         uint32_t mapping_ref_phase; // ref phase, 0~7 mapping phase 0~7, this for phase 1
         uint32_t major_phase;       // measure phase
+        uint32_t reinit_phase[3];   // base reinit phase
         //below auto gen dont edit
         uint16_t mapping_ref_phase_reg;
         uint32_t delta_des_val;
     }temp_comp_config;
 
     #define MAPING_REF_PHASE(ref_ph_idx)           (STK_ADDR_REG_RAW_PH0_REG + ((ref_ph_idx)*4))
-    #define DELTA_DES_CTRL_VAL(major_ph_idx)       (0x01403301 | ((major_ph_idx) <<4))
+    #define DELTA_DES_CTRL_VAL(ctrl_thd, deb_clr, deb_set, major_ph_idx) (0x01 | ((ctrl_thd) <<16) | ((deb_clr) <<12) | ((deb_set) <<8) | ((major_ph_idx) <<4))
     #define BASE_REINIT_DELTA_DES                  0x200000
 
     /*Modify by design*/
     #define DELTA_TEMP_THD_A                       80000
     #define DELTA_A_MAPPING_PHASE                  0 // ref channel, 0~7 mapping phase 0~7, this for phase 1
     #define DELTA_A_MEASURE_PHASE                  1 // measure phase
+    #define DELTA_A_DES_THD                        20 // measure phase
+    #define DELTA_A_DES_DEB_CLR                    3 // debounce clear criteria
+    #define DELTA_A_DES_DEB_SET                    3 // debounce setting criteria
 
     #define DELTA_TEMP_THD_B                       80000
     #define DELTA_B_MAPPING_PHASE                  2 // ref channel, 0~7 mapping phase 0~7, this for phase 3
     #define DELTA_B_MEASURE_PHASE                  3 //  measure phase
+    #define DELTA_B_DES_THD                        20 // measure phase
+    #define DELTA_B_DES_DEB_CLR                    3 // debounce clear criteria
+    #define DELTA_B_DES_DEB_SET                    3 // debounce setting criteria
 
     #define DELTA_TEMP_THD_C                       80000
     #define DELTA_C_MAPPING_PHASE                  4 // ref channel, 0~7 mapping phase 0~7, this for phase 5
     #define DELTA_C_MEASURE_PHASE                  5 //  measure phase
+    #define DELTA_C_DES_THD                        20 // measure phase
+    #define DELTA_C_DES_DEB_CLR                    3 // debounce clear criteria
+    #define DELTA_C_DES_DEB_SET                    3 // debounce setting criteria
 
     /*End of modify by design*/
 
@@ -750,9 +760,12 @@ struct stk501xx_platform_data
     uint32_t                        dist0_thd[8];
     uint32_t                        dist1_thd[8];
     uint32_t                        dist1_en_arr[8];
-    uint32_t                        tc_config_a[3]; // delta_temp_thd, mapping_ref_phase, major_phase
-    uint32_t                        tc_config_b[3]; // delta_temp_thd, mapping_ref_phase, major_phase
-    uint32_t                        tc_config_c[3]; // delta_temp_thd, mapping_ref_phase, major_phase
+    uint32_t                        tc_config_a[6]; // delta_temp_thd, mapping_ref_phase, major_phase, base_reinit_ph_1, base_reinit_ph_2, base_reinit_ph_3
+    uint32_t                        tc_config_b[6]; // delta_temp_thd, mapping_ref_phase, major_phase, base_reinit_ph_1, base_reinit_ph_2, base_reinit_ph_3
+    uint32_t                        tc_config_c[6]; // delta_temp_thd, mapping_ref_phase, major_phase, base_reinit_ph_1, base_reinit_ph_2, base_reinit_ph_3
+    uint32_t                        tc_ctrl_des_a[3]; //delta_ctrl_thd, delta_deb_clr, delta_deb_set
+    uint32_t                        tc_ctrl_des_b[3]; //delta_ctrl_thd, delta_deb_clr, delta_deb_set
+    uint32_t                        tc_ctrl_des_c[3]; //delta_ctrl_thd, delta_deb_clr, delta_deb_set
     struct stk501xx_rxio_map        rxio_map[8]; // rxio mapping phase index and usage
 };
 

@@ -145,9 +145,9 @@ stk501xx_register_table stk501xx_default_register_table[] =
 
     {STK_ADDR_CORR_ENGA_0,        0x0},
     {STK_ADDR_CORR_ENGA_1,        0x0},
-    {STK_ADDR_CORR_ENGB_0,        0x2},
+    {STK_ADDR_CORR_ENGB_0,        0x3},
     {STK_ADDR_CORR_ENGB_1,        0x0},
-    {STK_ADDR_CORR_ENGC_0,        0x0},
+    {STK_ADDR_CORR_ENGC_0,        0x5},
     {STK_ADDR_CORR_ENGC_1,        0x0},
     {STK_ADDR_CORR_ENGD_0,        0x0},
     {STK_ADDR_CORR_ENGD_1,        0x0},
@@ -447,6 +447,8 @@ void disable_conv_check(struct stk_data *stk)
 void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t prox_flag)
 {
     uint32_t delta_des = 0, val = 0;
+    uint8_t i = 0;
+    uint16_t reg = 0;
 
     if (int_flag & STK_IRQ_SOURCE_FAR_IRQ_MASK)
     {
@@ -506,13 +508,19 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
 
             if ( STK_ABS(STK_ABS(stk->prev_temperature_ref_a) - STK_ABS(stk->next_temperature_ref_a)) >= stk->tc_config_a.delta_temp_thd)
             {
-                STK_REG_READ(stk, STK_ADDR_FILT_CFG_PH1, (uint8_t*)&val);
-                val |= BASE_REINIT_DELTA_DES;
-                STK_REG_WRITE(stk, STK_ADDR_FILT_CFG_PH1, (uint8_t*)&val);
-                STK_REG_READ(stk, STK_ADDR_FILT_CFG_PH2, (uint8_t*)&val);
-                val |= BASE_REINIT_DELTA_DES;
-                STK_REG_WRITE(stk, STK_ADDR_FILT_CFG_PH2, (uint8_t*)&val);
-                stk->reinit[1] = stk->reinit[2] = 1;
+                for (i = 0; i < sizeof(stk->tc_config_a.reinit_phase) / sizeof(uint32_t); i++)
+                {
+                    if ((stk->tc_config_a.reinit_phase[i] != 0xFF) && (stk->tc_config_a.reinit_phase[i] <= 7))
+                    {
+                        reg = STK_ADDR_FILT_CFG_PH0 + (stk->tc_config_a.reinit_phase[i] * 0x40);
+
+                        STK_REG_READ(stk, reg, (uint8_t *)&val);
+                        val |= BASE_REINIT_DELTA_DES;
+                        STK_REG_WRITE(stk, reg, (uint8_t *)&val);
+                        stk->reinit[stk->tc_config_a.reinit_phase[i]] = 1;
+                        STK_LOG("ready to base reinit phase%d\n", stk->tc_config_a.reinit_phase[i]);
+                    }
+                }
                 stk->last_prox_a_state = 0;
             }
             else //reset descent
@@ -520,8 +528,9 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
                 if (stk->descent_cnt_a == 0)
                 {
                     STK_LOG("DELTA_A_MEASURE_PHASE not meet , open conv done, dis descent A\n");
-                    val = 0;
-                    STK_REG_WRITE(stk, STK_ADDR_DELTADES_A_CTRL, (uint8_t*)&val);
+                    STK_REG_READ(stk, STK_ADDR_DELTADES_A_CTRL, (uint8_t *)&val);
+                    val &= ~((~val) | 0x01);
+                    STK_REG_WRITE(stk, STK_ADDR_DELTADES_A_CTRL, (uint8_t *)&val);
 
                     STK_REG_READ(stk, STK_ADDR_IRQ_SOURCE_ENABLE_REG, (uint8_t*)&val);
 
@@ -544,16 +553,19 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
 
             if ( STK_ABS(STK_ABS(stk->prev_temperature_ref_b) - STK_ABS(stk->next_temperature_ref_b)) >= stk->tc_config_b.delta_temp_thd)
             {
-                STK_REG_READ(stk, STK_ADDR_FILT_CFG_PH3, (uint8_t*)&val);
-                val |= BASE_REINIT_DELTA_DES;
-                STK_REG_WRITE(stk, STK_ADDR_FILT_CFG_PH3, (uint8_t*)&val);
-                STK_REG_READ(stk, STK_ADDR_FILT_CFG_PH5, (uint8_t*)&val);
-                val |= BASE_REINIT_DELTA_DES;
-                STK_REG_WRITE(stk, STK_ADDR_FILT_CFG_PH5, (uint8_t*)&val);
-                STK_REG_READ(stk, STK_ADDR_FILT_CFG_PH6, (uint8_t*)&val);
-                val |= BASE_REINIT_DELTA_DES;
-                STK_REG_WRITE(stk, STK_ADDR_FILT_CFG_PH6, (uint8_t*)&val);
-                stk->reinit[3] = stk->reinit[5] = stk->reinit[6] = 1;
+                for (i = 0; i < sizeof(stk->tc_config_b.reinit_phase) / sizeof(uint32_t); i++)
+                {
+                    if ((stk->tc_config_b.reinit_phase[i] != 0xFF) && (stk->tc_config_b.reinit_phase[i] <= 7))
+                    {
+                        reg = STK_ADDR_FILT_CFG_PH0 + (stk->tc_config_b.reinit_phase[i] * 0x40);
+
+                        STK_REG_READ(stk, reg, (uint8_t *)&val);
+                        val |= BASE_REINIT_DELTA_DES;
+                        STK_REG_WRITE(stk, reg, (uint8_t *)&val);
+                        stk->reinit[stk->tc_config_b.reinit_phase[i]] = 1;
+                        STK_LOG("ready to base reinit phase%d\n", stk->tc_config_b.reinit_phase[i]);
+                    }
+                }
                 stk->last_prox_b_state = 0;
             }
             else //reset descent
@@ -561,8 +573,9 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
                 if (stk->descent_cnt_b == 0)
                 {
                     STK_LOG("DELTA_B_MEASURE_PHASE not meet , open conv done, dis descent B\n");
-                    val = 0;
-                    STK_REG_WRITE(stk, STK_ADDR_DELTADES_B_CTRL, (uint8_t*)&val);
+                    STK_REG_READ(stk, STK_ADDR_DELTADES_B_CTRL, (uint8_t *)&val);
+                    val &= ~((~val) | 0x01);
+                    STK_REG_WRITE(stk, STK_ADDR_DELTADES_B_CTRL, (uint8_t *)&val);
 
                     STK_REG_READ(stk, STK_ADDR_IRQ_SOURCE_ENABLE_REG, (uint8_t*)&val);
 
@@ -584,14 +597,19 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
 
             if ( STK_ABS(STK_ABS(stk->prev_temperature_ref_c) - STK_ABS(stk->next_temperature_ref_c)) >= stk->tc_config_c.delta_temp_thd)
             {
-                STK_REG_READ(stk, STK_ADDR_FILT_CFG_PH4, (uint8_t*)&val);
-                val |= BASE_REINIT_DELTA_DES;
-                STK_REG_WRITE(stk, STK_ADDR_FILT_CFG_PH4, (uint8_t*)&val);
-                STK_REG_READ(stk, STK_ADDR_FILT_CFG_PH7, (uint8_t*)&val);
-                val |= BASE_REINIT_DELTA_DES;
-                STK_REG_WRITE(stk, STK_ADDR_FILT_CFG_PH7, (uint8_t*)&val);
+                for (i = 0; i < sizeof(stk->tc_config_c.reinit_phase) / sizeof(uint32_t); i++)
+                {
+                    if ((stk->tc_config_c.reinit_phase[i] != 0xFF) && (stk->tc_config_c.reinit_phase[i] <= 7))
+                    {
+                        reg = STK_ADDR_FILT_CFG_PH0 + (stk->tc_config_c.reinit_phase[i] * 0x40);
 
-                stk->reinit[4] = stk->reinit[7] = 1;
+                        STK_REG_READ(stk, reg, (uint8_t *)&val);
+                        val |= BASE_REINIT_DELTA_DES;
+                        STK_REG_WRITE(stk, reg, (uint8_t *)&val);
+                        stk->reinit[stk->tc_config_c.reinit_phase[i]] = 1;
+                        STK_LOG("ready to base reinit phase%d\n", stk->tc_config_c.reinit_phase[i]);
+                    }
+                }
                 stk->last_prox_c_state = 0;
             }
             else //reset descent
@@ -599,8 +617,9 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
                 if (stk->descent_cnt_c == 0)
                 {
                     STK_LOG("DELTA_C_MEASURE_PHASE not meet , open conv done, dis descent C\n");
-                    val = 0;
-                    STK_REG_WRITE(stk, STK_ADDR_DELTADES_C_CTRL, (uint8_t*)&val);
+                    STK_REG_READ(stk, STK_ADDR_DELTADES_C_CTRL, (uint8_t *)&val);
+                    val &= ~((~val) | 0x01);
+                    STK_REG_WRITE(stk, STK_ADDR_DELTADES_C_CTRL, (uint8_t *)&val);
 
                     STK_REG_READ(stk, STK_ADDR_IRQ_SOURCE_ENABLE_REG, (uint8_t*)&val);
 
@@ -621,7 +640,8 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
         if (stk->descent_cnt_a == 1) // avoid enable not use descent phase
         {
             STK_LOG("next frame coming ,enable descent A\n");
-            val = stk->tc_config_a.delta_des_val;
+            STK_REG_READ(stk, STK_ADDR_DELTADES_A_CTRL, (uint8_t *)&val);
+            val |= 0x01;
             STK_REG_WRITE(stk, STK_ADDR_DELTADES_A_CTRL, (uint8_t *)&val);
             stk->descent_cnt_a = 0;
         }
@@ -629,7 +649,8 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
         if (stk->descent_cnt_b == 1) // avoid enable not use descent phase
         {
             STK_LOG("next frame coming ,enable descent B\n");
-            val = stk->tc_config_b.delta_des_val;
+            STK_REG_READ(stk, STK_ADDR_DELTADES_B_CTRL, (uint8_t *)&val);
+            val |= 0x01;
             STK_REG_WRITE(stk, STK_ADDR_DELTADES_B_CTRL, (uint8_t *)&val);
             stk->descent_cnt_b = 0;
         }
@@ -637,7 +658,8 @@ void temperature_compensation(struct stk_data *stk, uint32_t int_flag, uint16_t 
         if (stk->descent_cnt_c == 1) // avoid enable not use descent phase
         {
             STK_LOG("next frame coming ,enable descent C\n");
-            val = stk->tc_config_c.delta_des_val;
+            STK_REG_READ(stk, STK_ADDR_DELTADES_C_CTRL, (uint8_t *)&val);
+            val |= 0x01;
             STK_REG_WRITE(stk, STK_ADDR_DELTADES_C_CTRL, (uint8_t *)&val);
             stk->descent_cnt_c = 0;
         }
@@ -1154,14 +1176,14 @@ void stk501xx_read_sar_data(struct stk_data* stk, uint32_t prox_flag)
         dist_state = 0;
         for (dist_idx = 0; dist_idx < 4; dist_idx++)
         {
-            if((dist_idx == 0) ||
-            ((dist_idx == 1) && (stk->dist1_en & (1<<i))) ||
-            ((dist_idx == 2) && (STK_DIST_2_EN & (1<<i))) ||
-            ((dist_idx == 3) && (STK_DIST_3_EN & (1<<i)))
-            )
-            {
-                dist_state |= dist_flag & (uint32_t) (1 << (i + (8 * dist_idx))) ? (1 << dist_idx) : 0;
-            }
+            if ((dist_idx == 0) ||
+                ((dist_idx == 1) && (stk->dist1_en & (1 << i))) ||
+                ((dist_idx == 2) && (STK_DIST_2_EN & (1 << i))) ||
+                ((dist_idx == 3) && (STK_DIST_3_EN & (1 << i)))
+               )
+               {
+                    dist_state |= dist_flag & (uint32_t) (1 << (i + (8 * dist_idx))) ? (1 << dist_idx) : 0;
+               }
         }
 
         if(stk->last_nearby[i] != dist_state)
@@ -1233,19 +1255,19 @@ void stk501xx_data_initialize(struct stk_data* stk)
     stk->tc_config_a.mapping_ref_phase  = DELTA_A_MAPPING_PHASE;
     stk->tc_config_a.major_phase        = DELTA_A_MEASURE_PHASE;
     stk->tc_config_a.mapping_ref_phase_reg = MAPING_REF_PHASE(stk->tc_config_a.mapping_ref_phase);
-    stk->tc_config_a.delta_des_val      = DELTA_DES_CTRL_VAL(stk->tc_config_a.major_phase);
+    stk->tc_config_a.delta_des_val      = DELTA_DES_CTRL_VAL(DELTA_A_DES_THD, DELTA_A_DES_DEB_CLR, DELTA_A_DES_DEB_SET, stk->tc_config_a.major_phase);
 
     stk->tc_config_b.delta_temp_thd     = DELTA_TEMP_THD_B;
     stk->tc_config_b.mapping_ref_phase  = DELTA_B_MAPPING_PHASE;
     stk->tc_config_b.major_phase        = DELTA_B_MEASURE_PHASE;
     stk->tc_config_b.mapping_ref_phase_reg = MAPING_REF_PHASE(stk->tc_config_b.mapping_ref_phase);
-    stk->tc_config_b.delta_des_val      = DELTA_DES_CTRL_VAL(stk->tc_config_b.major_phase);
+    stk->tc_config_b.delta_des_val      = DELTA_DES_CTRL_VAL(DELTA_B_DES_THD, DELTA_B_DES_DEB_CLR, DELTA_B_DES_DEB_SET, stk->tc_config_b.major_phase);
 
     stk->tc_config_c.delta_temp_thd     = DELTA_TEMP_THD_C;
     stk->tc_config_c.mapping_ref_phase  = DELTA_C_MAPPING_PHASE;
     stk->tc_config_c.major_phase        = DELTA_C_MEASURE_PHASE;
     stk->tc_config_c.mapping_ref_phase_reg = MAPING_REF_PHASE(stk->tc_config_c.mapping_ref_phase);
-    stk->tc_config_c.delta_des_val      = DELTA_DES_CTRL_VAL(stk->tc_config_c.major_phase);
+    stk->tc_config_c.delta_des_val      = DELTA_DES_CTRL_VAL(DELTA_C_DES_THD, DELTA_C_DES_DEB_CLR, DELTA_C_DES_DEB_SET, stk->tc_config_c.major_phase);
 
 #endif //TEMP_COMPENSATION
 
@@ -1327,6 +1349,31 @@ int32_t stk501xx_show_all_reg(struct stk_data* stk)
         STK_ADDR_PROX_CTRL1_PH6,
         STK_ADDR_PROX_CTRL1_PH7,
         STK_ADDR_DELTADES_A_CTRL,
+        STK_ADDR_TX_CTRL_PH0,
+        STK_ADDR_TX_CTRL_PH1,
+        STK_ADDR_TX_CTRL_PH2,
+        STK_ADDR_TX_CTRL_PH3,
+        STK_ADDR_TX_CTRL_PH4,
+        STK_ADDR_TX_CTRL_PH5,
+        STK_ADDR_TX_CTRL_PH6,
+        STK_ADDR_SENS_CTRL_PH0,
+        STK_ADDR_SENS_CTRL_PH1,
+        STK_ADDR_SENS_CTRL_PH2,
+        STK_ADDR_SENS_CTRL_PH3,
+        STK_ADDR_SENS_CTRL_PH4,
+        STK_ADDR_SENS_CTRL_PH5,
+        STK_ADDR_SENS_CTRL_PH6,
+        STK_ADDR_FILT_CFG_PH0,
+        STK_ADDR_FILT_CFG_PH1,
+        STK_ADDR_FILT_CFG_PH2,
+        STK_ADDR_FILT_CFG_PH3,
+        STK_ADDR_FILT_CFG_PH4,
+        STK_ADDR_FILT_CFG_PH4,
+        STK_ADDR_FILT_CFG_PH5,
+        STK_ADDR_CORRECTION_PH1,
+        STK_ADDR_CORRECTION_PH3,
+        STK_ADDR_CORRECTION_PH5,
+        STK_ADDR_CORRECTION_PH6,
     };
     reg_num = sizeof(reg_array) / sizeof(uint16_t);
 
@@ -1356,7 +1403,7 @@ static int32_t stk_reg_init(struct stk_data* stk)
 #endif
 
 #ifndef STK_VALUE_BY_DTS
-    uint16_t reg_num = 0
+    uint16_t reg_num = 0;
     reg_num = sizeof(stk501xx_default_register_table) / sizeof(stk501xx_register_table);
 
     for (reg_count = 0; reg_count < reg_num; reg_count++)
@@ -1674,7 +1721,7 @@ int32_t stk501xx_init_client(struct stk_data * stk)
     STK_tws_init();
 #endif
     stk_register_queue(stk);
-#if 0
+#if 1
     err = stk501xx_show_all_reg(stk);
 
     if (err < 0)
