@@ -22,6 +22,16 @@
 
 #include "ilitek_v3.h"
 
+#ifdef CONFIG_ILI_SPI_MT65XX
+const struct mtk_chip_config spi_ctrdata = {
+	.cs_holdtime = 0,
+	.cs_idletime = 0,
+	.tick_delay = 0,
+	.sample_sel = 0,
+	.cs_setuptime = 200,
+};
+#endif
+
 struct touch_bus_info {
 	struct spi_driver bus_driver;
 	struct ilitek_hwif_info *hwif;
@@ -581,6 +591,12 @@ int ili_core_spi_setup(int num)
 	ilits->spi->cs_inactive.value =1;
 	ilits->spi->cs_inactive.unit = 0;
 #endif
+
+#ifdef CONFIG_ILI_SPI_MT65XX
+	memcpy(&ilits->spi_ctrl, &spi_ctrdata, sizeof(struct mtk_chip_config));
+	ilits->spi->controller_data = (void *)&ilits->spi_ctrl;
+#endif
+
 	if (spi_setup(ilits->spi) < 0) {
 		ILI_ERR("Failed to setup spi device\n");
 		return -ENODEV;

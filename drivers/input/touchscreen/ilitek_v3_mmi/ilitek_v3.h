@@ -112,6 +112,10 @@
 #endif
 #include <linux/mmi_wake_lock.h>
 
+#ifdef CONFIG_ILI_SPI_MT65XX
+#include <linux/platform_data/spi-mt65xx.h>
+#endif
+
 #define DRIVER_VERSION			"3.0.9.0.230110"
 
 #define ENABLE			1
@@ -1158,6 +1162,10 @@ struct ilitek_ts_data {
 	struct regulator *vdd;
 	struct regulator *vcc;
 	struct sram_test_para sram_para;
+
+#ifdef CONFIG_ILI_SPI_MT65XX
+	struct mtk_chip_config spi_ctrl;
+#endif
 
 #if IS_ENABLED(CONFIG_DRM_MEDIATEK)
 	struct notifier_block disp_notifier;

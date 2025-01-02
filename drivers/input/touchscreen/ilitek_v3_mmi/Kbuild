@@ -35,6 +35,10 @@ ifneq ($(filter m y,$(CONFIG_ILI_TOUCH_COMPATIBILITY)),)
 	EXTRA_CFLAGS += -DILI_TOUCH_COMPATIBILITY
 endif
 
+ifneq ($(filter m y,$(CONFIG_ILI_SPI_MT65XX)),)
+	EXTRA_CFLAGS += -DCONFIG_ILI_SPI_MT65XX
+endif
+
 ifneq ($(filter m y,$(CONFIG_ENABLE_TP_TM_ILI_LOG_CAPTURE)),)
 	EXTRA_CFLAGS += -DENABLE_TP_TM_ILI_LOG_CAPTURE
 	ilitek_v3_mmi-objs += ilitek_ts_log_capture.o
