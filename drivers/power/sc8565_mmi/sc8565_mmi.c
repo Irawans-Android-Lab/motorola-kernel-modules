@@ -938,6 +938,10 @@ __maybe_unused static int sc858x_dump_reg(struct sc858x_chip *sc)
                 __func__,sc->model_name, i, val);
     }
 
+    ret = regmap_read(sc->regmap, 0x6E, &val);
+    dev_err(sc->dev, "%s %s reg[0x6E] = 0x%02x\n",
+                __func__,sc->model_name, val);
+
     return ret;
 }
 
