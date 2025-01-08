@@ -1,0 +1,11 @@
+# add -Wall to try to catch everything we can.
+EXTRA_CFLAGS += -Wall
+EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/include
+EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/drivers/moto_sched
+EXTRA_CFLAGS += -I$(ANDROID_BUILD_TOP)/kernel_platform/common
+
+obj-m += uxmem.o
+
+uxmem-y := uxmem_opt.o
+KBUILD_EXTRA_SYMBOLS += $(KBUILD_EXTMOD)/../../moto_sched.ko_intermediates/LINKED/Module.symvers
+
