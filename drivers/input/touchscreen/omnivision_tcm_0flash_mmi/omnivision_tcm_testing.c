@@ -47,6 +47,12 @@
 #include "omnivision_tcm_core.h"
 #include "omnivision_tcm_testing.h"
 
+#ifdef CONFIG_OVT_LOG_CAPTURE
+#define ROW_NUM_FORMAT_STR  "%2d | "
+#define COL_NUM_FORMAT_STR  "%-5d "
+#define DATA_FORMAT_STR     "%-5d "
+#endif
+
 #define SYSFS_DIR_NAME "testing"
 
 #define OVT_TCM_LIMIT_TSR_IMAGE_NAME "omnivision/tsr_limit.img"
@@ -286,6 +292,100 @@ testing_sysfs_raw_delta_show(raw_data)
 
 testing_sysfs_raw_delta_show(delta_data)
 
+#ifdef CONFIG_OVT_LOG_CAPTURE
+int ovt_tp_rawdata_capture(struct device *dev)
+{
+	int retval;
+	int count = 0;
+	int rows, cols, i, j;
+	int data_value;
+	unsigned char *report_data_buf;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+	struct ovt_tcm_app_info *app_info;
+	char line_buf[1024];
+
+	mutex_lock(&tcm_hcd->extif_mutex);
+
+	OVT_INFO("capture rawdata start\n");
+	retval = testing_raw_data();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do raw_data test\n");
+		return -ENOMEM;
+	}
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+	report_data_buf = testing_hcd->report.buf;
+	data_value = 0;
+	for (i = 0; i < rows; i++) {
+		count = 0;
+		count += scnprintf(line_buf + count, sizeof(line_buf) - count, ROW_NUM_FORMAT_STR, i);
+		for (j = 0; j < cols; j++) {
+			data_value = (short)le2_to_uint(&report_data_buf[(i * cols + j) * 2]);
+			count += scnprintf(line_buf + count, sizeof(line_buf) - count, DATA_FORMAT_STR, data_value);
+		}
+		OVT_INFO("%s\n", line_buf);
+	}
+
+	mutex_unlock(&tcm_hcd->extif_mutex);
+
+	return 0;
+}
+
+int ovt_tp_diffdata_capture(struct device *dev)
+{
+	int retval;
+	int count = 0;
+	int rows, cols, i, j;
+	int data_value;
+	unsigned char *report_data_buf;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+	struct ovt_tcm_app_info *app_info;
+	char line_buf[1024];
+
+	mutex_lock(&tcm_hcd->extif_mutex);
+
+	OVT_INFO("capture diffdata start\n");
+	retval = testing_delta_data();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do delta test\n");
+		return -ENOMEM;
+	}
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+	report_data_buf = testing_hcd->report.buf;
+	data_value = 0;
+	for (i = 0; i < rows; i++) {
+		count = 0;
+		count += scnprintf(line_buf + count, sizeof(line_buf) - count, ROW_NUM_FORMAT_STR, i);
+		for (j = 0; j < cols; j++) {
+			data_value = (short)le2_to_uint(&report_data_buf[(i * cols + j) * 2]);
+			count += scnprintf(line_buf + count, sizeof(line_buf) - count, DATA_FORMAT_STR, data_value);
+		}
+		OVT_INFO("%s\n", line_buf);
+	}
+
+	mutex_unlock(&tcm_hcd->extif_mutex);
+
+	return 0;
+}
+
+int ovt_tp_data_dump_capture(struct device *dev)
+{
+	int ret = 0;
+
+	ret = ovt_tp_diffdata_capture(dev);
+
+	ret = ovt_tp_rawdata_capture(dev);
+
+	return ret;
+}
+#endif
 
 //#define LIMIT_FROM_CSV_FILE 1
 

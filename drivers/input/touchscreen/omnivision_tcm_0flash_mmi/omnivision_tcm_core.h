@@ -64,6 +64,10 @@ extern bool dbg_level_en;
 
 extern struct ovt_tcm_hcd *g_tcm_hcd;
 
+#ifdef CONFIG_OVT_LOG_CAPTURE
+int ovt_tp_data_dump_capture(struct device *dev);
+#endif
+
 #ifdef OVT_STOWED_MODE_SUPPORT
 extern int ovt_tcm_sleep(struct ovt_tcm_hcd *tcm_hcd, bool en);
 #endif

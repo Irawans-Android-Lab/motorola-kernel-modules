@@ -565,6 +565,25 @@ static ssize_t stowed_show(struct device *dev,
 }
 #endif
 
+
+#ifdef CONFIG_OVT_LOG_CAPTURE
+static ssize_t ovt_dbg_data_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	ret = ovt_tp_data_dump_capture(dev);
+	if (0 == ret)
+		OVT_INFO("capture data succesful\n");
+	return ret;
+}
+
+static ssize_t ovt_dbg_data_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	return count;
+}
+#endif
+
 static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
@@ -576,6 +595,9 @@ static struct device_attribute touchscreen_attributes[] = {
 #endif
 #ifdef OVT_STOWED_MODE_SUPPORT
 	__ATTR_RW(stowed),
+#endif
+#ifdef CONFIG_OVT_LOG_CAPTURE
+	__ATTR(log_trigger, S_IRUGO | S_IWUSR | S_IWGRP, ovt_dbg_data_show, ovt_dbg_data_store),
 #endif
 	__ATTR_RW(log_level),
 	__ATTR_NULL
