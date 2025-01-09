@@ -416,12 +416,14 @@ int wls_chg_get_property(struct power_supply *psy,
 			break;
 
 		case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-			wls_rx_get_rx_vout(wlc->wls_dev, &val->intval);
-			if (val->intval > 0) {
-				val->intval = val->intval * 1000;
-				pr_info("%s rx_vout: %d\n", __func__, val->intval);
-			} else
-				val->intval = -1;
+			val->intval = -1;
+			if (wlc->ctl.rx_ldo_on) {
+				ret = wls_rx_get_rx_vout(wlc->wls_dev, &val->intval);
+				if (ret == 0 && val->intval > 0) {
+					val->intval = val->intval * 1000;
+				}
+				pr_info("%s rx_vout:%d ret:%d\n", __func__, val->intval, ret);
+			}
 			break;
 
 		case POWER_SUPPLY_PROP_CURRENT_MAX:
@@ -429,12 +431,14 @@ int wls_chg_get_property(struct power_supply *psy,
 			break;
 
 		case POWER_SUPPLY_PROP_CURRENT_NOW:
-			wls_rx_get_rx_iout(wlc->wls_dev, &val->intval);
-			if (val->intval > 0) {
-				val->intval = val->intval * 1000;
-				pr_info("%s rx_iout: %d\n", __func__, val->intval);
-			} else
-				val->intval = -1;
+			val->intval = -1;
+			if (wlc->ctl.rx_ldo_on) {
+				ret = wls_rx_get_rx_iout(wlc->wls_dev, &val->intval);
+				if (ret == 0 && val->intval > 0) {
+					val->intval = val->intval * 1000;
+				}
+				pr_info("%s rx_iout:%d ret:%d\n", __func__, val->intval, ret);
+			}
 			break;
 
 		case POWER_SUPPLY_PROP_POWER_NOW:
