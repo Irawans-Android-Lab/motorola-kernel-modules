@@ -3,6 +3,7 @@
 #include <mtk_charger.h>
 #include <mtk_charger_algorithm_class.h>
 #include <linux/mmi_wireless_class.h>
+#include <linux/phone_case_detection_notify.h>
 
 #define NORMAL_FW_UPDATE 1
 #define FORCE_FW_UPDATE 2
@@ -283,6 +284,7 @@ struct wireless_config
 	int wls_auto_stop_undertemp;
 
 	bool mc_support;
+	bool phone_case_support;
 };
 
 struct wireless_auth
@@ -323,6 +325,7 @@ struct moto_wlc {
 	struct chg_alg_device *alg;
 	struct wireless_device *wls_dev;
 	struct charger_device *chg1_dev;
+	struct notifier_block hall_nb;
 
 	struct mutex access_lock;
 	struct wakeup_source *suspend_lock;

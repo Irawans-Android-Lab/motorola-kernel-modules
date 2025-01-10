@@ -18,6 +18,7 @@ define_mgk_ko(
     ],
     deps = [
         "//motorola/kernel/modules/drivers/power/mmi_wireless_class:mmi_wireless_class",
+        "//motorola/kernel/modules/drivers/misc/hall:moto_hall",
     ],
 
     outs = ["moto_wlc2_alg.ko"],

@@ -528,6 +528,10 @@ struct wireless_device * wls_get_wireless_device(struct moto_wlc *wlc)
 			wlc->callback_ops.event_handler = wls_chg_event_handler;
 			wireless_dev_set_drvdata(wlc->wls_dev, (void *)wlc);
 			wireless_dev_set_callback(wlc->wls_dev, (void *)&wlc->callback_ops);
+			if (wlc->config.mc_support) {
+				wls_rx_set_mc_det(wlc->wls_dev, !wlc->ctl.mc_status);
+			}
+			wls_device_set_mode_select(wlc, "wlc init", 1);
 			wls_rx_set_irq_enable(wlc->wls_dev, true);
 			pr_info("%s wlc->wls_dev=%p\n", __func__, wlc->wls_dev);
 			return wlc->wls_dev;

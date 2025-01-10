@@ -16,3 +16,4 @@ moto_wlc2_alg-objs := moto_wlc2.o moto_wlc2_hal.o moto_wlc2_chg.o moto_wlc2_devi
                     moto_wlc2_auth.o
 
 KBUILD_EXTRA_SYMBOLS += $(CURDIR)/$(KBUILD_EXTMOD)/../../power/mmi_wireless_class/$(GKI_OBJ_MODULE_DIR)/Module.symvers
+KBUILD_EXTRA_SYMBOLS += $(CURDIR)/$(KBUILD_EXTMOD)/../../misc/hall/$(GKI_OBJ_MODULE_DIR)/Module.symvers
