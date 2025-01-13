@@ -108,7 +108,7 @@ int wls_chg_power_on(struct moto_wlc *wlc)
 
 	if (wlc->config.mc_support && wlc->ctl.mc_status) {
 		wlc_info("%s skip offset_detect_work\n", __func__);
-	} else if (wlc->ctl.enable_rod) {
+	} else if (wlc->ctl.enable_rod && !wlc->config.wls_cert_mode) {
 		wlc->ctl.rod_stop = false;
 		wlc->ctl.rx_ldo_detect_count = 0;
 		pr_info("%s start offset_detect_work\n", __func__);
@@ -491,10 +491,15 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 			wls_chg_notify_st_changed(wlc, WLC_CONNECTED);
 			break;
 		case WLS_EVENT_HS_OK:
-			wlc->data.moto_stand = true;
-			wlc->auth.hs_st = AUTH_HS_OK;
-			wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
-			wls_auth_hs_ok_handler(wlc, op_mode);
+			if (!wlc->config.wls_cert_mode) {
+				wlc->data.moto_stand = true;
+				wlc->auth.hs_st = AUTH_HS_OK;
+				wls_rx_get_op_mode(wlc->wls_dev, &op_mode);
+				wls_auth_hs_ok_handler(wlc, op_mode);
+			} else {
+				wlc->data.moto_stand = false;
+				wlc->auth.hs_st = AUTH_HS_FAIL;
+			}
 			break;
 		case WLS_EVENT_HS_FAIL:
 			wlc->data.moto_stand = false;

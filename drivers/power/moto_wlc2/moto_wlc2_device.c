@@ -485,9 +485,12 @@ int wls_device_set_mode_select(struct moto_wlc *wlc, char *str, bool mode)
 {
 	int rt = 0;
 
-	rt = wls_rx_set_mode_select(wlc->wls_dev, mode);
-	wlc_info("%s: %s mode:%d rt:%d\n", __func__, str, mode, rt);
-
+	if (wlc->config.wls_cert_mode && !mode) {
+		wlc_info("%s: %s wls_cert_mode can't set mode_sel low\n", __func__, str);
+	} else {
+		rt = wls_rx_set_mode_select(wlc->wls_dev, mode);
+		wlc_info("%s: %s mode:%d rt:%d\n", __func__, str, mode, rt);
+	}
 	return rt;
 }
 

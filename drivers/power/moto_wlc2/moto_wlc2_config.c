@@ -70,6 +70,28 @@ int wls_get_secure_hardware(struct moto_wlc *wlc, struct device *dev)
 	return wlc->config.secure_hardware;
 }
 
+int wls_get_wls_cert_mode(struct moto_wlc *wlc, struct device *dev)
+{
+	struct device_node *np = of_find_node_by_path("/chosen");
+	const char *mmi_bootconfig = NULL;
+
+	if (!IS_ERR_OR_NULL(np)) {
+		if (!of_property_read_string(np, "mmi,bootconfig", &mmi_bootconfig)) {
+			pr_debug("%s mmi_bootconfig=%s\n", __func__, mmi_bootconfig);
+			if (strstr(mmi_bootconfig, "wls_cert_mode=1"))
+				wlc->config.wls_cert_mode = true;
+			pr_info("%s wls_cert_mode=%d\n", __func__, wlc->config.wls_cert_mode);
+		} else {
+			pr_err("%s mmi,bootconfig read failed\n", __func__);
+		}
+		of_node_put(np);
+	} else {
+		pr_err("%s chosen is error or null\n", __func__);
+	}
+
+	return wlc->config.wls_cert_mode;
+}
+
 int wls_get_bootmode(struct moto_wlc *wlc, struct device *dev)
 {
 	struct device_node *node = dev->of_node;
@@ -358,6 +380,8 @@ int wls_config_parse_dts(struct moto_wlc *wlc, struct device *dev)
 	}
 
 	wls_get_secure_hardware(wlc, dev);
+
+	wls_get_wls_cert_mode(wlc, dev);
 
 	wls_get_bootmode(wlc, dev);
 

@@ -737,11 +737,12 @@ static int wlc_tcd_set_cur_state(struct thermal_cooling_device *tcd,
 	if (wlc->cur_state == state)
 		return 0;
 
-	wlc->charging_current_limit1 = wlc_state_to_current_limit[state];
+	if (!wlc->config.wls_cert_mode)
+		wlc->charging_current_limit1 = wlc_state_to_current_limit[state];
 	wlc->cur_state = state;
 
-	wlc_info("%s cur state = %d, config state = %ld, cur limt = %d\n",
-		__func__, wlc->cur_state, state, wlc->charging_current_limit1);
+	wlc_info("%s cur state = %d, config state = %ld, cur limt = %d, wls_cert_mode = %d\n",
+		__func__, wlc->cur_state, state, wlc->charging_current_limit1, wlc->config.wls_cert_mode);
 
 	return 0;
 }
