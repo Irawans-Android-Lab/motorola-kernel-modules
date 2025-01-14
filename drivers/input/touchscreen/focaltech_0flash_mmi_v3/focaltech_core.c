@@ -2746,6 +2746,11 @@ static void fts_gesture_type_store()
 {
 	int ret = 0, gest_type = 0;
 
+	if (NULL == fts_data) {
+		FTS_ERROR("fts data is null,not set gesture,return...");
+		return;
+	}
+
 	if (fts_data->s_tap_flag && fts_data->d_tap_flag) {
 		gest_type = 0x03;
 		FTS_INFO("single & double tap enabled\n");
