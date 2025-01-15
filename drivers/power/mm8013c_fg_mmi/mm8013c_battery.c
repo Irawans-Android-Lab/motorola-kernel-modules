@@ -1730,7 +1730,11 @@ static void mm8xxx_battery_update(struct mm8xxx_device_info *di)
 	if (cache.flags < 0)
 		goto out;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	cache.curr_now = mm8xxx_get_battery_current(di)*(-1);
+#else
+	cache.curr_now = mm8xxx_get_battery_current(di);
+#endif
 	cache.temperature = mm8xxx_battery_read_temperature(di);
 	cache.temperature += -2731;
 	cache.avg_time_to_empty = mm8xxx_battery_read_averagetimetoempty(di);
