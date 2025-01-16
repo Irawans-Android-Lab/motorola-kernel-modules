@@ -5459,6 +5459,11 @@ err_create_run_kthread:
 	OVT_INFO("err_create_run_kthread\n");
 #endif
 
+#ifdef CONFIG_OVT_CHARGER_DETECT
+	if (tcm_hcd->notifier_charger.notifier_call)
+		power_supply_unreg_notifier(&tcm_hcd->notifier_charger);
+#endif
+
 	mtk_disp_notifier_unregister(&tcm_hcd->fb_notifier);
 #ifndef USE_SYS_SUSPEND_METHOD
 #ifdef CONFIG_DRMV
@@ -5577,6 +5582,8 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 #ifdef CONFIG_OVT_CHARGER_DETECT
 	flush_workqueue(tcm_hcd->workqueue);
 	destroy_workqueue(tcm_hcd->workqueue);
+	if (tcm_hcd->notifier_charger.notifier_call)
+		power_supply_unreg_notifier(&tcm_hcd->notifier_charger);
 #endif
 
 #ifdef WATCHDOG_SW
