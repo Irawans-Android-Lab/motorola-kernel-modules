@@ -774,6 +774,8 @@ static int phone_case_detection_notifier_call(struct notifier_block *nb,
 		default:
 			break;
 	}
+
+	wls_rx_set_mc_det(wlc->wls_dev, !wlc->ctl.mc_status);
 	wlc_info("%s mc_status=%d event=%ld\n", __func__, wlc->ctl.mc_status, event);
 
 	return NOTIFY_OK;
