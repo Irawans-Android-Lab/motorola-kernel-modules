@@ -192,6 +192,7 @@ struct wireless_ctl
 	bool mode_select_force;
 	bool enable_rod;
 	bool rod_stop;
+	bool rx_power_on;
 	bool rx_ldo_on;
 	bool mc_status;
 	bool factory_wls_en;

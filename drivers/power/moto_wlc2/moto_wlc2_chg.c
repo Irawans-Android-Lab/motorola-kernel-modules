@@ -93,6 +93,8 @@ int wls_chg_power_on(struct moto_wlc *wlc)
 	int sys_mode = 0;
 	int rt = -1;
 
+	wlc->ctl.rx_power_on = true;
+
 	if (wlc->ctl.factory_wls_en)
 		return 0;
 
@@ -122,6 +124,7 @@ int wls_chg_power_off(struct moto_wlc *wlc)
 {
 	int rt = -1;
 
+	wlc->ctl.rx_power_on = false;
 	wlc->ctl.rx_ldo_on = false;
 
 	if (wlc->ctl.factory_wls_en) {
@@ -575,6 +578,16 @@ int wls_chg_get_property(struct power_supply *psy,
 		wlc_err("%s wlc->wls_dev is err or null\n", __func__);
 		return -EINVAL;
 	}
+
+	val->intval = 0;
+	if (wlc->ctl.fw_uploading) {
+		wlc_dbg("%s Unable to read registers when fw_uploading\n", __func__);
+		return 0;
+	} else if (!(wlc->ctl.rx_power_on || wlc->ctl.rx_ldo_on || wlc->ctl.tx_mode)) {
+		wlc_dbg("%s Unable to read registers when chip no power\n", __func__);
+		return 0;
+	}
+
 	switch(psp){
 		case POWER_SUPPLY_PROP_PRESENT:
 		case POWER_SUPPLY_PROP_ONLINE:
