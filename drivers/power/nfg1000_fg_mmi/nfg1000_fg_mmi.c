@@ -251,6 +251,7 @@ struct mmi_fg_chip {
 
 	struct gauge_device	*gauge_dev;
 	const char *gauge_dev_name;
+	bool support_update_partial_config;
 
 };
 
@@ -521,6 +522,7 @@ u8 app_flash_erase_order[195] = {0x00,0x5F,0x00,0x00,0x00,0x01,0x00,0x02,0x00,0x
 								0x56,0x00,0x57,0x00,0x58,0x00,0x59,0x00,0x5A,0x00,0x5B,0x00,0x5C,0x00,0x5D,0x00,0x5E,0x00,0x5F,0x5F};
 u8 data_flash_erase_order[] = {0x00,0x07,0x01,0x86,0x01,0x87,0x01,0x88,0x01,0x89,0x01,0x8A,0x01,0x8B,0x01,0x8C,0x01,0x8D,0x07};
 u8 nfg1000_Dataflash_updata_CMD[] = {0x00,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0D,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1C};
+u8 nfg1000_Dataflash_updata_partial_CMD[] = {0x0B,0x11,0x12};
 u8 nfg1000_Dataflash_updata_CMD_IFC[] = {0x00,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0D,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1C,0x23,0x24,0x25,0x26,0x27,0x28,0x29,0x2a,0x2b,0x2c,0x2d,0x2e,0x2f};
 static u32 crc_table[256];
 
@@ -1566,8 +1568,12 @@ static int nfg1000_ota_updata_config(struct mmi_fg_chip *di)
 		cmd_len = sizeof(nfg1000_Dataflash_updata_CMD_IFC);
 		dataflash_cmds = nfg1000_Dataflash_updata_CMD_IFC;
 	}
-	else
+	else if (di->support_update_partial_config)
 	{
+		cmd_len = sizeof(nfg1000_Dataflash_updata_partial_CMD);
+		dataflash_cmds = nfg1000_Dataflash_updata_partial_CMD;
+		mmi_err("nfg1000_ota_updata_config: support update partial config\n");
+	}else {
 		cmd_len = sizeof(nfg1000_Dataflash_updata_CMD);
 		dataflash_cmds = nfg1000_Dataflash_updata_CMD;
 	}
@@ -1667,6 +1673,8 @@ static u8 *nfg1000_upgrade_read_firmware(char *bin_name, struct mmi_fg_chip *mmi
 
 static ssize_t nfg1000_upgrade_Params(struct mmi_fg_chip *di)
 {
+
+if (di->support_update_partial_config != true)	{
 	mmi_info("step1 EnterBootLoad");
 	if(nfg1000_ota_program_step1_EnterBootLoad(di))
 	{
@@ -1702,6 +1710,8 @@ static ssize_t nfg1000_upgrade_Params(struct mmi_fg_chip *di)
 	{
 		return PROGRAM_ERROR_EXIT_BOOT;
 	}
+}
+
 	mmi_info("ota_unseal");
 	if(nfg1000_ota_unseal(di))
 	{
@@ -3255,6 +3265,8 @@ static int mmi_parse_dt(struct mmi_fg_chip *mmi_fg)
 	mmi_fg->support_ifc =of_property_read_bool(np, "nfg,support_ifc");
 
 	mmi_fg->enable_user_upgrade_batt =of_property_read_bool(np, "nfg,enable_user_upgrade_batt");
+
+	mmi_fg->support_update_partial_config = of_property_read_bool(np, "nfg,support_update_partial_config");
 
 	return rtn;
 }
