@@ -28,7 +28,9 @@ enum MOT_DDR_TYPE
 	MOT_DDR_TYPE_PCDDR3 = 4,	/**< Personal computer DDR3. */
 	MOT_DDR_TYPE_LPDDR3 = 5,	/**< Low power DDR3. */
 	MOT_DDR_TYPE_LPDDR4 = 6,	/**< Low power DDR4. */
-	MOT_DDR_TYPE_RESERVED = 7,	/**< Reserved for future use. */
+	MOT_DDR_TYPE_LPDDR4X = 7,	/**< Low power DDR4x. */
+	MOT_DDR_TYPE_LPDDR5 = 8,	/**< Low power DDR5. */
+	MOT_DDR_TYPE_LPDDR5X = 9,	/**< Low power DDR5x. */
 	MOT_DDR_TYPE_UNUSED = 0x7FFFFFFF
 };
 
@@ -147,6 +149,11 @@ int mmi_ram_info_init(void)
 		"LP4x", /* SkHynix LPDDR4X */
 		"LP4x", /* Samsung LPDDR4X */
 	};
+	const char *types_lpddr5[] = {
+		"LP5",
+		"LP5X",
+		"LP5X", /* Samsung LPDDR5X */
+	};
 
 	ddr_info = kzalloc(sizeof(struct mmi_ddr_info), GFP_KERNEL);
 	if (!ddr_info) {
@@ -195,7 +202,10 @@ int mmi_ram_info_init(void)
 
 		/* identify type */
 		tid = ddr_info->mr8 & 0x03;
-		if (ddr_info->type == MOT_DDR_TYPE_LPDDR4) {
+		if (ddr_info->type == MOT_DDR_TYPE_LPDDR5 || ddr_info->type == MOT_DDR_TYPE_LPDDR5X) {
+			if (tid < ARRAY_SIZE(types_lpddr5))
+				tname = types_lpddr5[tid];
+		} else if (ddr_info->type == MOT_DDR_TYPE_LPDDR4 || ddr_info->type == MOT_DDR_TYPE_LPDDR4X) {
 			if (tid < ARRAY_SIZE(types_lpddr4))
 				tname = types_lpddr4[tid];
 		} else {
