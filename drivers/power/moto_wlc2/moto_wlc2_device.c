@@ -754,16 +754,12 @@ static ssize_t wls_input_current_limit_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (wls_input_curr_max > pWlc->config.MaxI) {
-		wls_input_curr_max = pWlc->config.MaxI;
-	}
+	wlc_info("wls input_current = %lumA\n", wls_input_curr_max);
 	if (wls_input_curr_max > 0) {
 		wlc_hal_set_input_current(pWlc->alg, CHG1, wls_input_curr_max * 1000);
+		pWlc->ctl.input_current_max = wls_input_curr_max;
 	}
 
-	wlc_info("wls input_current = %lu pWlc->MaxI = %dmA\n",
-				wls_input_curr_max, pWlc->config.MaxI);
-	pWlc->ctl.input_current_max = wls_input_curr_max;
 	return r ? r : count;
 }
 
