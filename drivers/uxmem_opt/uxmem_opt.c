@@ -554,7 +554,7 @@ static int ux_page_pool_init(void)
 	};
 
 	for (i = 0; i < NUM_ORDERS; i++) {
-		pools[i] = ux_page_pool_create((GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
+		pools[i] = ux_page_pool_create((GFP_HIGHUSER_MOVABLE | __GFP_CMA | __GFP_ZERO | __GFP_NOWARN |
 			   __GFP_NORETRY) & ~__GFP_RECLAIM, orders[i], page_pool_nr_pages[i]);
 	}
 	ux_page_pool_enabled = true;
@@ -665,7 +665,6 @@ static void __nocfi get_page_from_uxmempool(void *data, gfp_t gfp_mask, int orde
 
 	if (current_is_key_task() && !(gfp_mask & __GFP_DMA32)) {
 		page = ux_page_pool_alloc_pages(order, migratetype);
-
 		/* a refilled from __free_pages */
 		if (page && !page_count(page)) {
 			/* prep_new_page(page, order, gfp_mask, alloc_flags);
