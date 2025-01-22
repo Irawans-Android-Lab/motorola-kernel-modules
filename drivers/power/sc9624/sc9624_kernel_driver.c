@@ -1676,6 +1676,10 @@ static int sc9624_charger_is_writeable(struct power_supply *psy,
     int ret;
 
     switch (prop) {
+    case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+    case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+        ret = 1;
+        break;
     default:
         ret = 0;
         break;
