@@ -133,7 +133,7 @@ int pehv_hal_set_ta_vbus(struct chg_alg_device *alg, int target_mV)
 		}
 
 		if (i < step - 1)
-			udelay(5000);
+			udelay(10000);
 	}
 
 	ret = pehv_hal_get_adc(alg, DVCHG1, PEHV_ADCCHAN_VBUS, &curr_vbus_mv);
