@@ -55,6 +55,7 @@
 #else
 #include "mtk_charger_algorithm_class.h"
 #endif
+#include <linux/phone_case_detection_notify.h>
 MOTO_WLS_AUTH_T motoauth;
 
 #define BOOTLOADER_FILE_NAME "/data/misc/cps/bootloader.hex"
@@ -69,6 +70,15 @@ MOTO_WLS_AUTH_T motoauth;
 
 #define VBUS_VALID_MV 4100 //If vbus >= 4.1V,the vbus is valid.
 #define CPS_CHIP_ID 0x4038
+
+#define WLC_ERROR_LEVEL	1
+#define WLC_INFO_LEVEL	2
+#define WLC_DEBUG_LEVEL	3
+static int wlc_dbg_level = WLC_DEBUG_LEVEL;
+int wlc_get_debug_level(void)
+{
+	return wlc_dbg_level;
+}
 
 struct cps_wls_chrg_chip *chip = NULL;
 static bool CPS_RX_MODE_ERR = false;
@@ -135,6 +145,7 @@ typedef enum
     CPS_RX_REG_BC_DATA4,     
     CPS_RX_REG_BC_DATA5,        
     CPS_RX_REG_BC_DATA6, 
+    CPS_RX_REG_TX_ID,
     CPS_RX_REG_MAX
 }cps_rx_reg_e;
 
@@ -309,7 +320,7 @@ cps_reg_s cps_rx_reg[CPS_RX_REG_MAX] = {
     {CPS_RX_REG_BC_DATA4,        1,               0x00A6},
     {CPS_RX_REG_BC_DATA5,        1,               0x00A7},
     {CPS_RX_REG_BC_DATA6,        1,              0x00A8},
-    
+    {CPS_RX_REG_TX_ID,              2,               0x019C},
 };
 
 cps_reg_s cps_tx_reg[CPS_TX_REG_MAX] = {
@@ -628,6 +639,7 @@ static u8 CPS4038_BOOTLOADER[0x800] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
+
 //-------------------I2C APT start--------------------
 
 static const struct regmap_config cps4038_regmap_config = {
@@ -1270,10 +1282,27 @@ static int cps_wls_get_rx_ss_pkt_value(void)
 static int cps_wls_get_rx_ce_pkt_value(void)
 {
     cps_reg_s *cps_reg;
+    int value = 0;
     cps_reg = (cps_reg_s*)(&cps_rx_reg[CPS_RX_REG_CE_VAL]);
+
+    value = cps_wls_read_reg(cps_reg->reg_addr, (int)cps_reg->reg_bytes_len);
+    if(value == -1) {
+		return value;
+    }
+     value = (int)(int16_t)value;
+     if(value < 0)
+	 	value = value *(-1);
+	cps_wls_log(CPS_LOG_DEBG, "read ce value:%d\n", value);
+
+	return value;
+}
+//get tx manufacture code
+static int cps_wls_get_mcode(void)
+{
+    cps_reg_s *cps_reg;
+    cps_reg = (cps_reg_s*)(&cps_rx_reg[CPS_RX_REG_TX_ID]);
     return cps_wls_read_reg(cps_reg->reg_addr, (int)cps_reg->reg_bytes_len);
 }
-
 #if 0
 static int cps_wls_get_rx_rp_pkt_value(void)
 {
@@ -2148,7 +2177,10 @@ static void cps_epp_icl_on()
 			charger_dev_set_charging_current(chip->chg1_dev, 3150000);
 			charger_dev_set_input_current(chip->chg1_dev, icl);
 		}
-		if (chip->enable_rod) {
+
+		if (chip->mc_support && chip->mc_status) {
+			wlc_info("%s skip offset_detect_work\n", __func__);
+		}else if (chip->enable_rod) {
 			chip->rx_start_ktime = ktime_get_boottime();
 			chip->rod_stop = false;
 			queue_delayed_work(chip->wls_wq, &chip->offset_detect_work, msecs_to_jiffies(3000));
@@ -2166,6 +2198,8 @@ static int cps_wls_rx_irq_handler(int int_flag)
 	uint32_t temp = 0;
 	cps_reg_s *cps_reg;
 #endif
+	uint32_t wlc_power = 0;
+
 	if (int_flag & RX_INT_POWER_ON)
 	{
 		CPS_RX_MODE_ERR = false;
@@ -2243,7 +2277,16 @@ static int cps_wls_rx_irq_handler(int int_flag)
 	if (int_flag & RX_INT_NEGO_POWER_READY)
 	{
 		cps_wls_log(CPS_LOG_DEBG, " CPS_WLS IRQ:  RX_INT_NEGO_POWER_READY");
-		cps_epp_icl_on();
+		wlc_power = cps_wls_get_rx_neg_power() / 2;
+		chip->mcode = cps_wls_get_mcode();
+		cps_wls_log(CPS_LOG_DEBG, "%s power:%d mcode:0x%04X\n",
+						__func__, wlc_power, chip->mcode);
+		if(chip->mc_support &&
+			chip->mc_status && chip->mcode != MOTO_TX_MCODE &&
+			wlc_power == WLS_RX_CAP_15W) {
+			wlc_chg_start_mc_icl_work(chip, Sys_Op_Mode_EPP);
+		}else
+			cps_epp_icl_on();
 	}
 
 	if (int_flag & RX_INT_PT) {
@@ -2415,6 +2458,14 @@ static void cps_bpp_mode_icl_work(struct work_struct *work)
 	int wls_voltage_now = 0;
 	int retry = 2;
 	int i = 0;
+	int step_delay_ms = 0;
+
+
+	if (chg->mc_support && chg->mc_status) {
+		step_delay_ms = WLS_MC_BPP_ICL_STEP_DELAY;
+	} else {
+		step_delay_ms = WLS_ICL_INCREASE_DELAY;
+	}
 
 	wls_icl = WLS_ICL_INCREASE_STEP_mA;
 	chg->bpp_icl_done = false;
@@ -2441,7 +2492,7 @@ static void cps_bpp_mode_icl_work(struct work_struct *work)
 				cps_init_charge_hardware();
 			if (chip->chg1_dev)
 				charger_dev_set_input_current(chip->chg1_dev, wls_icl * 1000);
-			msleep(WLS_ICL_INCREASE_DELAY);
+			msleep(step_delay_ms);
 			wls_current_now = cps_wls_get_rx_iout();
 			wls_voltage_now = cps_wls_get_rx_vout();
 
@@ -2456,14 +2507,123 @@ static void cps_bpp_mode_icl_work(struct work_struct *work)
 		}
 	}
 
+	chg->mc_icl_max_uA = WLS_BPP_ICL_MAX_MA*1000;
+
+	if (chg->mc_support && chg->mc_status) {
+		wls_current_now = cps_wls_get_rx_iout();
+		cps_wls_log(CPS_LOG_DEBG, "%s wls_current_now:%d \n", __func__, wls_current_now);
+		if (wls_current_now <= WLS_MC_BPP_ICL_THRESHOLD) {
+			cps_wls_log(CPS_LOG_DEBG, "%s moto_stand:%d\n", __func__, chg->moto_stand);
+			if (!chg->moto_stand) //BPP can't get mcode
+				wlc_chg_start_mc_icl_work(chg, Sys_Op_Mode_BPP);
+		}
+	}
+
 	chg->bpp_icl_done = true;
 
-	if (chip->enable_rod) {
+	if (chip->mc_support && chip->mc_status) {
+		cps_wls_log(CPS_LOG_DEBG, "%s skip offset_detect_work\n", __func__);
+	}else if (chip->enable_rod) {
 		chip->rod_stop = false;
 		queue_delayed_work(chip->wls_wq,
 			&chip->offset_detect_work,
 			msecs_to_jiffies(wls_current_now >= WLS_BPP_ROD_THRESHOLD_CURRENT_MAX ? 5000 : 0));
 	}
+}
+
+void wlc_chg_mc_icl_work(struct work_struct *work)
+{
+	struct cps_wls_chrg_chip *wlc = chip;
+	int ce = 0;
+	int rt = 0;
+	int rx_irect = 0;
+	Sys_Op_Mode op_mode = Sys_Op_Mode_INVALID;
+	static int det_count = 0;
+
+	if (IS_ERR_OR_NULL(wlc)) {
+		cps_wls_log(CPS_LOG_ERR, "%s wlc is err or null\n", __func__);
+		return;
+	}
+
+	if (wlc->ce_det_count == 0) {
+		det_count = 0;
+	}
+
+	if (det_count >= WLS_MC_DET_CNT_MAX) {
+		cps_wls_log(CPS_LOG_ERR, "%s timeout, exit\n", __func__);
+		goto mc_icl_exit;
+	}
+
+	ce = cps_wls_get_rx_ce_pkt_value();
+	if ( ce < 0) {
+		cps_wls_log(CPS_LOG_ERR,"%s ldo off , ce :%d, exit\n", __func__, ce);
+		goto mc_icl_exit;
+	}
+
+	det_count ++;
+	if (ce <= 2 ) {
+		wlc->ce_det_count ++ ;
+	}
+
+	rt = cps_get_sys_op_mode(&op_mode);
+	cps_wls_log(CPS_LOG_DEBG,"[%s] det_count:%d op_mode:%d ce:%d ce_det_count:%d rt:%d\n",
+			__func__, det_count, op_mode, ce, wlc->ce_det_count,rt);
+	if (rt < 0) {
+		cps_wls_log(CPS_LOG_ERR,"%s get op_mode err, exit\n", __func__);
+		goto mc_icl_exit;
+	} else if (op_mode == Sys_Op_Mode_BPP) {
+		if (wlc->ce_det_count >= 50) {
+			rx_irect =  cps_wls_get_rx_irect();
+			cps_wls_log(CPS_LOG_DEBG,"%s rx_irect:%dmA rt:%d\n", __func__, rx_irect, rt);
+			if (rx_irect < 0) {
+				cps_wls_log(CPS_LOG_ERR,"%s get rx_irect err, exit\n", __func__);
+				goto mc_icl_exit;
+			}
+			rx_irect = rx_irect / 100 * 100;
+			if (rx_irect >= WLS_BPP_ICL_MIN_MA + 200) {
+				wlc->mc_icl_max_uA = (rx_irect - 200) * 1000;
+			} else {
+				wlc->mc_icl_max_uA = WLS_BPP_ICL_MIN_MA * 1000; //300 mA
+			}
+			cps_wls_log(CPS_LOG_DEBG,"%s rx_irect:%d mc_icl_max_uA:%d\n",
+						__func__, rx_irect, wlc->mc_icl_max_uA);
+			while (wlc->mc_icl_max_uA < WLS_BPP_ICL_MAX_MA) {
+				rt = cps_get_sys_op_mode(&op_mode);
+				if (rt < 0) {
+					cps_wls_log(CPS_LOG_ERR,"%s get op_mode failed, rt:%d\n", __func__, rt);
+					goto mc_icl_exit;
+				}
+				wlc->mc_icl_max_uA = wlc->mc_icl_max_uA + WLS_MC_ICL_STEP;
+				charger_dev_set_input_current(wlc->chg1_dev, wlc->mc_icl_max_uA);
+				msleep(WLS_MC_BPP_ICL_STEP_DELAY);
+				cps_wls_log(CPS_LOG_DEBG,"%s BPP set mc_icl_max_uA:%d\n", __func__, wlc->mc_icl_max_uA);
+			}
+			goto mc_icl_exit;
+		}
+	} else if (op_mode == Sys_Op_Mode_EPP) {
+		if (det_count == (WLS_MC_DET_CNT_MAX / 2) || det_count == WLS_MC_DET_CNT_MAX) {
+			if (wlc->ce_det_count >= 25) {
+				wlc->mc_icl_max_uA = wlc->mc_icl_max_uA + WLS_MC_ICL_STEP;
+				charger_dev_set_input_current(wlc->chg1_dev, wlc->mc_icl_max_uA);
+				cps_wls_log(CPS_LOG_DEBG,"%s EPP set mc_icl_max_uA:%d\n",
+							__func__, wlc->mc_icl_max_uA);
+			}
+			wlc->ce_det_count = 1;
+			if (det_count == WLS_MC_DET_CNT_MAX)
+				goto mc_icl_exit;
+		}
+	}
+
+	if (wlc->mc_icl_state == MC_ICL_RUN) {
+		queue_delayed_work(wlc->wls_wq, &wlc->mc_icl_work, msecs_to_jiffies(1000));
+	}
+
+	return;
+
+mc_icl_exit:
+	wlc->mc_icl_state = MC_ICL_DONE;
+	wlc->ce_det_count = 0;
+	det_count = 0;
 }
 
 static void cps_wls_notify_thermal_input_current_limit(int thermal_icl)
@@ -2722,6 +2882,21 @@ static int cps_wls_mode_select(char *str, bool mode)
 	return rt;
 }
 
+static int cps_wls_set_mc_det(char *str, bool on)
+{
+	struct cps_wls_chrg_chip *chg = chip;
+	int rt = CPS_WLS_FAIL;
+
+	if (chg && gpio_is_valid(chg->wls_mc_det)) {
+		gpio_set_value(chg->wls_mc_det, on);
+		rt = CPS_WLS_SUCCESS;
+	}
+
+	cps_wls_log(CPS_LOG_ERR, "[%s] cps_wls_set_mc_det on:%d rt:%d\n", str, on, rt);
+
+	return rt;
+}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
 #ifdef CONFIG_MOTO_CHANNEL_SWITCH
 static int wls_control_cp_vbusovp(bool val)
@@ -2808,6 +2983,9 @@ static irqreturn_t wls_det_irq_handler(int irq, void *dev_id)
 #endif
 		chip->rx_int_ready = false;
 		chip->bpp_icl_done = false;
+		chip->mc_icl_state = MC_ICL_IDLE;
+		chip->ce_det_count = 0;
+		chip->mcode = 0x00;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
 		if (!chip->stop_epp_flag && !chip->mode_select_force && !chip->factory_wls_en)
 #else
@@ -4056,7 +4234,50 @@ static ssize_t store_android_auto_connected(struct device *dev, struct device_at
 	return count;
 }
 static DEVICE_ATTR(android_auto_connected, 0664, show_android_auto_connected, store_android_auto_connected);
+static ssize_t show_mc_status(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	if (IS_ERR_OR_NULL(chip)) {
+		cps_wls_log(CPS_LOG_ERR,"%s: chip not valid\n", __func__);
+		return -ENODEV;
+	}
 
+	if (!chip->mc_support) {
+		cps_wls_log(CPS_LOG_ERR,"%s: Magnetic cover not support\n", __func__);
+		return -ENODEV;
+	}
+
+	return sprintf(buf, "%d\n", chip->mc_status);
+}
+
+static ssize_t store_mc_status(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int tmp = 0;
+
+	if (IS_ERR_OR_NULL(chip)) {
+		cps_wls_log(CPS_LOG_ERR,"%s: chip not valid\n", __func__);
+		return -ENODEV;
+	}
+
+	if (!chip->mc_support) {
+		cps_wls_log(CPS_LOG_ERR,"%s: Magnetic cover not support\n", __func__);
+		return -ENODEV;
+	}
+
+	tmp = simple_strtoul(buf, NULL, 0);
+	chip->mc_status = (tmp == 0? false: true);
+
+	//have Magnetic cover mc_status:true -> md_det:0
+	//have no Magnetic cover mc_status:false -> md_det:1
+	if (0 != cps_wls_set_mc_det("store_mc_status", !chip->mc_status)) {
+		cps_wls_log(CPS_LOG_ERR,"%s: mc_det set failed\n", __func__);
+		return -ENODEV;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(mc_status, 0664, show_mc_status, store_mc_status);
 static void cps_wls_create_device_node(struct device *dev)
 {
     device_create_file(dev, &dev_attr_reg_addr);
@@ -4099,6 +4320,7 @@ static void cps_wls_create_device_node(struct device *dev)
     device_create_file(dev, &dev_attr_offset_detect_enable);
 //-----------------------Android Auto------------------
     device_create_file(dev, &dev_attr_android_auto_connected);
+    device_create_file(dev, &dev_attr_mc_status);
 }
 
 static int cps_wls_parse_dt(struct cps_wls_chrg_chip *chip)
@@ -4168,6 +4390,16 @@ static int cps_wls_parse_dt(struct cps_wls_chrg_chip *chip)
 		if(!gpio_is_valid(chip->wls_hal_int2))
 			return -EINVAL;
 	}
+
+    chip->wls_mc_det = of_get_named_gpio(node, "wls-mc-det", 0);
+    if(!gpio_is_valid(chip->wls_mc_det))
+	cps_wls_log(CPS_LOG_ERR,"wls_mc_det is %d invalid\n", chip->wls_mc_det);
+
+    chip->mc_support = of_property_read_bool(node, "wlc-mc-support");
+    cps_wls_log(CPS_LOG_ERR,"wls-mc-support is %d \n", chip->mc_support);
+    /*For get phone case hall senser status*/
+    chip->phone_case_support = of_property_read_bool(node, "wlc-phone-case-support");
+    cps_wls_log(CPS_LOG_ERR,"wlc-phone-case-supportis %d \n", chip->phone_case_support);
 
     return 0;
 }
@@ -4428,68 +4660,126 @@ static void cps_wls_current_select(int  *icl, int *vbus, bool *cable_ready)
     *cable_ready = true;
     *icl = 400000;
     *vbus = 5000;
+    cps_wls_log(CPS_LOG_ERR, "%s start icl=%d vbus=%d mode_type:%d,mc_status:%d\n",
+			__func__, *icl, *vbus, chg->mode_type,chg->mc_status);
+    if (chg->mc_support && chg->mc_status) {
+		wls_power = cps_wls_get_rx_neg_power() / 2;
+		if (chg->moto_stand || chg->mcode == MOTO_TX_MCODE) {
+			if (wls_power == WLS_RX_CAP_15W) {
+				*icl = 1150000;
+				*vbus = 12000;
+			} else if (wls_power == WLS_RX_CAP_10W) {
+				*icl = 800000;
+				*vbus = 12000;
+			} else if (wls_power == WLS_RX_CAP_5W) {
+				*icl = 1000000;
+				*vbus = 5000;
+			}
+			chg->MaxV = *vbus;
+			chg->MaxI = *icl/1000;
+		} else if (chg->mode_type == Sys_Op_Mode_BPP) {
+			*vbus = 5000;
+			chg->MaxV = *vbus;
+			if (chg->mc_icl_state == MC_ICL_RUN) {
+				cps_wls_log(CPS_LOG_ERR, "%s mc_icl_state=%d bpp mc icl run\n", __func__, chg->mc_icl_state);
+				return ;
+			} else {
+				*icl = chg->mc_icl_max_uA;
+			}
+			chg->MaxI = *icl/1000;
+		} else if (chg->mode_type == Sys_Op_Mode_EPP) {
+			if (wls_power == WLS_RX_CAP_15W) {
+				*vbus = 12000;
+				chg->MaxV = *vbus;
+				if (chg->mc_icl_state == MC_ICL_RUN) {
+					cps_wls_log(CPS_LOG_ERR, "%s mc_icl_state=%d epp mc icl run\n", __func__, chg->mc_icl_state);
+					return ;
+				} else {
+					*icl = chg->mc_icl_max_uA;
+				}
+				chg->MaxI = *icl/1000;
+			} else if (wls_power >= WLS_RX_CAP_10W) {
+				*icl = 900000;
+				*vbus = 9000;
+			} else if (wls_power >= WLS_RX_CAP_7W) {
+				*icl = 700000;
+				*vbus = 9000;
+			} else if (wls_power >= WLS_RX_CAP_5W) {
+				*icl = 1000000;
+				*vbus = 5000;
+			} else {
+				*icl = 1000000;
+				*vbus = 5000;
+			}
+			chg->MaxV = *vbus;
+			chg->MaxI = *icl/1000;
+		}
+	} else {
 
-    if (chg->mode_type == Sys_Op_Mode_BPP)
-    {
-        if (!chg->bpp_icl_done){
-           chg->MaxV = 5000;
-           chg->MaxI = 1000;
-           *icl = 100000;
-           *vbus = 5000;
-           return;
-        }
-        chg->MaxV = 5000;
-        chg->MaxI = 1000;
-        *icl = 1000000;
-        *vbus = 5000;
-    }
-    else if (chg->mode_type == Sys_Op_Mode_EPP)
-    {
-        wls_power = cps_wls_get_rx_neg_power() / 2;
-        wls_voltage = cps_wls_get_rx_vout();
-        cps_wls_log(CPS_LOG_DEBG, "%s cps4038 power:%dW vout:%dmV",
-                        __func__, wls_power, wls_voltage);
-        if (wls_power >= WLS_RX_CAP_15W)
-        {
-            chg->MaxV = 12000;
-            chg->MaxI = 1150;
-            *icl = 1150000;
-            *vbus = 12000;
-        }
-        else if (wls_power >= WLS_RX_CAP_10W)
-        {
-            chg->MaxV = 12000;
-            chg->MaxI = 800;
-            *icl = 800000;
-            *vbus = 12000;
-        }
-        else if (wls_power >= WLS_RX_CAP_8W)
-        {
-            chg->MaxV = 12000;
-            chg->MaxI = 650;
-            *icl = 650000;
-            *vbus = 12000;
-        }
-        else if (wls_power >= WLS_RX_CAP_5W)
-        {
-            if (wls_voltage < 5500) {
+            if (chg->mode_type == Sys_Op_Mode_BPP)
+            {
+                if (!chg->bpp_icl_done){
+                   chg->MaxV = 5000;
+                   chg->MaxI = 1000;
+                   *icl = 100000;
+                   *vbus = 5000;
+                   return;
+                }
                 chg->MaxV = 5000;
                 chg->MaxI = 1000;
-            } else {
-                chg->MaxV = 12000;
-                chg->MaxI = 400;
+                *icl = 1000000;
+                *vbus = 5000;
             }
-            *icl = chg->MaxI * 1000;
-            *vbus = chg->MaxV;
-        }
-        else
-        {
-            chg->MaxV = 5000;
-            chg->MaxI = 1000;
-            *icl = 1000000;
-            *vbus = 5000;
-        }
+            else if (chg->mode_type == Sys_Op_Mode_EPP)
+            {
+                wls_power = cps_wls_get_rx_neg_power() / 2;
+                wls_voltage = cps_wls_get_rx_vout();
+                cps_wls_log(CPS_LOG_DEBG, "%s cps4038 power:%dW vout:%dmV",
+                                __func__, wls_power, wls_voltage);
+                if (wls_power >= WLS_RX_CAP_15W)
+                {
+                    chg->MaxV = 12000;
+                    chg->MaxI = 1150;
+                    *icl = 1150000;
+                    *vbus = 12000;
+                }
+                else if (wls_power >= WLS_RX_CAP_10W)
+                {
+                    chg->MaxV = 12000;
+                    chg->MaxI = 800;
+                    *icl = 800000;
+                    *vbus = 12000;
+                }
+                else if (wls_power >= WLS_RX_CAP_8W)
+                {
+                    chg->MaxV = 12000;
+                    chg->MaxI = 650;
+                    *icl = 650000;
+                    *vbus = 12000;
+                }
+                else if (wls_power >= WLS_RX_CAP_5W)
+                {
+                    if (wls_voltage < 5500) {
+                        chg->MaxV = 5000;
+                        chg->MaxI = 1000;
+                    } else {
+                        chg->MaxV = 12000;
+                        chg->MaxI = 400;
+                    }
+                    *icl = chg->MaxI * 1000;
+                    *vbus = chg->MaxV;
+                }
+                else
+                {
+                    chg->MaxV = 5000;
+                    chg->MaxI = 1000;
+                    *icl = 1000000;
+                    *vbus = 5000;
+                }
+         }
     }
+
+
     if (chip->wls_input_curr_max != 0 && chip->wls_input_curr_max < chg->MaxI)
         *icl = chip->wls_input_curr_max * 1000;
 
@@ -4505,6 +4795,25 @@ static void cps_wls_current_select(int  *icl, int *vbus, bool *cable_ready)
     } else {
         chip->android_auto_over_temp = false;
     }
+
+	cps_wls_log(CPS_LOG_DEBG,"%s icl=%d vbus=%d \n",
+			__func__, *icl, *vbus);
+}
+
+int wlc_chg_start_mc_icl_work(struct cps_wls_chrg_chip *chg, Sys_Op_Mode op_mode)
+{
+	int rt = 0;
+
+	if (op_mode == Sys_Op_Mode_EPP) {
+		chg->mc_icl_max_uA = WLS_MC_EPP_ICL_DEFAULT;
+		charger_dev_set_input_current(chg->chg1_dev, chg->mc_icl_max_uA);
+		charger_dev_set_charging_current(chg->chg1_dev, 3150000);
+	}
+	chg->ce_det_count = 0;
+	chg->mc_icl_state = MC_ICL_RUN;
+	rt = queue_delayed_work(chg->wls_wq, &chg->mc_icl_work, msecs_to_jiffies(0));
+
+	return rt;
 }
 
 static void cps_epp_current_select(int  *icl, int *vbus)
@@ -4515,53 +4824,105 @@ static void cps_epp_current_select(int  *icl, int *vbus)
 
     *icl = 400000;
     *vbus = 5000;
-    if (chg->mode_type == Sys_Op_Mode_EPP)
-    {
-        wls_power = cps_wls_get_rx_neg_power() / 2;
-        wls_voltage = cps_wls_get_rx_vout();
-        cps_wls_log(CPS_LOG_DEBG, "%s cps4038 power:%dW vout:%dmV",
-                        __func__, wls_power, wls_voltage);
-        if (wls_power >= WLS_RX_CAP_15W)
+
+    cps_wls_log(CPS_LOG_ERR, "%s start icl=%d vbus=%d mode_type:%d,mc_status:%d\n",
+			__func__, *icl, *vbus, chg->mode_type,chg->mc_status);
+    if (chg->mc_support && chg->mc_status) {
+		wls_power = cps_wls_get_rx_neg_power() / 2;
+		if (chg->moto_stand || chg->mcode == MOTO_TX_MCODE) {
+			if (wls_power == WLS_RX_CAP_15W) {
+				*icl = 1150000;
+				*vbus = 12000;
+			} else if (wls_power == WLS_RX_CAP_10W) {
+				*icl = 800000;
+				*vbus = 12000;
+			} else if (wls_power >= WLS_RX_CAP_8W) {
+		                *icl = 650000;
+		                *vbus = 12000;
+	            }else if (wls_power == WLS_RX_CAP_5W) {
+				*icl = 1000000;
+				*vbus = 5000;
+			}
+			chg->MaxV = *vbus;
+			chg->MaxI = *icl/1000;
+		} else if (chg->mode_type == Sys_Op_Mode_EPP) {
+			if (wls_power == WLS_RX_CAP_15W) {
+				*vbus = 12000;
+				chg->MaxV = *vbus;
+				if (chg->mc_icl_state == MC_ICL_RUN) {
+					cps_wls_log(CPS_LOG_ERR, "%s mc_icl_state=%d epp mc icl run\n", __func__, chg->mc_icl_state);
+					return ;
+				} else {
+					*icl = chg->mc_icl_max_uA;
+				}
+				chg->MaxI = *icl/1000;
+			} else if (wls_power >= WLS_RX_CAP_10W) {
+				*icl = 900000;
+				*vbus = 9000;
+			} else if (wls_power >= WLS_RX_CAP_7W) {
+				*icl = 700000;
+				*vbus = 9000;
+			} else if (wls_power >= WLS_RX_CAP_5W) {
+				*icl = 1000000;
+				*vbus = 5000;
+			} else {
+				*icl = 1000000;
+				*vbus = 5000;
+			}
+			chg->MaxV = *vbus;
+			chg->MaxI = *icl/1000;
+		}
+	} else {
+
+        if (chg->mode_type == Sys_Op_Mode_EPP)
         {
-            chg->MaxV = 12000;
-            chg->MaxI = 1150;
-            *icl = 1150000;
-            *vbus = 12000;
-        }
-        else if (wls_power >= WLS_RX_CAP_10W)
-        {
-            chg->MaxV = 12000;
-            chg->MaxI = 800;
-            *icl = 800000;
-            *vbus = 12000;
-        }
-        else if (wls_power >= WLS_RX_CAP_8W)
-        {
-            chg->MaxV = 12000;
-            chg->MaxI = 650;
-            *icl = 650000;
-            *vbus = 12000;
-        }
-        else if (wls_power >= WLS_RX_CAP_5W)
-        {
-            if (wls_voltage < 5500) {
+            wls_power = cps_wls_get_rx_neg_power() / 2;
+            wls_voltage = cps_wls_get_rx_vout();
+            cps_wls_log(CPS_LOG_DEBG, "%s cps4038 power:%dW vout:%dmV",
+                            __func__, wls_power, wls_voltage);
+            if (wls_power >= WLS_RX_CAP_15W)
+            {
+                chg->MaxV = 12000;
+                chg->MaxI = 1150;
+                *icl = 1150000;
+                *vbus = 12000;
+            }
+            else if (wls_power >= WLS_RX_CAP_10W)
+            {
+                chg->MaxV = 12000;
+                chg->MaxI = 800;
+                *icl = 800000;
+                *vbus = 12000;
+            }
+            else if (wls_power >= WLS_RX_CAP_8W)
+            {
+                chg->MaxV = 12000;
+                chg->MaxI = 650;
+                *icl = 650000;
+                *vbus = 12000;
+            }
+            else if (wls_power >= WLS_RX_CAP_5W)
+            {
+                if (wls_voltage < 5500) {
+                    chg->MaxV = 5000;
+                    chg->MaxI = 1000;
+                } else {
+                    chg->MaxV = 12000;
+                    chg->MaxI = 400;
+                }
+                *icl = chg->MaxI * 1000;
+                *vbus = chg->MaxV;
+            }
+            else
+            {
                 chg->MaxV = 5000;
                 chg->MaxI = 1000;
-            } else {
-                chg->MaxV = 12000;
-                chg->MaxI = 400;
+                *icl = 1000000;
+                *vbus = 5000;
             }
-            *icl = chg->MaxI * 1000;
-            *vbus = chg->MaxV;
-        }
-        else
-        {
-            chg->MaxV = 5000;
-            chg->MaxI = 1000;
-            *icl = 1000000;
-            *vbus = 5000;
         }
     }
+
     if (chip->wls_input_curr_max != 0 && chip->wls_input_curr_max < chg->MaxI)
         *icl = chip->wls_input_curr_max * 1000;
     cps_wls_log(CPS_LOG_DEBG, "%s icl=%duA vbus=%dmV wls_power=%d", __func__, *icl, *vbus, wls_power);
@@ -5059,11 +5420,38 @@ static void cps_init_charge_hardware()
 	}
 }
 
+static int phone_case_detection_notifier_call(struct notifier_block *nb,
+					unsigned long event, void *data)
+{
+	if (IS_ERR_OR_NULL(chip)) {
+		cps_wls_log(CPS_LOG_ERR, "%s wlc is err or null\n", __func__);
+		return NOTIFY_BAD;
+	}
+
+	switch (event) {
+		case PHONE_CASE_DETECTION_MOUNTED:
+			chip->mc_status = true;
+			break;
+		case PHONE_CASE_DETECTION_UNMOUNTED:
+			chip->mc_status = false;
+			break;
+		default:
+			break;
+	}
+	if (chip->mc_support) {
+			cps_wls_set_mc_det("wlc init", !chip->mc_status);
+	}
+	cps_wls_log(CPS_LOG_DEBG, "%s mc_status=%d event=%ld\n", __func__, chip->mc_status, event);
+
+	return NOTIFY_OK;
+}
+
 static int cps_wls_chrg_probe(struct i2c_client *client,
                 const struct i2c_device_id *id)
 {
      int ret=0;
     char *name = NULL;
+     int rc = 0;
     cps_wls_log(CPS_LOG_ERR, "[%s] ---->start\n", __func__);
     chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
     if (!chip) {
@@ -5208,6 +5596,26 @@ static int cps_wls_chrg_probe(struct i2c_client *client,
             enable_irq_wake(chip->wls_hal_irq2);
         }
    }
+
+    //support magnatic cover
+    INIT_DELAYED_WORK(&chip->mc_icl_work, wlc_chg_mc_icl_work);
+
+	if (chip->phone_case_support) {
+		rc = phone_case_detection_get_hall_state();
+		if (rc == PHONE_CASE_DETECTION_MOUNTED) {
+			chip->mc_status = true;
+		} else if (rc == PHONE_CASE_DETECTION_UNMOUNTED) {
+			chip->mc_status = false;
+		} else {
+			cps_wls_log(CPS_LOG_ERR, "%s hall not enabled rc=%d\n", __func__, rc);
+		}
+		if (chip->mc_support) {
+				cps_wls_set_mc_det("wlc init", !chip->mc_status);
+		}
+		chip->hall_nb.notifier_call = phone_case_detection_notifier_call;
+		rc = phone_case_detection_register_client(&chip->hall_nb);
+		cps_wls_log(CPS_LOG_DEBG, "%s phone_case_detection_register_client rc=%d\n", __func__, rc);
+	}
 
     //Enable IC EPP mode as default
     cps_wls_mode_select("cps_wls_chrg_probe", true);

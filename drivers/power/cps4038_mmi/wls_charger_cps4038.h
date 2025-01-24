@@ -163,6 +163,21 @@ static uint32_t bpp_fod_array_w_folio[RX_FOD_GAIN_LEN] =
 
 static uint32_t epp_fod_array_w_folio[RX_FOD_GAIN_LEN] =
 {120, 32, 120, 24, 120, 21, 120, 21, 120, 19, 120, 18, 120, 17, 120, 17};
+
+#define WLS_MC_DET_CNT_MAX (60) /*60*/
+#define WLS_MC_BPP_ICL_STEP_DELAY 500 /*500ms*/
+#define WLS_MC_BPP_ICL_THRESHOLD 800 /*800mA*/
+#define WLS_MC_EPP_ICL_DEFAULT 900000 /*900mA*/
+#define WLS_MC_ICL_STEP 100000 /*100mA*/
+#define MOTO_TX_MCODE (0x004F)
+enum mc_icl_state_enum {
+	MC_ICL_IDLE = 0,
+	MC_ICL_RUN,
+	MC_ICL_DONE,
+};
+#define WLS_BPP_ICL_MAX_MA 1000
+#define WLS_BPP_ICL_MIN_MA 300
+
 /*****************************************************************************
  *  Log
  ****************************************************************************/
@@ -306,6 +321,18 @@ struct cps_wls_chrg_chip {
     int wls_hal_irq1;
     int wls_hal_int2;
     int wls_hal_irq2;
+    int wls_mc_det;
+    //suport magnetic cover
+    bool mc_icl_done;
+    bool mc_status;
+    int ce_det_count;
+    int mc_icl_state;
+    int mc_icl_max_uA;
+    uint16_t mcode;
+    bool mc_support;
+    struct delayed_work mc_icl_work;
+    bool phone_case_support;
+    struct notifier_block hall_nb;
 };
 
 typedef enum ept_reason
@@ -324,6 +351,7 @@ typedef enum ept_reason
     EPT_RS,
 }ept_reason_e;
 
-
+int wlc_chg_start_mc_icl_work(struct cps_wls_chrg_chip *chg, Sys_Op_Mode op_mode);
+void wlc_chg_mc_icl_work(struct work_struct *work);
 extern int __attribute__ ((weak)) moto_wireless_chg_ops_register(struct moto_wls_chg_ops *ops);
 #endif
