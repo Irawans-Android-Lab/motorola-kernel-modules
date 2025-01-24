@@ -1124,7 +1124,7 @@ static void sc8541d_dump_check_fault_status(struct sc8541d_chip *sc)
 
     for (i = 0; i <= SC8541D_REGMAX; i++) {
         ret = sc8541d_read_bulk(sc, i, &flag, 1);
-        dev_err(sc->dev, "%s reg[0x%02x] = 0x%02x, ret = %d\n", __func__, i, flag, ret);
+        dev_dbg(sc->dev, "%s reg[0x%02x] = 0x%02x, ret = %d\n", __func__, i, flag, ret);
         for (k=0; k < ARRAY_SIZE(cp_intr_flag); k++) {
             if (cp_intr_flag[k].reg == i){
                 for (j=0; j <  cp_intr_flag[k].len; j++) {
