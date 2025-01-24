@@ -840,6 +840,7 @@ int wt6670f_en_hvdcp(void)
 {
 	int ret;
 	u16 data = 0x01;
+	pr_info("wt6670f_en_hvdcp; \n");
 
 	ret = mmi_wt6670f_write_word(_wt, 0x05, data);
 
@@ -1295,6 +1296,12 @@ int mmi_get_protocol(struct adapter_device *dev, int *val)
 {
 	*val = wt6670f_get_protocol();
 
+	if(QC3P_Z350 == g_qc3p_id && *val == 0x010)
+	{
+		wt6670f_en_hvdcp();
+		msleep(100);
+	}
+
 	return 0;
 }
 
@@ -1428,7 +1435,6 @@ static int wt6670f_i2c_probe(struct i2c_client *client,
 	if(0x3349 == wt6670f_id){
 		g_qc3p_id = QC3P_Z350;
 		qc3p_z350_init_ok = true;
-		gpio_direction_output(_wt->reset_pin, 1);
 		pr_info("[%s] is z350\n", __func__);
 		is_already_probe_ok = 1;
 	} else {
