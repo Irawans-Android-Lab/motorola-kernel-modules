@@ -72,6 +72,10 @@ ifneq ($(filter m y, $(CONFIG_CHIPONE_LOG_CAPTURE)),)
         EXTRA_CFLAGS += -DCONFIG_CTS_LOG_CAPTURE
 endif
 
+ifneq ($(filter m y, $(CONFIG_CHIPONE_FORCE_UP_ENABLE)),)
+	EXTRA_CFLAGS += -DCONFIG_CTS_FORCE_UP_ENABLE
+endif
+
 obj-m := chipone_tddi_mmi_v2.o
 
 chipone_tddi_mmi_v2-objs := cts_driver.o
