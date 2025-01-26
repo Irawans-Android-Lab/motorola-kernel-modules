@@ -3364,6 +3364,15 @@ static ssize_t ic_ver_show(struct device *dev,
              : ts->pdata->config_id);
 }
 
+static ssize_t buildid_show(struct device *dev,
+        struct device_attribute *attr, char *buf)
+{
+    struct chipone_ts_data *ts = dev_get_drvdata(dev);
+
+    return scnprintf(buf, PAGE_SIZE, "%04x\n",
+             ts->cts_dev.fwdata.version ? ts->cts_dev.fwdata.version : ts->pdata->build_id);
+}
+
 static ssize_t productinfo_show (
     struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -3395,6 +3404,7 @@ static struct device_attribute touchscreen_attributes[] = {
     __ATTR_RO(path),
     __ATTR_RO(vendor),
     __ATTR_RO(ic_ver),
+    __ATTR_RO(buildid),
     __ATTR_RO(productinfo),
 #ifdef CONFIG_CTS_LAST_TIME
     __ATTR_RO(timestamp),
