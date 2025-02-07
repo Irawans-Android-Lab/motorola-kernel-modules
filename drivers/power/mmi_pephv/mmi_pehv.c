@@ -488,7 +488,9 @@ static u32 pehv_get_dvchg_vbusovp(struct pehv_algo_info *info, u32 ita)
 static u32 pehv_get_dvchg_ibusocp(struct pehv_algo_info *info, u32 ita)
 {
 	u32 ibus, ratio = PEHV_IBUSOCP_RATIO;
+	struct pehv_algo_data *data = info->data;
 
+	ratio = data->ibus_ocp_ratio;
 	ibus = pehv_get_idvchg_lmt(info);
 
 	return percent(ibus, ratio);
@@ -546,7 +548,7 @@ static int pehv_set_dvchg_protection(struct pehv_algo_info *info)
 
 	/* IBUSOCP */
 	idvchg_lmt = data->idvchg_cc;
-	ibusocp = percent(idvchg_lmt, PEHV_IBUSOCP_RATIO);
+	ibusocp = percent(idvchg_lmt, data->ibus_ocp_ratio);
 	ret = pehv_hal_set_ibusocp(info->alg, DVCHG1, ibusocp);
 	if (ret < 0) {
 		PEHV_ERR("set ibusocp fail(%d)\n", ret);
@@ -555,7 +557,7 @@ static int pehv_set_dvchg_protection(struct pehv_algo_info *info)
 	if (data->is_dvchg_exist[PEHV_DVCHG_SLAVE]) {
 		/* Add 10% for unbalance tolerance */
 		ibusocp = percent(precise_div(idvchg_lmt, 2),
-				  PEHV_IBUSOCP_RATIO + 10);
+				  data->ibus_ocp_ratio + 10);
 		ret = pehv_hal_set_ibusocp(info->alg, DVCHG2, ibusocp);
 		if (ret < 0) {
 			PEHV_ERR("set slave ibusocp fail(%d)\n", ret);
@@ -2554,6 +2556,14 @@ static int pehv_parse_dt(struct pehv_algo_info *info)
 		pr_notice("startup_convert_ratio using default:%d\n",
 			PEHV_DVCHG_STARTUP_CONVERT_RATIO);
 		data->startup_convert_ratio = PEHV_DVCHG_STARTUP_CONVERT_RATIO;
+	}
+
+	if (of_property_read_u32(np, "ibus-ocp-ratio", &val) >= 0)
+		data->ibus_ocp_ratio = val;
+	else {
+		pr_notice("ibus_ocp_ratio using default:%d\n",
+			PEHV_IBUSOCP_RATIO);
+		data->ibus_ocp_ratio = PEHV_IBUSOCP_RATIO;
 	}
 
 	return 0;
