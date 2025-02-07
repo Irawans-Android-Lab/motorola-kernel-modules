@@ -358,10 +358,6 @@ int wls_get_mc_config(struct moto_wlc *wlc, struct device *dev)
 	wlc->config.mc_support = of_property_read_bool(node, "wlc-mc-support");
 	pr_info("[%s] Magnetic cover support %d\n", __func__, wlc->config.mc_support);
 
-	/*For get phone case hall senser status*/
-	wlc->config.phone_case_support = of_property_read_bool(node, "wlc-phone-case-support");
-	pr_info("[%s] phone case support %d\n", __func__, wlc->config.phone_case_support);
-
 	return 0;
 }
 

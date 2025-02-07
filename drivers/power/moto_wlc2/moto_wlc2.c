@@ -753,6 +753,7 @@ static const struct thermal_cooling_device_ops wlc_tcd_ops = {
 	.set_cur_state = wlc_tcd_set_cur_state,
 };
 
+#ifdef CONFIG_MOTO_PHONE_CASE_SUPPORT
 static int phone_case_detection_notifier_call(struct notifier_block *nb,
 					unsigned long event, void *data)
 {
@@ -780,6 +781,7 @@ static int phone_case_detection_notifier_call(struct notifier_block *nb,
 
 	return NOTIFY_OK;
 }
+#endif
 
 static int moto_wlc_probe(struct platform_device *pdev)
 {
@@ -842,19 +844,19 @@ static int moto_wlc_probe(struct platform_device *pdev)
 		INIT_DELAYED_WORK(&wlc->offset_detect_work, wls_device_offset_detect_work);
 	}
 
-	if (wlc->config.phone_case_support) {
-		rc = phone_case_detection_get_hall_state();
-		if (rc == PHONE_CASE_DETECTION_MOUNTED) {
-			wlc->ctl.mc_status = true;
-		} else if (rc == PHONE_CASE_DETECTION_UNMOUNTED) {
-			wlc->ctl.mc_status = false;
-		} else {
-			wlc_err("%s hall not enabled rc=%d\n", __func__, rc);
-		}
-		wlc->hall_nb.notifier_call = phone_case_detection_notifier_call;
-		rc = phone_case_detection_register_client(&wlc->hall_nb);
-		wlc_info("%s phone_case_detection_register_client rc=%d\n", __func__, rc);
+#ifdef CONFIG_MOTO_PHONE_CASE_SUPPORT
+	rc = phone_case_detection_get_hall_state();
+	if (rc == PHONE_CASE_DETECTION_MOUNTED) {
+		wlc->ctl.mc_status = true;
+	} else if (rc == PHONE_CASE_DETECTION_UNMOUNTED) {
+		wlc->ctl.mc_status = false;
+	} else {
+		wlc_err("%s hall not enabled rc=%d\n", __func__, rc);
 	}
+	wlc->hall_nb.notifier_call = phone_case_detection_notifier_call;
+	rc = phone_case_detection_register_client(&wlc->hall_nb);
+	wlc_info("%s phone_case_detection_register_client rc=%d\n", __func__, rc);
+#endif
 
 	return 0;
 }

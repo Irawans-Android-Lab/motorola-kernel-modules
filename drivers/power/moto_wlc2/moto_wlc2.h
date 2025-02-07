@@ -286,7 +286,6 @@ struct wireless_config
 	int wls_auto_stop_undertemp;
 
 	bool mc_support;
-	bool phone_case_support;
 };
 
 struct wireless_auth
