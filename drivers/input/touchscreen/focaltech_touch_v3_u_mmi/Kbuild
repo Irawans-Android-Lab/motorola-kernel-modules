@@ -142,6 +142,8 @@ else ifneq ($(filter scout%, $(USE_TARGET_PRODUCT)), )
         EXTRA_CFLAGS += -DPRODUCT_SCOUT
 else ifneq ($(filter cybert%, $(USE_TARGET_PRODUCT)), )
         EXTRA_CFLAGS += -DPRODUCT_CYBERT
+else ifneq ($(filter fuji%, $(USE_TARGET_PRODUCT)), )
+        EXTRA_CFLAGS += -DPRODUCT_FUJI
 endif
 
 $(warning "focalteh EXTRA_CFLAGS = $(EXTRA_CFLAGS)")
