@@ -4213,35 +4213,37 @@ int ili_get_frame_log_capture(u8 *buf,u16 llen)
 	}
 //	ipio_memcpy(ilits->capture_buf, buf, llen, TR_BUF_SIZE);
 	ptr = &buf[cdc_starIdx];
-	
-	len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "======== Deltadata ========\n");
+
+	len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "\n======== Deltadata ========\n       ");
 	
 	for (j = 0; j < col; j++)
-		len += snprintf(delta_buf +len,DEBUG_DATA_FILE_SIZE - len, "[X%d] ,", j);
+		len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "[X%02d] ,", j);
 	for (j = 0; j < row * col; j++, ptr += 2) {
 		temp = (*ptr << 8) + *(ptr + 1);
 		if (j % col == 0)
-			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "\n[Y%d] ,", (j / col));
-		if(temp & 0xF000)
-			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "-%d, ", (0xFFFF - temp+1));
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "\n[Y%02d] ,", (j / col));
+		if (temp & 0x8000)//temp & 1000000000000000
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "%5d, ", (s16)(temp - 0x10000));//0xfffd - 0x10000
 		else
-			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "%d, ", temp);
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "%5d, ", temp);
+		if (j < col)
+			ILI_DBG("0x%x, ", temp);
 	}
 	len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "\n[X] ,");
 	for (j = 0; j < row + col; j++, ptr += 2) {
 		temp = (*ptr << 8) + *(ptr + 1);
 		if (j == col)
 			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "\n[Y] ,");
-		if(temp & 0xF000)
-                         len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "-%d, ", (0xFFFF - temp+1));
+                if (temp & 0x8000)
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "%5d, ", (s16)(temp - 0x10000));
                 else
-			 len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "%d, ", temp);
+			len += snprintf(delta_buf +len, DEBUG_DATA_FILE_SIZE - len, "%5d, ", temp);
 	}
 	ili_put_fifo_with_discard(delta_buf,len);
 	
 	return len;
 }
-static int frame_log_capture_start(void)
+static int frame_log_capture_start(u8 type)
 {
 	u8 data_type = 0;
 	int ret =0;
@@ -4255,7 +4257,7 @@ static int frame_log_capture_start(void)
 		ILI_ERR("tp is in sleep mode\n");
 		return -EINVAL;
 	}
-	data_type = P5_X_FW_SIGNAL_DATA_MODE;
+	data_type = type;
 	if (ili_set_tp_data_len(DATA_FORMAT_DEBUG, false, &data_type) < 0) {
 		ILI_ERR("Failed to set tp data length\n");
 		ret = -EINVAL;
@@ -4297,13 +4299,34 @@ static ssize_t ili_dbg_data_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	int ret =0;
+	int value = 0;
 	if(!buf || count <=0)
 		return 0;
 
+	ret = sscanf(buf,"%d",&value);
+	if(ret < 0){
+		ILI_ERR("failed to convert value\n");
+	}
+
 	ili_clear_kfifo();
-	ret = frame_log_capture_start();
-	if(ret) {
-		ILI_ERR("start debug mode error\n");
+	if(value == 1){
+		ILI_INFO("P5_X_FW_SIGNAL_DATA_MODE 0xF2 0x02 0x03\n");
+		ret = frame_log_capture_start(P5_X_FW_SIGNAL_DATA_MODE);
+		if(ret < 0)
+			ILI_ERR("start debug mode error\n");
+	}else if(value == 2){
+		ILI_INFO("P5_X_FW_RAW_DATA_MODE 0xF2 0x02 0x08\n");
+		ret = frame_log_capture_start(P5_X_FW_RAW_DATA_MODE);
+		if(ret < 0)
+			ILI_ERR("start rawdata mode error\n");
+	}else if(value == 3){
+		ILI_INFO("P5_X_FW_BASE_DATA_MODE 0xF2 0x02 0x09 0x03\n");
+		ret = frame_log_capture_start(P5_X_FW_BASE_DATA_MODE);
+		if(ret < 0)
+			ILI_ERR("start base mode error\n");
+	}else{
+		ILI_INFO("frame_log_capture_stop \n");
+		frame_log_capture_stop();
 	}
 	return count;
 }

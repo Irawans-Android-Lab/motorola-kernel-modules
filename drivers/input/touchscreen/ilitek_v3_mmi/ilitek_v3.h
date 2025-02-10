@@ -1029,6 +1029,7 @@ struct ilitek_pen_info {
 #define P5_X_FW_GESTURE_MODE				0x0F
 #define P5_X_FW_SIGNAL_DATA_MODE			0x03
 #define P5_X_FW_RAW_DATA_MODE				0x08
+#define P5_X_FW_BASE_DATA_MODE				0x09
 #define P5_X_DEMO_PACKET_ID				0x5A
 #ifdef ILI_DEBUG_INFO
 #define P5_X_DEBUG_INFO_PACKET_ID			0xBB

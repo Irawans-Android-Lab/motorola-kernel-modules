@@ -1078,7 +1078,12 @@ int ili_set_tp_data_len(int format, bool send, u8 *data)
 			cmd[0] = P5_X_NEW_CONTROL_FORMAT;
 			cmd[1] = ctrl;
 			cmd[2] = data_type;
-			ret = ilits->wrapper(cmd, 3, NULL, 0, ON, OFF);
+			if(data_type == P5_X_FW_BASE_DATA_MODE){
+				cmd[3] = 0x03;
+				ret = ilits->wrapper(cmd, 4, NULL, 0, ON, OFF);
+			}else{
+				ret = ilits->wrapper(cmd, 3, NULL, 0, ON, OFF);
+			}
 		} else {
 			cmd[0] = P5_X_MODE_CONTROL;
 			cmd[1] = ctrl;
