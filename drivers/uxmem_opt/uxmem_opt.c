@@ -53,9 +53,11 @@
 
 static int ux_page_debug = 0;
 
-static const unsigned int orders[] = {0, 1};
+//static const unsigned int orders[] = {0, 1};
+static const unsigned int orders[] = {0};
 /* 64M for order 0, 16M  for order 1 by default */
-static const unsigned int page_pool_nr_pages[] = {(SZ_64M >> PAGE_SHIFT), (SZ_16M >> PAGE_SHIFT)};
+//static const unsigned int page_pool_nr_pages[] = {(SZ_64M >> PAGE_SHIFT), (SZ_16M >> PAGE_SHIFT)};
+static const unsigned int page_pool_nr_pages[] = {((SZ_64M) >> PAGE_SHIFT), (SZ_1M >> PAGE_SHIFT)};
 #define NUM_ORDERS ARRAY_SIZE(orders)
 static struct page_pool *pools[NUM_ORDERS];
 static struct task_struct *ux_page_pool_tsk = NULL;
@@ -82,6 +84,40 @@ static atomic_long_t fillthread_runtime_times[NUM_ORDERS][POOL_MIGRATETYPE_TYPES
 #define PARA_BUF_LEN 2560
 
 static int page_pool_fill(struct page_pool *pool, int migratetype);
+
+unsigned long uxmem_pool_inuse_pages(void)
+{
+	struct page_pool *pool;
+	unsigned long inuse_pages = 0;
+	unsigned long flags;
+	int i,j;
+
+	for (i = 0; i < NUM_ORDERS; i++) {
+		pool = pools[i];
+		spin_lock_irqsave(&pool->lock, flags);
+		for (j = 0; j < POOL_MIGRATETYPE_TYPES_SIZE; j++) {
+			inuse_pages += (pool->count[j] * (i + 1));
+		}
+		spin_unlock_irqrestore(&pool->lock, flags);
+	}
+
+        return inuse_pages;
+}
+
+unsigned long uxmem_pool_total_pages(void)
+{
+	struct page_pool *pool;
+	unsigned long total_pages = 0;
+	int i,j;
+
+	for (i = 0; i < NUM_ORDERS; i++) {
+		pool = pools[i];
+		for (j = 0; j < POOL_MIGRATETYPE_TYPES_SIZE; j++)
+			total_pages += (pool->high[j] * (i + 1));
+	}
+
+        return total_pages;
+}
 
 static int order_to_index(unsigned int order)
 {
@@ -207,9 +243,14 @@ struct page_pool *ux_page_pool_create(gfp_t gfp_mask, unsigned int order, unsign
 	for (i = 0; i < POOL_MIGRATETYPE_TYPES_SIZE; i++) {
 		pool->count[i] = 0;
 		/* MIGRATETYPE: UNMOVABLE & MOVABLE */
-		pool->high[i] = nr_pages/POOL_MIGRATETYPE_TYPES_SIZE;
 		/* wakeup kthread on count < low*/
-		pool->low[i]  = pool->high[i]/2;
+		if (i == 0)
+			pool->high[i]  = nr_pages / 8;
+		else
+			pool->high[i]  = nr_pages * 7 / 8;
+
+		pool->low[i]  = pool->high[i] / 2;
+
 		INIT_LIST_HEAD(&pool->items[i]);
 
 		pr_info("%s order:%d migratetype:%d low: %d high: %d count:%d.\n",
@@ -259,6 +300,10 @@ static int page_pool_fill(struct page_pool *pool, int migratetype)
 	if (pool == NULL) {
 		pr_err("%s: pool is NULL!\n", __func__);
 		return -1;
+	}
+
+	if (migratetype == 0) {
+		gfp_refill &= ~(__GFP_CMA | __GFP_MOVABLE);
 	}
 
 	page = alloc_pages(gfp_refill, pool->order);
@@ -373,8 +418,13 @@ static ssize_t ux_page_pool_write(struct file *file,
 			pool = pools[0];
 			spin_lock_irqsave(&pool->lock, flags);
 			/* MIGRATETYPE: UNMOVABLE & MOVABLE */
-			pool->high[i] = high_0/POOL_MIGRATETYPE_TYPES_SIZE;
-			pool->low[i]  = pool->high[i]/2;
+			if (i == 0)
+				pool->high[i]  = high_0 / 8;
+			else
+				pool->high[i] = high_0 * 7 / 8;
+
+			pool->low[i]  = pool->high[i] / 2;
+
 			spin_unlock_irqrestore(&pool->lock, flags);
 			pr_info("%s order:%d migratetype:%d low: %d high: %d count:%d.\n",
 				__func__, pool->order, i,
@@ -693,15 +743,15 @@ static void uxmempool_refill(void *data, struct page *page, int order,
 
 	free_pages -= zone->nr_reserved_highatomic;
 
-	if ((migratetype <= MIGRATE_MOVABLE) && (zone_idx(zone) == ZONE_NORMAL)
-			&& free_pages > mark) {
+	//if ((migratetype <= MIGRATE_MOVABLE) && (zone_idx(zone) == ZONE_NORMAL)
+	if ((migratetype <= MIGRATE_MOVABLE) && free_pages > mark) {
 		if (ux_page_pool_refill(page, order, migratetype))
 			*bypass = true;
 	}
 }
 
 #define KMALLOC_MAX_PAGES 8
-#define UXMEM_POOL_MAX_PAGES 2
+#define UXMEM_POOL_MAX_PAGES 1
 
 static void kvmalloc_check_use_vmalloc(void *data, size_t size,
 		gfp_t *kmalloc_flags, bool *use_vmalloc)
@@ -760,6 +810,15 @@ static void fill_pcplist_from_uxmempool(void *data, unsigned int order,
 	}
 }
 
+void vh_meminfo_proc_show(void *data, struct seq_file *m)
+{
+	seq_printf(m, "UXmemUsed:       %lu kB\n",
+		   uxmem_pool_inuse_pages() * PAGE_SIZE / 1024);
+	seq_printf(m, "UXmemTotal:      %lu kB\n",
+		   uxmem_pool_total_pages() * PAGE_SIZE / 1024);
+
+}
+
 static int register_uxmem_opt_vendor_hooks(void)
 {
 	int ret = 0;
@@ -804,6 +863,12 @@ static int register_uxmem_opt_vendor_hooks(void)
 		pr_err("register_trace_android_vh_rmqueue_bulk_bypass failed! ret=%d\n", ret);
 		goto out;
 	}
+
+	ret = register_trace_android_vh_meminfo_proc_show(vh_meminfo_proc_show, NULL);
+	if (ret != 0) {
+		pr_err("register_trace_android_vh_meminfo_proc_show failed! ret = %d\n", ret);
+		goto out;
+	}
 out:
 	return ret;
 }
@@ -821,6 +886,8 @@ static void unregister_uxmem_opt_vendor_hooks(void)
 	unregister_trace_android_vh_free_unref_page_bypass(uxmempool_refill, NULL);
 
 	unregister_trace_android_vh_alloc_pages_reclaim_bypass(get_page_from_uxmempool, NULL);
+
+	unregister_trace_android_vh_meminfo_proc_show(vh_meminfo_proc_show, NULL);
 }
 
 static int __init uxmem_opt_init(void)
