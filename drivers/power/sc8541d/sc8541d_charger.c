@@ -666,6 +666,8 @@ __maybe_unused static int sc8541d_enable_charge(struct sc8541d_chip *sc, bool en
     if (!en) {
         ret |= sc8541d_field_write(sc, CP_EN, !!en);
 
+        disable_irq(sc->irq);
+
         return ret;
     } else {
         ret = sc8541d_get_adc_data(sc, ADC_VBUS, &vbus_value);
@@ -681,7 +683,7 @@ __maybe_unused static int sc8541d_enable_charge(struct sc8541d_chip *sc, bool en
 
         ret |= sc8541d_field_write(sc, CP_EN, !!en);
 
-        disable_irq(sc->irq);
+        //disable_irq(sc->irq);
 
         mdelay(300);
 
@@ -772,8 +774,6 @@ static int mtk_sc8541d_set_vbatovp(struct charger_device *chg_dev, u32 uV)
     int ret;
 
     ret = sc8541d_set_batovp_th(sc, uV/1000);
-    if (ret < 0)
-        return ret;
 
     return ret;
 }
@@ -784,9 +784,7 @@ static int mtk_sc8541d_set_ibatocp(struct charger_device *chg_dev, u32 uA)
     int ret;
 
     ret = sc8541d_set_batocp_th(sc, uA/1000);
-    if (ret < 0)
-        return ret;
-sc8541d_dump_reg(sc);
+
     return ret;
 }
 
@@ -1566,8 +1564,8 @@ static int sc8541d_irq_register(struct sc8541d_chip *sc)
         return ret;
     }
 
-    enable_irq_wake(sc->irq);
-
+    //enable_irq_wake(sc->irq);
+    disable_irq(sc->irq);
     return ret;
 }
 
@@ -1706,9 +1704,9 @@ static int sc8541d_suspend(struct device *dev)
     struct sc8541d_chip *sc = dev_get_drvdata(dev);
 
     dev_info(sc->dev, "Suspend successfully!");
-    if (device_may_wakeup(dev))
-        enable_irq_wake(sc->irq);
-    disable_irq(sc->irq);
+//    if (device_may_wakeup(dev))
+//        enable_irq_wake(sc->irq);
+//    disable_irq(sc->irq);
 
     return 0;
 }
@@ -1718,9 +1716,9 @@ static int sc8541d_resume(struct device *dev)
     struct sc8541d_chip *sc = dev_get_drvdata(dev);
 
     dev_info(sc->dev, "Resume successfully!");
-    if (device_may_wakeup(dev))
-        disable_irq_wake(sc->irq);
-    enable_irq(sc->irq);
+//    if (device_may_wakeup(dev))
+//        disable_irq_wake(sc->irq);
+//    enable_irq(sc->irq);
 
     return 0;
 }
