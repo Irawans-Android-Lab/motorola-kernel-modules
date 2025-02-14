@@ -545,7 +545,7 @@ static int zeroflash_get_fw_image(void)
 #endif
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
-	const struct firmware *p_fw_entry;
+	const struct firmware **p_fw_entry;
 	unsigned char *p_image_name;
 
 
@@ -553,24 +553,24 @@ static int zeroflash_get_fw_image(void)
 
 #ifdef CONFIG_SUPPORT_MULTI_FIRMWARE
 	if (tcm_hcd->request_fw_image_id == TEST_FIRMWARE) {
-		p_fw_entry = zeroflash_hcd->test_fw_entry;
+		p_fw_entry = &zeroflash_hcd->test_fw_entry;
 		p_image_name = TEST_FW_IMAGE_NAME;
 	} else if (tcm_hcd->request_fw_image_id == LPWG_FIRMWARE) {
-		p_fw_entry = zeroflash_hcd->lpwg_fw_entry;
+		p_fw_entry = &zeroflash_hcd->lpwg_fw_entry;
 		p_image_name = LPWG_FW_IMAGE_NAME;
 	} else
 	{
-		p_fw_entry = zeroflash_hcd->fw_entry;
+		p_fw_entry = &zeroflash_hcd->fw_entry;
 		p_image_name = FW_IMAGE_NAME;
 	}
 #else
-	p_fw_entry = zeroflash_hcd->fw_entry;
+	p_fw_entry = &zeroflash_hcd->fw_entry;
 	p_image_name = FW_IMAGE_NAME;
 #endif
 
-	if (p_fw_entry != NULL) {
-		release_firmware(p_fw_entry);
-		p_fw_entry = NULL;
+	if (*p_fw_entry != NULL) {
+		release_firmware(*p_fw_entry);
+		*p_fw_entry = NULL;
 		zeroflash_hcd->image = NULL;
 	}
 
@@ -581,7 +581,7 @@ static int zeroflash_get_fw_image(void)
 	}*/
 
 	while(retry_cnt--) {
-		retval = request_firmware(&zeroflash_hcd->fw_entry,
+		retval = request_firmware(p_fw_entry,
 				p_image_name,
 				tcm_hcd->pdev->dev.parent);
 		if (retval < 0) {
@@ -596,11 +596,12 @@ static int zeroflash_get_fw_image(void)
 			break;
 		}
 	}
-	LOGD(tcm_hcd->pdev->dev.parent,
-			"Firmware image size = %d\n",
-			(unsigned int)zeroflash_hcd->fw_entry->size);
 
-	zeroflash_hcd->image = zeroflash_hcd->fw_entry->data;
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"Firmware image size = %d\n",
+			(unsigned int)(*p_fw_entry)->size);
+
+	zeroflash_hcd->image = (*p_fw_entry)->data;
 #else
 	zeroflash_hcd->image = omnivsion_image_array;
 #endif
@@ -610,8 +611,8 @@ static int zeroflash_get_fw_image(void)
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to parse firmware image\n");
 #if USE_OMNIVSION_IMG_FILE
-		release_firmware(zeroflash_hcd->fw_entry);
-		zeroflash_hcd->fw_entry = NULL;
+		release_firmware(*p_fw_entry);
+		*p_fw_entry = NULL;
 #endif
 		zeroflash_hcd->image = NULL;
 		return retval;
