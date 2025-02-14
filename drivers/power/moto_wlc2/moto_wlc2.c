@@ -843,6 +843,7 @@ static int moto_wlc_probe(struct platform_device *pdev)
 		wlc->ctl.enable_rod = true;
 		INIT_DELAYED_WORK(&wlc->offset_detect_work, wls_device_offset_detect_work);
 	}
+	INIT_DELAYED_WORK(&wlc->dump_info_work, wlc_chg_dump_info_work);
 
 #ifdef CONFIG_MOTO_PHONE_CASE_SUPPORT
 	rc = phone_case_detection_get_hall_state();

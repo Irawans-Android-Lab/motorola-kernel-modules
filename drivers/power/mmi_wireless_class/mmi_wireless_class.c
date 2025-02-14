@@ -90,6 +90,7 @@ WLS_RX_SET(fw_update, bool a);
 WLS_RX_SET(mc_det, bool a);
 
 WLS_RX_CHECK(ldo_on);
+WLS_RX_CHECK(dump_info);
 
 int wls_get_message_size(int header)
 {

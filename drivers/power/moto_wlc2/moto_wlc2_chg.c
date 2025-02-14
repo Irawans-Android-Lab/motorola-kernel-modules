@@ -466,6 +466,8 @@ int wls_chg_event_handler(struct wireless_device* wls_dev, struct wls_event_msg 
 			}
 			break;
 		case WLS_EVENT_RX_POWER_ON:
+			if (!wlc->config.secure_hardware)
+				queue_delayed_work(wlc->wls_wq, &wlc->dump_info_work, msecs_to_jiffies(10));
 			wls_chg_power_on(wlc);
 			break;
 		case WLS_EVENT_RX_NEGO_POWER_READY:
@@ -760,4 +762,21 @@ int wls_chg_notify_otg_plugin(struct moto_wlc *wlc, bool on)
 	}
 
 	return rt;
+}
+
+void wlc_chg_dump_info_work(struct work_struct *work)
+{
+	struct moto_wlc *wlc =
+		container_of((struct delayed_work*)work, struct moto_wlc, dump_info_work);
+	int delay_ms = 0;
+
+	if (IS_ERR_OR_NULL(wlc)) {
+		wlc_err("%s wlc is err or null\n", __func__);
+		return;
+	}
+
+	if (wls_rx_check_dump_info(wlc->wls_dev)) {
+		delay_ms = wlc->ctl.rx_ldo_on ? 3000 : 1000;
+		queue_delayed_work(wlc->wls_wq, &wlc->dump_info_work, msecs_to_jiffies(delay_ms));
+	}
 }

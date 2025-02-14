@@ -94,6 +94,7 @@ struct wls_rx_ops {
 	bool (*check_ldo_on)(struct wireless_device *wls_dev);
 	bool (*check_rx_power_on)(struct wireless_device *wls_dev);
 	bool (*check_auth_handshake)(struct wireless_device *wls_dev);
+	bool (*check_dump_info)(struct wireless_device *wls_dev);
 
 	int (*send_ask_packet)(struct wireless_device *wls_dev, uint8_t *data, int data_len);
 };
@@ -179,6 +180,7 @@ extern int wls_rx_set_fw_update(struct wireless_device *wls_dev, bool force);
 extern int wls_rx_set_mc_det(struct wireless_device *wls_dev, bool on);
 
 extern bool wls_rx_check_ldo_on(struct wireless_device *wls_dev);
+extern bool wls_rx_check_dump_info(struct wireless_device *wls_dev);
 
 extern int wls_rx_send_ask_packet(struct wireless_device *wls_dev, uint8_t *data, int data_len);
 extern int wls_get_message_size(int header);

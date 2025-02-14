@@ -393,6 +393,7 @@ struct moto_wlc {
 	struct delayed_work light_fan_work;
 	struct delayed_work offset_detect_work;
 	struct delayed_work mode_switch_work;
+	struct delayed_work dump_info_work;
 };
 
 extern int wlc_hal_init_hardware(struct chg_alg_device *alg);
@@ -449,6 +450,7 @@ extern int wls_chg_get_mux_channel(int *mux_channel);
 extern void wlc_chg_bpp_mode_icl_work(struct work_struct *work);
 extern int wls_chg_notify_otg_plugin(struct moto_wlc *wlc, bool on);
 extern void wlc_chg_mc_icl_work(struct work_struct *work);
+extern void wlc_chg_dump_info_work(struct work_struct *work);
 
 extern int wls_device_node_create(struct device *dev);
 extern void wls_device_fw_update_work(struct work_struct *work);

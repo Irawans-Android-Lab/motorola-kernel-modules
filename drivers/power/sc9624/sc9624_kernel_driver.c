@@ -226,7 +226,7 @@ int sc9624_get_frequecy(struct sc9624 *sc, uint16_t *freq)
     return ret;
 }
 
-int sc9624_get_vrect(struct sc9624 *sc, uint32_t *vrect)
+int sc9624_get_vrect(struct sc9624 *sc, uint16_t *vrect)
 {
     int ret;
     uint16_t offset = 0;
@@ -243,6 +243,22 @@ int sc9624_get_vrect(struct sc9624 *sc, uint32_t *vrect)
             (uint8_t)sizeof(((RXCustType *)0)->Vrect));
     if (ret) {
         sc_err("sc9624 get vrect fail\n");
+    }
+
+    return ret;
+}
+
+int sc9624_get_vping(struct sc9624 *sc, uint32_t *vping)
+{
+    int ret;
+    uint16_t offset = 0;
+
+    OFFSET(RXCustType, Vping, offset);
+
+    ret = sc9624_read_block(sc, offset, (uint8_t *)vping,
+            (uint8_t)sizeof(((RXCustType *)0)->Vping));
+    if (ret) {
+        sc_err("sc9624 get Vping fail\n");
     }
 
     return ret;
@@ -864,6 +880,8 @@ static int rx_poweron_irq_handler(struct sc9624 *sc)
     sc_info(" hw ver : 0x%08x\n", regval);
     ret = sc9624_get_gitver(sc, &regval);
     sc_info(" git ver : 0x%08x\n", regval);
+    ret = sc9624_get_vping(sc, &regval);
+    sc_info(" Vping : %dmV\n", regval);
 
     return ret;
 }
@@ -1330,7 +1348,7 @@ int sc9624_get_rx_irect(struct wireless_device *wls_dev, int *cur)
 int sc9624_get_rx_vrect(struct wireless_device *wls_dev, int *voltage)
 {
 	int rt = 0;
-	uint32_t vrect = 0;
+	uint16_t vrect = 0;
 	struct sc9624 *sc = NULL;
 
 	sc = dev_get_drvdata(&wls_dev->dev);
@@ -1506,6 +1524,46 @@ int sc9624_get_fw_update_status(struct wireless_device *wls_dev, int *status)
 	return 0;
 }
 
+bool sc9624_dump_info(struct wireless_device *wls_dev)
+{
+	struct sc9624 *sc = NULL;
+	int ret = -1;
+	int ce = 0;
+	uint16_t Vrect = 0;
+	uint32_t Vout = 0;
+	uint16_t Frequecy = 0;
+	uint32_t Tdie = 0;
+	SYSMODE sysmode = {0x00};
+
+	sc = dev_get_drvdata(&wls_dev->dev);
+	if (IS_ERR_OR_NULL(sc)) {
+		sc_err("sc9624 is err or null\n");
+		return false;
+	}
+
+	ret = sc9624_rx_get_sysmode(sc, &sysmode.value);
+	if (ret) {
+		sc_err("get_sysmode failed\n");
+		return false;
+	}
+
+	if (!sysmode.RECEIVER) {
+		sc_err("not in RX mode\n");
+		return false;
+	}
+
+	ret = sc9624_get_rx_ce(sc, &ce);
+	ret |= sc9624_get_vrect(sc, &Vrect);
+	ret |= sc9624_get_voltage(sc, &Vout);
+	ret |= sc9624_get_frequecy(sc, &Frequecy);
+	ret |= sc9624_get_tdie(sc, &Tdie);
+
+	sc_info("Vrect:%d,Vout:%d,Freq:%d,ce:%d,dieTemp:%d,ret:%d\n",
+			Vrect, Vout, Frequecy, ce, Tdie, ret);
+
+	return (ret == 0);
+}
+
 int sc9624_send_event(struct sc9624 *sc, struct wls_event_msg *msg)
 {
 	int rt = -1;
@@ -1547,6 +1605,7 @@ static int sc9624_wlc2_init(struct sc9624 *sc)
 	sc->rx_ops.set_mc_det = sc9624_set_mc_det;
 	sc->rx_ops.get_ce = sc9624_get_ce;
 	sc->rx_ops.get_mcode = sc9624_get_txinfo_mcode;
+	sc->rx_ops.check_dump_info = sc9624_dump_info;
 
 	sc->wls_dev = wireless_device_register("moto_wlc2",
 							&sc->client->dev, (void*)sc,
