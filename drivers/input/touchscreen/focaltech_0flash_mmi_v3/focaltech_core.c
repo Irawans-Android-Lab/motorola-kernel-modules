@@ -109,6 +109,8 @@ bool dbg_level_en = 0;
 static bool time_flag = 0;
 #endif
 
+static int ts_state = 0;
+
 /*****************************************************************************
 * Static function prototypes
 *****************************************************************************/
@@ -1814,7 +1816,10 @@ static void fts_resume_work(struct work_struct *work)
 {
     struct fts_ts_data *ts_data = container_of(work, struct fts_ts_data,
                                   resume_work);
-
+    if (!ts_data) {
+        FTS_INFO("ts_data null, ret");
+        return;
+    }
     fts_ts_resume(ts_data->dev);
 }
 
@@ -1828,6 +1833,10 @@ static int disp_notifier_callback(struct notifier_block *nb,
 
 	if (!data || !ts_data) {
 		FTS_DEBUG("data null, ret");
+		return 0;
+	}
+	else if (ts_state < 0) {
+		FTS_INFO("warn: in remove ts_state:%d, skip!", ts_state);
 		return 0;
 	}
 
@@ -2663,12 +2672,33 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 {
     FTS_FUNC_ENTER();
 
+    ts_state = -1;
+    FTS_INFO("set remove state:%d", ts_state);
     cancel_work_sync(&fts_data->resume_work);
 
 #if FTS_USB_DETECT_EN
 	if (ts_data->charger_notif.notifier_call)
 		power_supply_unreg_notifier(&ts_data->charger_notif);
 #endif
+
+#ifdef CFG_MTK_PANEL_NOTIFIER
+	fts_deinit_pm_disp_notifier(ts_data);
+#else
+#if defined(CONFIG_DRM)
+#if defined(CONFIG_DRM_PANEL)
+    if (active_panel)
+        drm_panel_notifier_unregister(active_panel, &ts_data->fb_notif);
+#else
+    if (msm_drm_unregister_client(&ts_data->fb_notif))
+        FTS_ERROR("[DRM]Error occurred while unregistering fb_notifier.\n");
+#endif //CONFIG_DRM_PANEL
+#elif defined(CONFIG_FB)
+    if (fb_unregister_client(&ts_data->fb_notif))
+        FTS_ERROR("[FB]Error occurred while unregistering fb_notifier.");
+#elif defined(CONFIG_HAS_EARLYSUSPEND)
+    unregister_early_suspend(&ts_data->early_suspend);
+#endif //CONFIG_DRM
+#endif //CFG_MTK_PANEL_NOTIFIER
 
 #if FTS_POINT_REPORT_CHECK_EN
     fts_point_report_check_exit(ts_data);
@@ -2703,25 +2733,6 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
     if (ts_data->ts_workqueue)
         destroy_workqueue(ts_data->ts_workqueue);
 
-#ifdef CFG_MTK_PANEL_NOTIFIER
-	fts_deinit_pm_disp_notifier(ts_data);
-#else
-#if defined(CONFIG_DRM)
-#if defined(CONFIG_DRM_PANEL)
-    if (active_panel)
-        drm_panel_notifier_unregister(active_panel, &ts_data->fb_notif);
-#else
-    if (msm_drm_unregister_client(&ts_data->fb_notif))
-        FTS_ERROR("[DRM]Error occurred while unregistering fb_notifier.\n");
-#endif //CONFIG_DRM_PANEL
-#elif defined(CONFIG_FB)
-    if (fb_unregister_client(&ts_data->fb_notif))
-        FTS_ERROR("[FB]Error occurred while unregistering fb_notifier.");
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
-    unregister_early_suspend(&ts_data->early_suspend);
-#endif //CONFIG_DRM
-#endif //CFG_MTK_PANEL_NOTIFIER
-
     if (gpio_is_valid(ts_data->pdata->reset_gpio))
         gpio_free(ts_data->pdata->reset_gpio);
 
@@ -2735,6 +2746,10 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
     kfree_safe(ts_data->touch_buf);
     kfree_safe(ts_data->pdata);
     kfree_safe(ts_data);
+    if (NULL != ts_data) {
+        FTS_INFO("clear ts_data to NULL");
+        ts_data = NULL;
+    }
 
     FTS_FUNC_EXIT();
 
@@ -2782,6 +2797,15 @@ static int fts_ts_suspend(struct device *dev)
 {
     int ret = 0;
     struct fts_ts_data *ts_data = fts_data;
+
+    if (!ts_data) {
+        FTS_INFO("ts_data null, ret");
+        return 0;
+    }
+    else if (ts_state < 0) {
+        FTS_INFO("warn: in remove ts_state:%d, skip!", ts_state);
+        return 0;
+    }
 
 #ifdef FOCALTECH_SENSOR_EN
     mutex_lock(&ts_data->state_mutex);
@@ -2877,6 +2901,15 @@ static int fts_ts_suspend(struct device *dev)
 static int fts_ts_resume(struct device *dev)
 {
     struct fts_ts_data *ts_data = fts_data;
+
+    if (!ts_data) {
+        FTS_INFO("ts_data null, ret");
+        return 0;
+    }
+    else if (ts_state < 0) {
+        FTS_INFO("warn: ts_state:%d removed, skip!", ts_state);
+        return 0;
+    }
 
 #ifdef FOCALTECH_SENSOR_EN
     mutex_lock(&ts_data->state_mutex);
@@ -3032,9 +3065,11 @@ static int fts_ts_probe(struct spi_device *spi)
     if (ret) {
         FTS_ERROR("Touch Screen(SPI BUS) driver probe fail");
         kfree_safe(ts_data);
+        ts_data = NULL;
         return ret;
     }
 
+    ts_state = 0;
     FTS_INFO("Touch Screen(SPI BUS) driver prboe successfully");
     return 0;
 }
