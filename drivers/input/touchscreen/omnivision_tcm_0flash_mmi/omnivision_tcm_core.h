@@ -51,6 +51,11 @@
 	#include <linux/sched/signal.h>
 #endif
 
+#include <linux/mmi_wake_lock.h>
+#ifdef OVT_TAP_SENSOR_EN
+#include <linux/sensors.h>
+#endif
+
 #define I2C_MODULE_NAME "omniVision_tcm_i2c"
 #define SPI_MODULE_NAME "omnivision_tcm_spi"
 
@@ -545,6 +550,16 @@ enum firmware_image_type {
 };
 #endif
 
+#ifdef OVT_TAP_SENSOR_EN
+struct ovt_tap_sensor_platform_data {
+    struct input_dev *input_sensor_dev;
+    struct sensors_classdev ps_cdev;
+    int sensor_opened;
+    char sensor_data; /* 0 near, 1 far */
+    struct ovt_tcm_hcd *data;
+};
+#endif
+
 struct ovt_tcm_hcd {
 	pid_t isr_pid;
 	atomic_t command_status;
@@ -634,11 +649,11 @@ struct ovt_tcm_hcd {
 #ifdef CONFIG_OVT_CHARGER_DETECT
     void *charger_detect_data;
 #endif
- #ifdef OVT_SENSOR_EN
+#ifdef OVT_TAP_SENSOR_EN
     //bool wakeable;
     //enum display_state screen_state;
     struct mutex state_mutex;
-    struct ovt_sensor_platform_data *sensor_pdata;
+    struct ovt_tap_sensor_platform_data *sensor_pdata;
 #endif
 	int (*reset)(struct ovt_tcm_hcd *tcm_hcd);
 	int (*reset_n_reinit)(struct ovt_tcm_hcd *tcm_hcd, bool hw, bool update_wd);
@@ -900,6 +915,11 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 {
 	return (dividend + divisor - 1) / divisor;
 }
+
+#ifdef OVT_TAP_SENSOR_EN
+extern int __attribute__ ((weak)) sensors_classdev_register(struct device *parent, struct sensors_classdev *sensors_cdev);
+extern void __attribute__ ((weak)) sensors_classdev_unregister(struct sensors_classdev *sensors_cdev);
+#endif
 
 extern int touch_set_state(int state, int panel_idx);
 extern int ovt_tcm_set_func_charger_connected_en_state(unsigned short value);

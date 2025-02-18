@@ -160,6 +160,33 @@ struct touch_hcd {
 	struct ovt_tcm_hcd *tcm_hcd;
 };
 
+#ifdef OVT_TAP_SENSOR_EN
+#ifdef CONFIG_HAS_WAKELOCK
+static struct wake_lock gesture_wakelock;
+#else
+static struct wakeup_source *gesture_wakelock;
+#endif
+static struct sensors_classdev __maybe_unused sensors_touch_cdev = {
+    .name = "dt-gesture",
+    .vendor = "omnivision",
+    .version = 1,
+    .type = SENSOR_TYPE_MOTO_DOUBLE_TAP,
+    .max_range = "5.0",
+    .resolution = "5.0",
+    .sensor_power = "1",
+    .min_delay = 0,
+    .max_delay = 0,
+    /* WAKE_UP & SPECIAL_REPORT */
+    .flags = 1 | 6,
+    .fifo_reserved_event_count = 0,
+    .fifo_max_event_count = 0,
+    .enabled = 0,
+    .delay_msec = 200,
+    .sensors_enable = NULL,
+    .sensors_poll_delay = NULL,
+};
+#endif
+
 static struct touch_hcd *touch_hcd;
 #if SUPPORT_FACE_DETECT
 static int ovt_check_face_state(int current_face_state);
@@ -743,17 +770,23 @@ static void touch_report(void)
 			keycode = KEY_F1;
 			OVT_INFO("single tap report KEY_F1\n");
 		}
+
+		input_report_key(tcm_hcd->sensor_pdata->input_sensor_dev, keycode, 1);
+		input_sync(tcm_hcd->sensor_pdata->input_sensor_dev);
+		input_report_key(tcm_hcd->sensor_pdata->input_sensor_dev, keycode, 0);
+		input_sync(tcm_hcd->sensor_pdata->input_sensor_dev);
+		PM_WAKEUP_EVENT(gesture_wakelock, 5000);
 #else
 		if (touch_data->gesture_id == GESTURE_DOUBLE_TAP)
 			keycode = KEY_POWER;
 		else
 			keycode = KEY_U;
-#endif
 
 		input_report_key(touch_hcd->input_dev, keycode, 1);
 		input_sync(touch_hcd->input_dev);
 		input_report_key(touch_hcd->input_dev, keycode, 0);
 		input_sync(touch_hcd->input_dev);
+#endif
 	}
 #endif
 
@@ -1247,11 +1280,95 @@ exit:
 	return retval;
 }
 
+#ifdef OVT_TAP_SENSOR_EN
+static int ovt_tap_sensor_set_enable(struct sensors_classdev *sensors_cdev,
+    unsigned int enable)
+{
+    //OVT_DEBUG("double tap ctrl, do nothing\n");
+    return 0;
+}
+
+static int ovt_tap_sensor_init(struct ovt_tcm_hcd *data)
+{
+    struct ovt_tap_sensor_platform_data *sensor_pdata;
+    struct input_dev *sensor_input_dev;
+    int err;
+
+    sensor_input_dev = input_allocate_device();
+    if (!sensor_input_dev) {
+        OVT_ERROR("Failed to allocate device");
+        goto exit;
+    }
+
+    sensor_pdata = devm_kzalloc(&sensor_input_dev->dev,
+                                sizeof(struct ovt_tap_sensor_platform_data),
+                                GFP_KERNEL);
+    if (!sensor_pdata) {
+        OVT_ERROR("Failed to allocate memory");
+        goto free_sensor_pdata;
+    }
+    data->sensor_pdata = sensor_pdata;
+
+    __set_bit(EV_KEY, sensor_input_dev->evbit);
+    __set_bit(KEY_F1, sensor_input_dev->keybit);
+    __set_bit(KEY_F4, sensor_input_dev->keybit);
+    __set_bit(EV_SYN, sensor_input_dev->evbit);
+
+    sensor_input_dev->name = "double-tap";
+    data->sensor_pdata->input_sensor_dev = sensor_input_dev;
+
+    err = input_register_device(sensor_input_dev);
+    if (err) {
+        OVT_ERROR("Unable to register device, err=%d", err);
+        goto free_sensor_input_dev;
+    }
+
+    sensor_pdata->ps_cdev = sensors_touch_cdev;
+    sensor_pdata->ps_cdev.sensors_enable = ovt_tap_sensor_set_enable;
+    sensor_pdata->data = data;
+
+    err = sensors_classdev_register(&sensor_input_dev->dev,
+                                    &sensor_pdata->ps_cdev);
+    if (err)
+        goto unregister_sensor_input_device;
+
+	OVT_INFO("done");
+    return 0;
+
+unregister_sensor_input_device:
+    input_unregister_device(data->sensor_pdata->input_sensor_dev);
+free_sensor_input_dev:
+    input_free_device(data->sensor_pdata->input_sensor_dev);
+free_sensor_pdata:
+    devm_kfree(&sensor_input_dev->dev, sensor_pdata);
+    data->sensor_pdata = NULL;
+exit:
+	OVT_INFO("exit 1");
+    return 1;
+}
+
+int ovt_tap_sensor_remove(struct ovt_tcm_hcd *data)
+{
+    sensors_classdev_unregister(&data->sensor_pdata->ps_cdev);
+    input_unregister_device(data->sensor_pdata->input_sensor_dev);
+    devm_kfree(&data->sensor_pdata->input_sensor_dev->dev,
+               data->sensor_pdata);
+    data->sensor_pdata = NULL;
+    //data->wakeable = false;
+    data->wakeup_gesture_enabled = false;
+	OVT_INFO("end");
+    return 0;
+}
+#endif
 
 int touch_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
+#ifdef OVT_TAP_SENSOR_EN
+    static bool initialized_tap_sensor;
+#endif
 
+	OVT_INFO("enter");
 	touch_hcd = kzalloc(sizeof(*touch_hcd), GFP_KERNEL);
 	if (!touch_hcd) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1275,6 +1392,26 @@ int touch_init(struct ovt_tcm_hcd *tcm_hcd)
 
 	tcm_hcd->report_touch = touch_report;
 
+#ifdef OVT_TAP_SENSOR_EN
+    if (!initialized_tap_sensor) {
+#ifdef CONFIG_HAS_WAKELOCK
+        wake_lock_init(&gesture_wakelock, WAKE_LOCK_SUSPEND, "poll-wake-lock");
+#else
+        PM_WAKEUP_REGISTER(tcm_hcd->pdev->dev.parent, gesture_wakelock, "poll-wake-lock");
+        if (!gesture_wakelock) {
+            OVT_ERROR("failed to allocate wakeup source\n");
+            //return -ENOMEM;
+        }
+#endif
+
+        if (!ovt_tap_sensor_init(tcm_hcd))
+            initialized_tap_sensor = true;
+
+        //OVT_DEBUG("initialized_tap_sensor:%d", initialized_tap_sensor);
+    }
+#endif
+
+	OVT_INFO("end");
 	return 0;
 
 err_set_input_reporting:
