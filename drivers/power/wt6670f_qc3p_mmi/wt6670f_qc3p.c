@@ -779,7 +779,10 @@ u16 wt6670f_get_vbus_voltage(void)
 	pr_err(">>>>>>wt6670f get vbus voltage = %04x  %02x  %02x\n", tmp,
 			data[0], data[1]);
 	kernel_neon_begin();
-	tmp = (u16)(tmp * 1898 / 100);
+	if (QC3P_WT6670F == g_qc3p_id)
+		tmp = (u16)(tmp * 1898 / 100);
+	else
+		tmp = (u16)(tmp * 2400 >> 7);
 	kernel_neon_end();
 	return tmp;
 }
@@ -804,10 +807,11 @@ static u16 wt6670f_get_id(u8 reg)
 
 int wt6670f_start_detection(void)
 {
-	int ret;
+	int ret = 0;
 	u16 data = 0x01;
 
-	ret = mmi_wt6670f_write_word(_wt, 0xB6, data);
+	if(QC3P_WT6670F == g_qc3p_id)
+		ret = mmi_wt6670f_write_word(_wt, 0xB6, data);
 	if (ret < 0)
 	{
 		pr_info("wt6670f start detection fail\n");
@@ -820,10 +824,11 @@ EXPORT_SYMBOL_GPL(wt6670f_start_detection);
 
 int wt6670f_re_run_apsd(void)
 {
-	int ret;
+	int ret = 0;
 	u16 data = 0x01;
 
-	ret = mmi_wt6670f_write_word(_wt, 0xB6, data);
+	if(QC3P_WT6670F == g_qc3p_id)
+		ret = mmi_wt6670f_write_word(_wt, 0xB6, data);
 
 	if (ret < 0)
 	{
@@ -1294,12 +1299,19 @@ int mmi_is_charger_ready(struct adapter_device *dev, bool *val)
 
 int mmi_get_protocol(struct adapter_device *dev, int *val)
 {
+	int wait_count = 0;
 	*val = wt6670f_get_protocol();
 
-	if(QC3P_Z350 == g_qc3p_id && *val == 0x010)
-	{
+	if(QC3P_Z350 == g_qc3p_id && *val == 0x010) {
 		wt6670f_en_hvdcp();
-		msleep(100);
+		wait_count = 0;
+		while(wait_count < 30) {
+			msleep(100);
+			wait_count++;
+		}
+
+		*val = wt6670f_get_protocol();
+		pr_info("wt6670f_get_protocol *val=%d\n",*val);
 	}
 
 	return 0;
