@@ -3207,6 +3207,28 @@ static bool cps_wls_query_typec_attached_state(void)
 		return false;
 }
 #endif /* CONFIG_MOTO_CHANNEL_SWITCH */
+#else
+#ifdef CONFIG_MOTO_WLS_CP_OTG_REVERSE_SWITCH
+static bool cps_wls_query_typec_attached_state(void)
+{
+	struct tcpc_device *tcpc_dev;
+	uint8_t  attached_type = 0;
+
+	tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
+
+	if (!tcpc_dev) {
+		dev_err(chip->dev, "get tcpc device fail\n");
+		return false;
+	}
+
+	attached_type=tcpc_dev->typec_attach_new;
+	dev_info(chip->dev, "get typec attached type %x !\n", attached_type);
+	if(attached_type ==  TYPEC_ATTACHED_SRC)
+		return true;
+	else
+		return false;
+}
+#endif
 #endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)) && (!IS_ENABLED(CONFIG_WLC_WO_BOOST))
@@ -3262,6 +3284,13 @@ static bool cps_wls_fw_set_boost(bool val)
 
 	mmi_mux_wls_chg_chan(MMI_MUX_CHANNEL_WLC_FW_UPDATE, !!val);//Open OTG for wireless updata
 
+#ifdef CONFIG_MOTO_WLS_CP_OTG_REVERSE_SWITCH
+	if( val == false && cps_wls_query_typec_attached_state()){
+		cps_wls_log(CPS_LOG_ERR,"%s otg attached and switch channel \n",__func__);
+		mmi_mux_wls_chg_chan(MMI_MUX_CHANNEL_TYPEC_OTG, true);
+	};
+#endif
+	cps_wls_log(CPS_LOG_ERR, "%s set otg :%d\n", __func__,val);
 	ret = charger_dev_enable_otg(chg_psy, !!val);
 	if(ret < 0){
 		cps_wls_log(CPS_LOG_ERR, "%s set otg fail\n", __func__);
@@ -4650,6 +4679,7 @@ static void cps_wls_current_select(int  *icl, int *vbus, bool *cable_ready)
     struct cps_wls_chrg_chip *chg = chip;
     uint32_t wls_power = 0;
     int wls_voltage = 0;
+    Sys_Op_Mode mode_type = Sys_Op_Mode_INVALID;
 
     if (chip->cable_ready_wait_count < 3 && !chip->moto_stand)
     {
@@ -4657,12 +4687,14 @@ static void cps_wls_current_select(int  *icl, int *vbus, bool *cable_ready)
         chip->cable_ready_wait_count++;
         return;
     }
+    cps_get_sys_op_mode(&mode_type);
     *cable_ready = true;
     *icl = 400000;
     *vbus = 5000;
-    cps_wls_log(CPS_LOG_ERR, "%s start icl=%d vbus=%d mode_type:%d,mc_status:%d\n",
-			__func__, *icl, *vbus, chg->mode_type,chg->mc_status);
+    cps_wls_log(CPS_LOG_ERR, "%s start icl=%d vbus=%d mode_type:%d,mc_status:%d,real_mode_type:%d\n",
+			__func__, *icl, *vbus, chg->mode_type,chg->mc_status, mode_type);
     if (chg->mc_support && chg->mc_status) {
+		chg->mode_type = mode_type;
 		wls_power = cps_wls_get_rx_neg_power() / 2;
 		if (chg->moto_stand || chg->mcode == MOTO_TX_MCODE) {
 			if (wls_power == WLS_RX_CAP_15W) {
@@ -4692,7 +4724,8 @@ static void cps_wls_current_select(int  *icl, int *vbus, bool *cable_ready)
 				*vbus = 12000;
 				chg->MaxV = *vbus;
 				if (chg->mc_icl_state == MC_ICL_RUN) {
-					cps_wls_log(CPS_LOG_ERR, "%s mc_icl_state=%d epp mc icl run\n", __func__, chg->mc_icl_state);
+					*icl = chg->mc_icl_max_uA;
+					cps_wls_log(CPS_LOG_ERR, "%s mc_icl_state=%d epp mc icl run, icl:%d\n", __func__, chg->mc_icl_state, chg->mc_icl_max_uA);
 					return ;
 				} else {
 					*icl = chg->mc_icl_max_uA;
@@ -4850,6 +4883,7 @@ static void cps_epp_current_select(int  *icl, int *vbus)
 				*vbus = 12000;
 				chg->MaxV = *vbus;
 				if (chg->mc_icl_state == MC_ICL_RUN) {
+					*icl = chg->mc_icl_max_uA;
 					cps_wls_log(CPS_LOG_ERR, "%s mc_icl_state=%d epp mc icl run\n", __func__, chg->mc_icl_state);
 					return ;
 				} else {
