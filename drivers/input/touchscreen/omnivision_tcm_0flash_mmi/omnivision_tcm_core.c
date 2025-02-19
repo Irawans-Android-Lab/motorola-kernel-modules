@@ -5254,9 +5254,13 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	OVT_INFO("device_module_init\n");
 	device_module_init();
 	testing_module_init();
+#ifdef CONIFG_OVT_ZEROFLASH
 	zeroflash_module_init();
-	diag_module_init();
+#else
 	reflash_module_init();
+#endif
+	diag_module_init();
+
 	//recovery_module_init(); no need
 #ifdef CONFIG_OVT_CHARGER_DETECT
 	charger_module_init();

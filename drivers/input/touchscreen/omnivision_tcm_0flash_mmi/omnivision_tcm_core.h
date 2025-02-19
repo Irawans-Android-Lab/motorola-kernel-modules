@@ -59,6 +59,8 @@
 #define I2C_MODULE_NAME "omniVision_tcm_i2c"
 #define SPI_MODULE_NAME "omnivision_tcm_spi"
 
+#define CONIFG_OVT_ZEROFLASH
+
 #define CONFIG_OVT_CHARGER_DETECT
 
 #ifdef CONFIG_OVT_CHARGER_DETECT
