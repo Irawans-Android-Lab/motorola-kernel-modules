@@ -187,6 +187,10 @@ static struct sensors_classdev __maybe_unused sensors_touch_cdev = {
 };
 #endif
 
+#ifdef CONFIG_TP_LAST_TIME
+static bool time_flag = 1;
+#endif
+
 static struct touch_hcd *touch_hcd;
 #if SUPPORT_FACE_DETECT
 static int ovt_check_face_state(int current_face_state);
@@ -808,6 +812,7 @@ static void touch_report(void)
 			input_mt_slot(touch_hcd->input_dev, idx);
 			input_mt_report_slot_state(touch_hcd->input_dev,
 					MT_TOOL_FINGER, 0);
+			if (tcm_hcd->log_level > 2) OVT_INFO("LIFT, touch UP");
 #endif
 			break;
 		case FINGER:
@@ -861,6 +866,7 @@ static void touch_report(void)
 					idx, x, y);
 #endif
 			touch_count++;
+			if (tcm_hcd->log_level > 2) OVT_INFO("Finger %d: x = %d, y = %d, touch_count:%d\n", idx, x, y, touch_count);
 			break;
 		default:
 			break;
@@ -880,6 +886,23 @@ static void touch_report(void)
 	}
 
 	input_sync(touch_hcd->input_dev);
+
+#ifdef CONFIG_TP_LAST_TIME
+	if (touch_count > 0) {
+		//touch down/moving
+		if(time_flag) {
+			tcm_hcd->last_event_time = ktime_get_boottime();
+			//skip all other touch moving events before UP
+			time_flag = 0;
+			if (tcm_hcd->log_level > 1) OVT_INFO("set last_event_time, touch_count:%d\n", touch_count);
+		}
+	}
+	else {
+		//touch_count 0, enable time flag for next touch
+		time_flag = 1;
+		if (tcm_hcd->log_level > 1) OVT_INFO("reset time_flag 1 for last_event\n");
+	}
+#endif
 
 exit:
 	mutex_unlock(&touch_hcd->report_mutex);

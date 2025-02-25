@@ -432,6 +432,22 @@ static ssize_t productinfo_show(struct device *dev, struct device_attribute *att
 	return scnprintf(buf, PAGE_SIZE, "%s\n", product_info);
 }
 
+#ifdef CONFIG_TP_LAST_TIME
+static ssize_t timestamp_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ktime_t last_ktime;
+	struct timespec64 last_ts;
+
+	if (g_tcm_hcd) {
+		last_ktime = g_tcm_hcd->last_event_time;
+		g_tcm_hcd->last_event_time = 0;
+		last_ts = ktime_to_timespec64(last_ktime);
+	}
+	return scnprintf(buf, PAGE_SIZE, "%lld.%ld\n", last_ts.tv_sec, last_ts.tv_nsec);
+}
+#endif
+
 #ifdef OVT_DOUBLE_TAP_CTRL
 static ssize_t gesture_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -589,6 +605,9 @@ static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(vendor),
 	__ATTR_RO(ic_ver),
 	__ATTR_RO(productinfo),
+#ifdef CONFIG_TP_LAST_TIME
+	__ATTR_RO(timestamp),
+#endif
 #ifdef OVT_DOUBLE_TAP_CTRL
 	__ATTR_RW(gesture),
 	__ATTR_RW(gesture_enabled_dbg),

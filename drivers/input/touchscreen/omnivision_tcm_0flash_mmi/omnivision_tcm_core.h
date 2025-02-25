@@ -602,6 +602,9 @@ struct ovt_tcm_hcd {
 	int set_stowed;
 	int get_stowed;
 #endif
+#ifdef CONFIG_TP_LAST_TIME
+	ktime_t last_event_time;
+#endif
 
 	struct platform_device *pdev;
 	struct regulator *pwr_reg;
