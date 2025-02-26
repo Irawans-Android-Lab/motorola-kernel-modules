@@ -37,11 +37,6 @@
 #include "../../../drivers/gpu/drm/mediatek/mediatek_v2/mtk_disp_notify.h"
 #include "../../../drivers/gpu/drm/mediatek/mediatek_v2/mtk_panel_ext.h"
 
-#if IS_ENABLED(CONFIG_OEM_DEVINFO)
-#include "../../devinfo/dev_info.h"
-struct ovt_tcm_hcd *onmivision_tcm_hcd;
-#endif
-
 #define RESET_ON_RESUME
 
 /* #define RESUME_EARLY_UNBLANK */
@@ -4932,95 +4927,6 @@ int  charger_module_init(void)
 #endif
 #endif
 
-#if IS_ENABLED(CONFIG_OEM_DEVINFO)
-static int ovt_get_tp_info(char *buf, void *arg0)
-{
-	//int id = td4160_lcd_id | td4376_lcd_id;
-    int id = 0;
-	if(id == 0x000d)
-        return sprintf(buf,
-        "%s-%s-%s-v0x%02x",
-        "DIJIN",
-        "P329A",
-        "TD4160",
-        onmivision_tcm_hcd->app_info.customer_config_id[15]);
-	else if(id == 0x010d)
-        return sprintf(buf,
-        "%s-%s-%s-v0x%02x",
-        "TIANMA",
-        "P329A",
-        "TD4376",
-        onmivision_tcm_hcd->app_info.customer_config_id[15]);
-	else
-        return sprintf(buf,
-        "unknown TP");
-}
-#endif
-
-#define USER_STR_BUFF		PAGE_SIZE
-static unsigned char g_user_buf[USER_STR_BUFF] = {0};
-static ssize_t tp_gesture_mode_read(struct file *filp, char __user *buff, size_t size, loff_t *pos)
-{
-	u32 len = 0;
-	LOGD(g_tcm_hcd->pdev->dev.parent, "++\n");
-
-	if (*pos != 0)
-		return 0;
-
-	mutex_lock(&g_tcm_hcd->extif_mutex);
-
-	memset(g_user_buf, 0, USER_STR_BUFF * sizeof(unsigned char));
-	len += snprintf(g_user_buf + len, USER_STR_BUFF - len,
-						"%d\n", g_tcm_hcd->wakeup_gesture_enabled);
-	if (copy_to_user((char *)buff, g_user_buf, len))
-		LOGE(g_tcm_hcd->pdev->dev.parent, "Failed to copy data to user space\n");
-	*pos += len;
-
-	mutex_unlock(&g_tcm_hcd->extif_mutex);
-	LOGD(g_tcm_hcd->pdev->dev.parent, "--\n");
-	return len;
-}
-
-int td4376_gesture_mode;
-int td4160_gesture_mode;
-static ssize_t tp_gesture_mode_write(struct file *filp, const char *buff, size_t size, loff_t *pos)
-{
-	char cmd[256] = { 0 };
-
-	if ((size) > sizeof(cmd)) {
-		LOGE(g_tcm_hcd->pdev->dev.parent, "ERROR! input length is larger than local buffer\n");
-		return -1;
-	}
-	mutex_lock(&g_tcm_hcd->extif_mutex);
-	if (buff != NULL) {
-		if (copy_from_user(cmd, buff, size)) {
-			LOGE(g_tcm_hcd->pdev->dev.parent, "Failed to copy data from user space\n");
-			size = -1;
-			goto out;
-		}
-	}
-
-	if (OVT_GESTURE_ON(cmd)) {
-		g_tcm_hcd->wakeup_gesture_enabled = GESTURE_SINGLE_DOUBLE;
-	} else if (OVT_DOUBLE_TAP_ON(cmd)) {
-		g_tcm_hcd->wakeup_gesture_enabled = GESTURE_DOUBLE;
-	} else if (OVT_SINGLE_TAP_ON(cmd)) {
-		g_tcm_hcd->wakeup_gesture_enabled = GESTURE_SINGLE;
-	} else if (OVT_GESTURE_OFF(cmd)) {
-		g_tcm_hcd->wakeup_gesture_enabled = GESTURE_DISABLE;
-	} else {
-		LOGE(g_tcm_hcd->pdev->dev.parent, "error cmd %s!\n", cmd);
-		goto out;
-	}
-	td4376_gesture_mode = (OVT_GESTURE_JUDGE(cmd)) ? 1:0;
-	td4160_gesture_mode = (OVT_GESTURE_JUDGE(cmd)) ? 1:0;
-
-	LOGE(g_tcm_hcd->pdev->dev.parent, "gesture_tpye = %d\n", g_tcm_hcd->wakeup_gesture_enabled);
-out:
-	mutex_unlock(&g_tcm_hcd->extif_mutex);
-	return size;
-}
-
 void ovt_enable_irq(bool enable)
 {
 	g_tcm_hcd->enable_irq(g_tcm_hcd, enable, true);
@@ -5055,43 +4961,8 @@ void ovt_apply_gesture_mode(void)
 	}
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 6, 0)
-typedef struct {
-	char *name;
-	struct proc_dir_entry *node;
-	struct proc_ops *fops;
-	bool isCreated;
-} proc_node;
-#else
-typedef struct {
-	char *name;
-	struct proc_dir_entry *node;
-	struct file_operations *fops;
-	bool isCreated;
-} proc_node;
-#endif
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 6, 0)
-static struct proc_ops proc_tp_gesture_mode_fops = {
-	.proc_read = tp_gesture_mode_read,
-	.proc_write = tp_gesture_mode_write,
-	.proc_lseek = default_llseek,
-};
-#else
-static struct file_operations proc_tp_gesture_mode_fops = {
-	.read = tp_gesture_mode_read,
-	.write = tp_gesture_mode_write,
-	.llseek = default_llseek,
-};
-#endif
-
-static proc_node tp_info_proc[] = {
-	{"tp_gesture_mode", NULL, &proc_tp_gesture_mode_fops, false},
-};
-
 static void touch_info_node_init(void)
 {
-	int i = 0;
 	if (!touch_info_dir) {
 		touch_info_dir = proc_mkdir("touch_info", NULL);
 	}
@@ -5100,17 +4971,6 @@ static void touch_info_node_init(void)
 		return;
 	}
 	LOGD(g_tcm_hcd->pdev->dev.parent, "touch_info_node_init\n");
-	for (; i < ARRAY_SIZE(tp_info_proc); i++) {
-		tp_info_proc[i].node = proc_create(tp_info_proc[i].name, 0644,
-					touch_info_dir, tp_info_proc[i].fops);
-		if (tp_info_proc[i].node == NULL) {
-			tp_info_proc[i].isCreated = false;
-			LOGE(g_tcm_hcd->pdev->dev.parent, "Failed to create %s under /proc\n", tp_info_proc[i].name);
-		} else {
-			tp_info_proc[i].isCreated = true;
-			LOGE(g_tcm_hcd->pdev->dev.parent, "Succeed to create %s under /proc\n", tp_info_proc[i].name);
-		}
-	}
 }
 
 static int ovt_tcm_probe(struct platform_device *pdev)
@@ -5339,11 +5199,6 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	}
 
     ovt_create_touchscreen_sysfs();
-
-#if IS_ENABLED(CONFIG_OEM_DEVINFO)
-	onmivision_tcm_hcd = tcm_hcd;
-	FULL_PRODUCT_DEVICE_CB(ID_TP, ovt_get_tp_info, NULL);
-#endif
 
 	tcm_hcd->fb_notifier.notifier_call = ovt_tcm_disp_notifier_cb;
 	retval = mtk_disp_notifier_register("tcm_ts", &tcm_hcd->fb_notifier);
