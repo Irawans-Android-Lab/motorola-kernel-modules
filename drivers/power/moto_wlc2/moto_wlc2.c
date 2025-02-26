@@ -52,6 +52,10 @@ void moto_wlc_control_gpio(struct chg_alg_device *alg, bool enable)
 
 	wlc = dev_get_drvdata(&alg->dev);
 	if (gpio_is_valid(wlc->wls_control_en)) {
+		pr_info("%s now_inhibit:%d hook:%d", __func__,
+			gpio_get_value(wlc->wls_control_en), wlc->ctl.inhibit_hook);
+		if (wlc->ctl.inhibit_hook)
+			return;
 		gpio_set_value(wlc->wls_control_en, enable);
 		pr_info("%s inhibit:%d wireless %s\n", __func__,
 			gpio_get_value(wlc->wls_control_en), enable ? "disable" : "enable");

@@ -182,6 +182,7 @@ struct wlc_profile {
 
 struct wireless_ctl
 {
+	bool inhibit_hook;
 	bool tx_mode;
 	bool bpp_icl_done;
 	bool epp_icl_done;

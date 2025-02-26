@@ -979,8 +979,7 @@ static ssize_t inhibit_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t count)
 {
-	unsigned long r;
-	unsigned long en;
+	int en = 0;
 	struct moto_wlc *pWlc = dev->driver_data;
 
 	if (IS_ERR_OR_NULL(pWlc)) {
@@ -988,18 +987,23 @@ static ssize_t inhibit_store(struct device *dev,
 		return -ENODEV;
 	}
 
-	r = kstrtoul(buf, 0, &en);
-	if (r) {
-		wlc_err("Invalid inhibit = %lu\n", en);
+	if (buf[0] == '0') {
+		en = 0;
+	} else if (buf[0] == '1') {
+		en = 1;
+	} else {
+		wlc_err("Invalid inhibit = %d\n", en);
 		return -EINVAL;
 	}
+	pWlc->ctl.inhibit_hook = en;
 
 	if (gpio_is_valid(pWlc->wls_control_en)) {
 		gpio_set_value(pWlc->wls_control_en, en);
-		r = gpio_get_value(pWlc->wls_control_en);
+		wlc_info("%s en:%d now inhibit:%d\n",
+			__func__, en, gpio_get_value(pWlc->wls_control_en));
 	}
 
-	return r ? r : count;
+	return count;
 }
 
 static ssize_t inhibit_show(struct device *dev,
