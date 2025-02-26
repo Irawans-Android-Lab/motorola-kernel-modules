@@ -811,6 +811,7 @@ static int ovt_tcm_spi_remove(struct spi_device *spi)
 	ovt_tcm_spi_device->dev.platform_data = NULL;
 
 	platform_device_unregister(ovt_tcm_spi_device);
+	OVT_INFO("end");
 
 	return 0;
 }

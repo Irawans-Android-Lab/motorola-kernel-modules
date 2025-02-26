@@ -1355,7 +1355,7 @@ static int ovt_tap_sensor_init(struct ovt_tcm_hcd *data)
     if (err)
         goto unregister_sensor_input_device;
 
-	OVT_INFO("done");
+    OVT_INFO("done");
     return 0;
 
 unregister_sensor_input_device:
@@ -1366,12 +1366,17 @@ free_sensor_pdata:
     devm_kfree(&sensor_input_dev->dev, sensor_pdata);
     data->sensor_pdata = NULL;
 exit:
-	OVT_INFO("exit 1");
+    OVT_INFO("exit 1");
     return 1;
 }
 
 int ovt_tap_sensor_remove(struct ovt_tcm_hcd *data)
 {
+    if (!data || !data->sensor_pdata) {
+	    OVT_INFO("data null return");
+	    return 0;
+    }
+
     sensors_classdev_unregister(&data->sensor_pdata->ps_cdev);
     input_unregister_device(data->sensor_pdata->input_sensor_dev);
     devm_kfree(&data->sensor_pdata->input_sensor_dev->dev,
@@ -1379,7 +1384,7 @@ int ovt_tap_sensor_remove(struct ovt_tcm_hcd *data)
     data->sensor_pdata = NULL;
     //data->wakeable = false;
     data->wakeup_gesture_enabled = false;
-	OVT_INFO("end");
+    OVT_INFO("end");
     return 0;
 }
 #endif
@@ -1434,8 +1439,8 @@ int touch_init(struct ovt_tcm_hcd *tcm_hcd)
     }
 #endif
 
-	OVT_INFO("end");
-	return 0;
+    OVT_INFO("end");
+    return 0;
 
 err_set_input_reporting:
 	kfree(touch_hcd->touch_data.object_data);
@@ -1455,10 +1460,15 @@ int touch_remove(struct ovt_tcm_hcd *tcm_hcd)
 	if (!touch_hcd)
 		goto exit;
 
+	OVT_INFO("enter");
 	tcm_hcd->report_touch = NULL;
 
 	if (touch_hcd->input_dev)
 		input_unregister_device(touch_hcd->input_dev);
+
+#ifdef OVT_TAP_SENSOR_EN
+	ovt_tap_sensor_remove(tcm_hcd);
+#endif
 
 	kfree(touch_hcd->touch_data.object_data);
 	kfree(touch_hcd->prev_status);

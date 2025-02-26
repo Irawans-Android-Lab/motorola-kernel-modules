@@ -1466,6 +1466,7 @@ static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int idx;
 
+	OVT_INFO("enter");
 	if (!zeroflash_hcd)
 		goto exit;
 
@@ -1502,6 +1503,7 @@ static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)
 exit:
 	complete(&zeroflash_remove_complete);
 
+	OVT_INFO("end");
 	return 0;
 }
 
