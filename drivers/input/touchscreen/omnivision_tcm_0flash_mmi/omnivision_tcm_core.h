@@ -739,7 +739,9 @@ struct ovt_tcm_hw_interface {
 	const struct ovt_tcm_bus_io *bus_io;
 };
 
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 extern struct proc_dir_entry *touch_info_dir;
+#endif
 #define OVT_GESTURE_ON(flag)      (flag[0] == '3')
 #define OVT_DOUBLE_TAP_ON(flag)   (flag[0] == '2')
 #define OVT_SINGLE_TAP_ON(flag)   (flag[0] == '1')

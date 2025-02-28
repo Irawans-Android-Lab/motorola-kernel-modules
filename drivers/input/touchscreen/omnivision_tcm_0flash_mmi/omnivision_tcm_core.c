@@ -4961,6 +4961,7 @@ void ovt_apply_gesture_mode(void)
 	}
 }
 
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 static void touch_info_node_init(void)
 {
 	if (!touch_info_dir) {
@@ -4972,6 +4973,7 @@ static void touch_info_node_init(void)
 	}
 	LOGD(g_tcm_hcd->pdev->dev.parent, "touch_info_node_init\n");
 }
+#endif
 
 static int ovt_tcm_probe(struct platform_device *pdev)
 {
@@ -5144,7 +5146,9 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 #ifdef CONFIG_OVT_CHARGER_DETECT
 	charger_module_init();
 #endif
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 	touch_info_node_init();
+#endif
 
 	sysfs_dir = kobject_create_and_add(PLATFORM_DRIVER_NAME,
 			NULL); //&pdev->dev.kobj);  move to /sys

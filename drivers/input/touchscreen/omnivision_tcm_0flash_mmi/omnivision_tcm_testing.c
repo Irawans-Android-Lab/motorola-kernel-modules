@@ -173,7 +173,9 @@ struct testing_hcd {
 	unsigned int num_of_reports;
 	struct kobject *sysfs_dir;
 	struct proc_dir_entry *proc_csv;
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 	struct proc_dir_entry *ovt_selftest_proc_entry;
+#endif
 	struct ovt_tcm_buffer out;
 	struct ovt_tcm_buffer resp;
 	struct ovt_tcm_buffer report;
@@ -201,7 +203,9 @@ DECLARE_COMPLETION(report_complete);
 
 DECLARE_COMPLETION(testing_remove_complete);
 
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 struct proc_dir_entry *touch_info_dir;
+#endif
 
 static struct testing_hcd *testing_hcd;
 
@@ -2133,6 +2137,7 @@ static void testing_report(void)
 	return;
 }
 
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 static void *ovt_selftest_seq_start(struct seq_file *m, loff_t *pos)
 {
     return *pos < 1 ? (void *)1 : NULL;
@@ -2201,6 +2206,7 @@ static const struct file_operations ovt_selftest_fops = {
 	.release = seq_release,
 };
 #endif
+#endif
 
 static int testing_init(struct ovt_tcm_hcd *tcm_hcd)
 {
@@ -2251,6 +2257,7 @@ static int testing_init(struct ovt_tcm_hcd *tcm_hcd)
 		goto err_sysfs_create_bin_file;
 	}
 
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 	if (!touch_info_dir) {
 		touch_info_dir = proc_mkdir("touch_info", NULL);
 	}
@@ -2264,6 +2271,7 @@ static int testing_init(struct ovt_tcm_hcd *tcm_hcd)
 		LOGE(tcm_hcd->pdev->dev.parent, "create /proc/touch_info/tp_selftest_result Failed!\n");
 		return -1;
 	}
+#endif
 
 	testing_hcd->proc_csv = proc_create_data("ovt_test_csv", 0777, NULL, &ovt_proccsv_fops, NULL);
 	if (NULL == testing_hcd->proc_csv) {
@@ -2303,6 +2311,7 @@ static int testing_remove(struct ovt_tcm_hcd *tcm_hcd)
 	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++)
 		sysfs_remove_file(testing_hcd->sysfs_dir, &(*attrs[idx]).attr);
 
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 	if (testing_hcd->ovt_selftest_proc_entry != NULL) {
 		remove_proc_entry("tp_selftest_result", touch_info_dir);
 		testing_hcd->ovt_selftest_proc_entry = NULL;
@@ -2313,6 +2322,7 @@ static int testing_remove(struct ovt_tcm_hcd *tcm_hcd)
 		touch_info_dir = NULL;
 		LOGE(tcm_hcd->pdev->dev.parent,"Removed /proc/touch_info\n");
 	}
+#endif
 	kobject_put(testing_hcd->sysfs_dir);
 
 	RELEASE_BUFFER(testing_hcd->output);
@@ -2323,9 +2333,11 @@ static int testing_remove(struct ovt_tcm_hcd *tcm_hcd)
 	if (testing_hcd->proc_csv) {
 		proc_remove(testing_hcd->proc_csv);
 	}
+#ifdef CONFIG_OVT_SELFTEST_ENABLE
 	if (testing_hcd->ovt_selftest_proc_entry) {
 		proc_remove(testing_hcd->ovt_selftest_proc_entry);
 	}
+#endif
 	kfree(testing_hcd);
 	testing_hcd = NULL;
 
