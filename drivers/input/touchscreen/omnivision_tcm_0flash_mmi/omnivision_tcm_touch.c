@@ -55,8 +55,8 @@ enum touch_status {
 
 enum gesture_id {
 	NO_GESTURE_DETECTED = 0,
-	GESTURE_DOUBLE_TAP = 0X01,
-	GESTURE_SINGLE_TAP = 0x30, //0X1E,
+	GESTURE_DOUBLE_TAP = 0XF4,
+	GESTURE_SINGLE_TAP = 0xF1, //0X1E,
 };
 
 enum touch_report_code {
