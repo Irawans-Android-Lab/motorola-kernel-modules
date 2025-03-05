@@ -2719,7 +2719,6 @@ static int sc858x_resume(struct device *dev)
 		mutex_unlock(&sc->irq_complete);
 	}
 
-	power_supply_changed(sc->psy);
 	dev_info(sc->dev, "Resume successfully!");
 
     return 0;
