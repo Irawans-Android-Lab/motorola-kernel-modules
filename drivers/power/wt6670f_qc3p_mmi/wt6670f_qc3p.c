@@ -1286,7 +1286,11 @@ int mmi_reset_chg_type(struct adapter_device *dev)
 int mmi_start_detection(struct adapter_device *dev)
 {
 	wt6670f_start_detection();
-
+	if(QC3P_Z350 == g_qc3p_id && qc3p_z350_init_ok)
+	{
+		qc3p_z350_init_ok = false;
+		wt6670f_do_reset();
+	}
 	return 0;
 }
 
@@ -1302,7 +1306,7 @@ int mmi_get_protocol(struct adapter_device *dev, int *val)
 	int wait_count = 0;
 	*val = wt6670f_get_protocol();
 
-	if(QC3P_Z350 == g_qc3p_id && *val == 0x010) {
+	if(QC3P_Z350 == g_qc3p_id && (*val == 0x010 || *val == USB_TYPE_DCP)) {
 		wt6670f_en_hvdcp();
 		wait_count = 0;
 		while(wait_count < 30) {
@@ -1446,6 +1450,7 @@ static int wt6670f_i2c_probe(struct i2c_client *client,
 	wt6670f_id = wt6670f_get_id(0x13);
 	if(0x3349 == wt6670f_id){
 		g_qc3p_id = QC3P_Z350;
+		gpio_direction_output(_wt->reset_pin, 1);
 		qc3p_z350_init_ok = true;
 		pr_info("[%s] is z350\n", __func__);
 		is_already_probe_ok = 1;
