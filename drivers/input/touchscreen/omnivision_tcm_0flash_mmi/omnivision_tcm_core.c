@@ -34,9 +34,6 @@
 #include <linux/regulator/consumer.h>
 #include "omnivision_tcm_core.h"
 
-#include "../../../drivers/gpu/drm/mediatek/mediatek_v2/mtk_disp_notify.h"
-#include "../../../drivers/gpu/drm/mediatek/mediatek_v2/mtk_panel_ext.h"
-
 #define RESET_ON_RESUME
 
 /* #define RESUME_EARLY_UNBLANK */
@@ -719,9 +716,13 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
 static void ovt_tcm_check_hdl(struct ovt_tcm_hcd *tcm_hcd,
 							unsigned char id);
 
-
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+static int ovt_tcm_disp_suspend(struct device *dev);
+static int ovt_tcm_disp_resume(struct device *dev);
+#else
 static int ovt_tcm_suspend(struct device *dev);
 static int ovt_tcm_resume(struct device *dev);
+#endif
 
 static ssize_t ovt_tcm_sysfs_ts_suspend_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
@@ -735,9 +736,17 @@ static ssize_t ovt_tcm_sysfs_ts_suspend_store(struct device *dev,
 		return -EINVAL;
 
 	if (input == 1)
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+		ovt_tcm_disp_suspend(&tcm_hcd->pdev->dev);
+#else
 		ovt_tcm_suspend(&tcm_hcd->pdev->dev);
+#endif
 	else if (input == 0)
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+		ovt_tcm_disp_resume(&tcm_hcd->pdev->dev);
+#else
 		ovt_tcm_resume(&tcm_hcd->pdev->dev);
+#endif
 	else
 		return -EINVAL;
 
@@ -4044,7 +4053,7 @@ static void ovt_tcm_helper_work(struct work_struct *work)
 	return;
 }
 
-
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
 static int ovt_tcm_disp_resume(struct device *dev)
 {
 #if SPEED_UP_RESUME
@@ -4242,9 +4251,7 @@ static int ovt_tcm_disp_notifier_cb(struct notifier_block *nb,
 
 	return 0;
 }
-
-
-#if defined(CONFIG_PM) || defined(CONFIG_DRMV) || defined(CONFIG_FBV)
+#elif defined(CONFIG_PM) || defined(CONFIG_DRM) || defined(CONFIG_FB)
 static int ovt_tcm_resume(struct device *dev)
 {
 #if SPEED_UP_RESUME
@@ -4352,6 +4359,7 @@ exit:
 	return retval;
 #endif
 }
+#endif
 
 #if SPEED_UP_RESUME
 static void speedup_resume(struct work_struct *work)
@@ -4459,6 +4467,9 @@ exit:
 	return;
 }
 #endif
+
+#if !IS_ENABLED(CONFIG_DRM_MEDIATEK)
+#if defined(CONFIG_PM) || defined(CONFIG_DRM) || defined(CONFIG_FB)
 static int ovt_tcm_suspend(struct device *dev)
 {
 	struct ovt_tcm_module_handler *mod_handler;
@@ -4498,7 +4509,10 @@ static int ovt_tcm_suspend(struct device *dev)
 	return 0;
 }
 #endif
-#ifdef CONFIG_DRMV
+#endif
+
+#ifdef CONFIG_OVT_EARLY_SUSPEND
+#ifdef CONFIG_DRM
 static int ovt_tcm_early_suspend(struct device *dev)
 {
 	int retval;
@@ -4615,7 +4629,7 @@ static int ovt_tcm_fb_notifier_cb(struct notifier_block *nb,
 	return 0;
 }
 #endif
-#elif CONFIG_FBV
+#elif CONFIG_FB
 static int ovt_tcm_early_suspend(struct device *dev)
 {
 	struct ovt_tcm_module_handler *mod_handler;
@@ -4725,6 +4739,7 @@ static int ovt_tcm_fb_notifier_cb(struct notifier_block *nb,
 
 	return 0;
 }
+#endif
 #endif
 #endif
 
@@ -4996,7 +5011,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	const struct ovt_tcm_board_data *bdata;
 	const struct ovt_tcm_hw_interface *hw_if;
 #ifndef USE_SYS_SUSPEND_METHOD
-#ifdef CONFIG_DRMV
+#ifdef CONFIG_DRM_CHECK_DT
 	struct drm_panel *active_panel = tcm_get_panel();
 #endif
 #endif
@@ -5217,6 +5232,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 
     ovt_create_touchscreen_sysfs();
 
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
 	tcm_hcd->fb_notifier.notifier_call = ovt_tcm_disp_notifier_cb;
 	retval = mtk_disp_notifier_register("tcm_ts", &tcm_hcd->fb_notifier);
 	if (retval < 0) {
@@ -5224,10 +5240,8 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 					"%s: Failed to register disp  notifier client\n",
 					__func__);
 	}
-
-
-#ifndef USE_SYS_SUSPEND_METHOD
-#ifdef CONFIG_DRMV
+#elif !defined(USE_SYS_SUSPEND_METHOD)
+#ifdef CONFIG_DRM
 	tcm_hcd->fb_notifier.notifier_call = ovt_tcm_fb_notifier_cb;
 	if (active_panel) {
 		retval = drm_panel_notifier_register(active_panel,
@@ -5239,7 +5253,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 		}
 	}
 
-#elif CONFIG_FBV
+#elif CONFIG_FB
 	tcm_hcd->fb_notifier.notifier_call = ovt_tcm_fb_notifier_cb;
 	retval = fb_register_client(&tcm_hcd->fb_notifier);
 	if (retval < 0) {
@@ -5359,13 +5373,14 @@ err_create_run_kthread:
 		power_supply_unreg_notifier(&tcm_hcd->notifier_charger);
 #endif
 
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
 	mtk_disp_notifier_unregister(&tcm_hcd->fb_notifier);
-#ifndef USE_SYS_SUSPEND_METHOD
-#ifdef CONFIG_DRMV
+#elif !defined(USE_SYS_SUSPEND_METHOD)
+#ifdef CONFIG_DRM
 	if (active_panel)
 		drm_panel_notifier_unregister(active_panel,
 				&tcm_hcd->fb_notifier);
-#elif CONFIG_FBV
+#elif CONFIG_FB
 	fb_unregister_client(&tcm_hcd->fb_notifier);
 #endif
 #endif
@@ -5431,7 +5446,7 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 	struct ovt_tcm_hcd *tcm_hcd = platform_get_drvdata(pdev);
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 #ifndef USE_SYS_SUSPEND_METHOD
-#ifdef CONFIG_DRMV
+#ifdef CONFIG_DRM_CHECK_DT
 	struct drm_panel *active_panel = tcm_get_panel();
 #endif
 #endif
@@ -5491,13 +5506,14 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 	kthread_stop(tcm_hcd->notifier_thread);
 #endif
 
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
 	mtk_disp_notifier_unregister(&tcm_hcd->fb_notifier);
-#ifndef USE_SYS_SUSPEND_METHOD
-#ifdef CONFIG_DRMV
+#elif !defined(USE_SYS_SUSPEND_METHOD)
+#ifdef CONFIG_DRM
 	if (active_panel)
 		drm_panel_notifier_unregister(active_panel,
 				&tcm_hcd->fb_notifier);
-#elif CONFIG_FBV
+#elif CONFIG_FB
 	fb_unregister_client(&tcm_hcd->fb_notifier);
 #endif
 #endif
@@ -5550,7 +5566,7 @@ static void ovt_tcm_shutdown(struct platform_device *pdev)
 
 #ifdef CONFIG_PM
 static const struct dev_pm_ops ovt_tcm_dev_pm_ops = {
-#if !defined(CONFIG_DRMV) && !defined(CONFIG_FBV)
+#if !defined(CONFIG_DRM) && !defined(CONFIG_FB)
 	.suspend = ovt_tcm_suspend,
 	.resume = ovt_tcm_resume,
 #endif

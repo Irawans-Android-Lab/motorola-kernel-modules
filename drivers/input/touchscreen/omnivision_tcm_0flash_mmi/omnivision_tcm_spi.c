@@ -101,7 +101,7 @@ static int ovt_get_panel(void)
 }
 #endif
 
-#ifdef CONFIG_DRMV
+#ifdef CONFIG_DRM_CHECK_DT
 static struct drm_panel *active_tcm_panel;
 
 struct drm_panel *tcm_get_panel(void)
@@ -148,11 +148,6 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 
 	OVT_FUNC_ENTER();
 
-#ifdef CONFIG_DRMV
-	retval = ovt_tcm_check_dt(np);
-	if (retval == -EPROBE_DEFER)
-		return retval;
-#endif
 	prop = of_find_property(np, "omnivision,irq-gpio", NULL);
 	if (prop && prop->length) {
 		bdata->irq_gpio = of_get_named_gpio(np,
@@ -725,6 +720,10 @@ static int ovt_tcm_spi_probe(struct spi_device *spi)
 		OVT_INFO("MTK ovt panel fail, return %d\n", retval);
 		return retval;
 	}
+#elif defined(CONFIG_DRM_CHECK_DT)
+	retval = ovt_tcm_check_dt(np);
+	if (retval == -EPROBE_DEFER)
+		return retval;
 #endif
 
 	parse_dt(&spi->dev, hw_if.bdata);

@@ -31,8 +31,6 @@
 #ifndef _OMNIVISION_TCM_CORE_H_
 #define _OMNIVISION_TCM_CORE_H_
 
-#define CONFIG_FBV 0
-
 #include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -40,11 +38,17 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
-#ifdef CONFIG_DRMV
+
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+#include "mtk_disp_notify.h"
+#include "mtk_panel_ext.h"
+#else
+#ifdef CONFIG_DRM
 #include <drm/drm_panel.h>
-#elif CONFIG_FBV
+#elif CONFIG_FB
 #include <linux/fb.h>
 #include <linux/notifier.h>
+#endif
 #endif
 #include <linux/slab.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
@@ -625,7 +629,7 @@ struct ovt_tcm_hcd {
 #endif
 	struct workqueue_struct *polling_workqueue;
 	struct task_struct *notifier_thread;
-#if defined(CONFIG_DRMV) || defined(CONFIG_FBV)
+#if defined(CONFIG_DRM) || defined(CONFIG_FB)
 	struct notifier_block fb_notifier;
 #endif
 #ifdef CONFIG_OVT_CHARGER_DETECT
@@ -765,7 +769,7 @@ int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd);
 int touch_suspend(struct ovt_tcm_hcd *tcm_hcd);
 int touch_resume(struct ovt_tcm_hcd *tcm_hcd);
 
-#ifdef CONFIG_DRMV
+#ifdef CONFIG_DRM_CHECK_DT
 struct drm_panel *tcm_get_panel(void);
 #endif
 
