@@ -720,6 +720,8 @@ static void smart_batt_update_thread(struct work_struct *work)
 
 	if (chip->combo_voltage_now < vbatt_low)
 		work_intervals = QUEUS_DELAYED_WORK_TIME_LOW_VOL;
+	if (chip->work_interval_ms >= 0)
+		work_intervals = chip->work_interval_ms;
 
 	if (chip->batt_psy) {
 		if (rsoc != chip->uisoc) {
@@ -953,6 +955,42 @@ static void smart_battery_init_data(struct mmi_smart_battery *chip)
 	mmi_info(chip, "%s end\n", __func__);
 }
 
+static ssize_t work_interval_time_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	if (!this_chip) {
+		pr_err("mmi_charger: chip is invalid\n");
+		return -ENODEV;
+	}
+
+	return scnprintf(buf, SMART_BATT_SHOW_MAX_SIZE, "%d\n", this_chip->work_interval_ms);
+}
+
+static ssize_t work_interval_time_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	unsigned long r;
+	unsigned long value;
+
+	if (!this_chip) {
+		pr_err("mmi_charger: chip is invalid\n");
+		return -ENODEV;
+	}
+
+	r = kstrtoul(buf, 0, &value);
+	if (r) {
+		mmi_err(this_chip, "Invalid work_interval_time value = %lu\n", value);
+		return -EINVAL;
+	}
+
+	this_chip->work_interval_ms = value;
+
+	return r ? r : count;
+}
+static DEVICE_ATTR(work_interval_time, 0600, work_interval_time_show, work_interval_time_store);
+
 static ssize_t state_of_health_show(struct device *dev,
 			struct device_attribute *attr,
 			char *buf)
@@ -1109,6 +1147,7 @@ static DEVICE_ATTR(battery_cycle, 0644, battery_cycle_show, battery_cycle_store)
 #endif
 
 static struct attribute *  smart_batt_att[] = {
+	&dev_attr_work_interval_time.attr,
 	&dev_attr_state_of_health.attr,
 	&dev_attr_manufacturing_date.attr,
 	&dev_attr_first_usage_date.attr,
@@ -1192,6 +1231,7 @@ static int smart_battery_probe(struct platform_device *pdev)
 	this_chip = chip;
 	device_init_wakeup(chip->dev, true);
 
+	chip->work_interval_ms = -EINVAL;
 	chip->vbat0_flag   = 0;
 	chip->fake_soc	= -EINVAL;
 	chip->fake_temp	= -EINVAL;
