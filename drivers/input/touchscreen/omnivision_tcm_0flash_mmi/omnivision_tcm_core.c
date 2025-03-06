@@ -395,6 +395,15 @@ static ssize_t vendor_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "omnivision");
 }
 
+static ssize_t buildid_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int count = 0;
+
+	count += snprintf(buf + count, PAGE_SIZE, "%d\n", g_tcm_hcd->packrat_number);
+	return count;
+}
+
 static ssize_t ic_ver_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -599,6 +608,7 @@ static struct device_attribute touchscreen_attributes[] = {
 	__ATTR_RO(path),
 	__ATTR_RO(vendor),
 	__ATTR_RO(ic_ver),
+	__ATTR_RO(buildid),
 	__ATTR_RO(productinfo),
 #ifdef CONFIG_TP_LAST_TIME
 	__ATTR_RO(timestamp),
