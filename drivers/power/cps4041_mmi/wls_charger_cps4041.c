@@ -1663,6 +1663,8 @@ static void cps_offset_detect_work(struct work_struct *work)
 			if (chip->rx_ldo_detect_count >= 3 &&
 				!chip->rx_offset) {
 				chip->rx_offset = true;
+				CPS_RX_MODE_ERR = true;
+				cps_wls_set_rx_disable_func_en(RX_FUNC_MLDO_EN);
 				cps_wls_set_status(WLC_ERR_LOWER_EFFICIENCY);
 				pr_info("%s chip->rx_offset=%d\n", __func__, chip->rx_offset);
 			}
