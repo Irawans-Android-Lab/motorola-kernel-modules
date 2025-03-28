@@ -2734,7 +2734,7 @@ static int sc858x_charger_probe(struct i2c_client *client,
     dev_err(sc->dev, "sc858x[%s] probe successfully!\n",
             sc->mode == SC858X_MASTER ? "master" : "slave");
 
-
+	sc858x_enable_adc(sc, false);
 	sc8565_create_device_node(sc->dev);
 
     return 0;
